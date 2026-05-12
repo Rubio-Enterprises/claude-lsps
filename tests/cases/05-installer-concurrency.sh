@@ -1,20 +1,14 @@
-# Concurrency: two parallel invocations against a mocked-absent binary
-# must result in exactly one install call. The second invocation either
-# short-circuits at the outer `command -v` check (after the first one
-# finishes installing) or waits on the lock and re-checks inside it.
-
 # shellcheck source=../helpers/mock-bin.sh
 source "$TESTS_DIR/helpers/mock-bin.sh"
 
-# A slower mock so the two processes are forced to overlap. The first
-# process holds the lock for ~50ms while the second is queued behind it.
+# Slow install mock with a built-in sleep, used to force the two parallel
+# invocations to overlap and contend on the lock.
 _make_slow_install_mock() {
   local bin_dir="$1" name="$2" log="$3" target="$4"
   cat >"$bin_dir/$name" <<EOF
 #!/usr/bin/env bash
-# Append atomically — POSIX guarantees this for small writes with O_APPEND.
+# Append is atomic for small writes with O_APPEND.
 printf '%s %s\n' "$name" "\$*" >> "$log"
-# Hold the lock briefly to force the second process to wait.
 sleep 0.1
 tmpf=\$(mktemp "$bin_dir/.tmp.XXXXXX")
 printf '#!/usr/bin/env bash\nexit 0\n' > "\$tmpf"

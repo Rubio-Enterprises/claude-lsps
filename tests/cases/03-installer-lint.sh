@@ -1,5 +1,3 @@
-# Static analysis on installer scripts: bash syntax and shellcheck.
-
 tc_installer_bash_syntax() {
   local rc=0 p f
   for p in "${PLUGINS[@]}"; do

@@ -1,5 +1,3 @@
-# Manifest validation.
-
 tc_manifests_json_valid() {
   local rc=0
   local f

@@ -1,14 +1,10 @@
 #!/usr/bin/env node
-// Coverage gate. Reads V8 coverage produced by NODE_V8_COVERAGE during the
-// test run, computes per-file line coverage for the two lsp-proxy.js files,
-// and exits non-zero if any file is below the threshold (default 80%).
-//
 // Usage: node coverage-check.js [--threshold=80]
-
 "use strict";
 
 const fs = require("fs");
 const path = require("path");
+const { fileURLToPath } = require("url");
 
 const ROOT_DIR = process.env.ROOT_DIR;
 const COV_DIR = process.env.NODE_V8_COVERAGE;
@@ -43,34 +39,27 @@ function loadCoverageFiles() {
 }
 
 function urlToPath(url) {
-  if (url.startsWith("file://")) {
-    return decodeURI(url.slice(7));
-  }
-  return url;
+  return url.startsWith("file://") ? fileURLToPath(url) : url;
 }
 
-// Compute per-file coverage: bytes/lines covered vs uncovered. The V8 model
-// is range-based; we mark each byte's state by walking ranges in order
-// (outer ranges first, inner ranges override).
+// V8 coverage is range-based. Per-byte state: 0 = no instrumentation, 1 =
+// covered, 2 = uncovered. Within a single coverage entry inner ranges must
+// override their enclosing range (an outer function called once may contain
+// inner branches that never ran). Across entries from different subprocess
+// runs, covered always wins.
 function computeCoverage(sourcePath, entries) {
   const source = fs.readFileSync(sourcePath, "utf8");
   const len = source.length;
-  // Final state per byte: 0 = no instrumentation, 1 = covered, 2 = uncovered.
-  // Covered-wins across V8 coverage entries from different subprocesses, but
-  // within a single entry inner ranges must override their enclosing range
-  // (an outer function might be called once while an inner branch never runs).
   const state = new Uint8Array(len);
 
   for (const entry of entries) {
     const local = new Uint8Array(len);
     for (const fn of entry.functions || []) {
-      // V8 typically emits ranges outermost-first within a function, but that
-      // ordering isn't part of any public contract. Sort defensively so inner
-      // (smaller/later-starting) ranges always override their enclosing range
-      // regardless of how the engine chose to emit them.
+      // Sort outer→inner so inner ranges override regardless of V8's
+      // emission order (which isn't a public contract).
       const sorted = fn.ranges.slice().sort((a, b) => {
         if (a.startOffset !== b.startOffset) return a.startOffset - b.startOffset;
-        return b.endOffset - a.endOffset; // wider range first → inner overrides
+        return b.endOffset - a.endOffset;
       });
       for (const r of sorted) {
         const mark = r.count > 0 ? 1 : 2;
@@ -79,18 +68,15 @@ function computeCoverage(sourcePath, entries) {
         for (let i = start; i < end; i++) local[i] = mark;
       }
     }
-    // Merge into the global state: covered always wins.
     for (let i = 0; i < len; i++) {
       if (local[i] === 1) state[i] = 1;
       else if (local[i] === 2 && state[i] !== 1) state[i] = 2;
     }
   }
 
-  // Walk lines. A line is "covered" if it contains at least one covered byte
-  // (state==1). It's "uncovered" if it has uncovered bytes but no covered
-  // bytes. Lines with state==0 across all bytes have no instrumentation
-  // (typically blank lines, comments, declarations outside any function) and
-  // are excluded from the denominator.
+  // A line counts as covered if it has any covered byte; uncovered if it has
+  // uncovered bytes but no covered byte; otherwise it's outside the
+  // denominator (blank lines, comments, code outside any function body).
   let covered = 0, uncovered = 0, total = 0;
   let i = 0;
   while (i <= len) {
@@ -122,8 +108,6 @@ function main() {
     process.exit(1);
   }
 
-  // Group V8 script-coverage entries by source file. Only retain entries for
-  // files we actually gate on, so memory stays bounded as scenarios scale.
   const targetSet = new Set(TARGETS);
   const byFile = new Map();
   for (const cov of all) {

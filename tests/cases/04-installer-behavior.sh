@@ -1,10 +1,6 @@
-# Behavior of each check-*.sh under a mocked PATH.
-
 # shellcheck source=../helpers/mock-bin.sh
 source "$TESTS_DIR/helpers/mock-bin.sh"
 
-# Per-plugin metadata:
-#   binary, primary install method, expected install-call pattern.
 _meta_binary() {
   case "$1" in
     ansible-language-server) echo "ansible-language-server" ;;
@@ -16,26 +12,18 @@ _meta_binary() {
   esac
 }
 
-# Run a patched installer in an isolated sandbox.
-# Args: <sandbox> <plugin>
-# Uses globals SBX_EXTRA_BIN to additionally prepend dirs (optional).
+# PATH is sandbox-only; see _provision_real_tools for the rationale.
 _run_installer() {
   local sbx="$1" plugin="$2"
   local script="$sbx/check.sh"
   patch_installer "$plugin" "$script"
-  # PATH is sandbox-only: we symlinked the real system tools we need into
-  # $sbx/bin (see _provision_real_tools). brew/npm/curl/tar can only resolve
-  # if a test explicitly installs a mock for them.
-  local path="$sbx/bin:$sbx/home/.local/bin"
   env -i \
-    PATH="$path" \
+    PATH="$sbx/bin:$sbx/home/.local/bin" \
     HOME="$sbx/home" \
     TMPDIR="$sbx/tmp" \
     TMP_DIR="$TMP_DIR" \
     bash "$script"
 }
-
-# ----- binary already on PATH: no-op, zero install calls -----
 
 _test_binary_present_noop() {
   local plugin="$1"
@@ -43,10 +31,8 @@ _test_binary_present_noop() {
   local sbx; sbx=$(new_sandbox "noop-$plugin")
   local log="$sbx/install.log"
   : > "$log"
-  # Pre-install fake binary on PATH.
   printf '#!/usr/bin/env bash\nexit 0\n' > "$sbx/bin/$binary"
   chmod +x "$sbx/bin/$binary"
-  # No install mocks present.
   if ! _run_installer "$sbx" "$plugin" >"$sbx/out.log" 2>&1; then
     echo "exit non-zero with binary present:"; cat "$sbx/out.log"; return 1
   fi
@@ -55,14 +41,12 @@ _test_binary_present_noop() {
   fi
 }
 
-# ----- primary install method present, binary absent: exactly one install call -----
-
 _test_primary_install_brew() {
   local plugin="$1" formula="$2" target="$3"
   local sbx; sbx=$(new_sandbox "brew-$plugin")
   local log="$sbx/install.log"
   : > "$log"
-  make_install_mock "$sbx/bin" brew "$log" "$target"
+  make_install_mock "$sbx/bin" brew "$log" --target="$target"
   local out
   if ! _run_installer "$sbx" "$plugin" >"$sbx/out.log" 2>&1; then
     echo "installer exited non-zero:"; cat "$sbx/out.log"; return 1
@@ -79,11 +63,10 @@ _test_primary_install_brew() {
 
 _test_primary_install_npm() {
   local plugin="$1" pkg="$2" target="$3"
-  # Force the npm branch by having only npm available (no brew).
   local sbx; sbx=$(new_sandbox "npm-$plugin")
   local log="$sbx/install.log"
   : > "$log"
-  make_install_mock "$sbx/bin" npm "$log" "$target"
+  make_install_mock "$sbx/bin" npm "$log" --target="$target"
   if ! _run_installer "$sbx" "$plugin" >"$sbx/out.log" 2>&1; then
     echo "installer exited non-zero:"; cat "$sbx/out.log"; return 1
   fi
@@ -98,7 +81,6 @@ _test_primary_install_npm() {
 }
 
 _test_cue_binary_install() {
-  # No brew on PATH -> falls back to curl | tar xz.
   local sbx; sbx=$(new_sandbox "cue-binary")
   local log="$sbx/install.log"
   : > "$log"
@@ -109,7 +91,6 @@ _test_cue_binary_install() {
   fi
   if ! grep -q '^curl ' "$log"; then echo "no curl call recorded"; cat "$log"; return 1; fi
   if ! grep -q '^tar ' "$log";  then echo "no tar call recorded"; cat "$log"; return 1; fi
-  # The pipeline must be exactly one install attempt: one curl call and one tar call.
   local curl_calls tar_calls
   curl_calls=$(grep -c '^curl ' "$log")
   tar_calls=$(grep -c '^tar ' "$log")
@@ -118,15 +99,13 @@ _test_cue_binary_install() {
     cat "$log"
     return 1
   fi
-  # tar invocation must include the 'xz' flag pair (extract + gunzip).
-  # Match `xz` as its own argument: surrounded by start/space and space/end.
+  # `xz` must appear as its own argument, not as a substring of another flag.
   if ! grep -E '^tar( .*)? xz( |$)' "$log" >/dev/null; then
     echo "tar call missing 'xz' flag:"; cat "$log"; return 1
   fi
 }
 
 _test_regal_binary_install() {
-  # Linux path: regal always uses binary download (no brew branch on non-Darwin).
   local sbx; sbx=$(new_sandbox "regal-binary")
   local log="$sbx/install.log"
   : > "$log"
@@ -138,14 +117,11 @@ _test_regal_binary_install() {
   if (( curl_calls != 1 )); then
     echo "expected exactly 1 curl call, got $curl_calls:"; cat "$log"; return 1
   fi
-  # Curl call must write to $HOME/.local/bin/regal. grep -F so $sbx isn't
-  # interpreted as a regex.
+  # grep -F so $sbx isn't interpreted as a regex.
   if ! grep -F -- "-o $sbx/home/.local/bin/regal" "$log" >/dev/null; then
     echo "curl call did not target the expected install path:"; cat "$log"; return 1
   fi
 }
-
-# ----- all install methods absent: exit non-zero with stderr message -----
 
 _test_all_absent_fails() {
   local plugin="$1"
@@ -157,7 +133,6 @@ _test_all_absent_fails() {
     cat "$sbx/out.log" "$sbx/err.log"
     return 1
   fi
-  # Stderr or stdout should mention the missing tooling.
   if ! grep -iE 'Neither Homebrew nor npm|Install one of them' "$sbx/out.log" "$sbx/err.log" >/dev/null; then
     echo "expected 'Neither Homebrew nor npm' message; got:"
     echo "--- stdout ---"; cat "$sbx/out.log"
@@ -165,8 +140,6 @@ _test_all_absent_fails() {
     return 1
   fi
 }
-
-# ----- registration: explicit wrappers per scenario for clear failure names -----
 
 tc_install_noop_ansible()  { _test_binary_present_noop ansible-language-server; }
 tc_install_noop_bash()     { _test_binary_present_noop bash-language-server; }
@@ -194,15 +167,13 @@ tc_install_absent_bash()    { _test_all_absent_fails bash-language-server; }
 tc_install_absent_pyright() { _test_all_absent_fails pyright; }
 tc_install_absent_vtsls()   { _test_all_absent_fails vtsls; }
 
-# ----- parity tests: OS-conditional and lock-mechanism branches -----
-
-# Regal's brew branch only runs on Darwin (the Linux branch always forces the
-# binary path). Mock uname so the Darwin code path is exercised on any host.
+# Regal's brew branch only runs on Darwin (Linux forces the binary path).
+# Mock uname so the Darwin code path is exercised on any host.
 tc_install_darwin_regal() {
   local sbx; sbx=$(new_sandbox "darwin-regal")
   local log="$sbx/install.log"; : >"$log"
   make_uname_mock "$sbx/bin" Darwin arm64
-  make_install_mock "$sbx/bin" brew "$log" regal
+  make_install_mock "$sbx/bin" brew "$log" --target=regal
   if ! _run_installer "$sbx" regal-lsp >"$sbx/out.log" 2>&1; then
     echo "darwin regal install exited non-zero:"; cat "$sbx/out.log"; return 1
   fi
@@ -219,13 +190,11 @@ tc_install_darwin_regal() {
   fi
 }
 
-# When flock is unavailable the scripts fall back to a mkdir-based lock. Drop
-# the flock symlink and verify the install still runs to completion.
 tc_install_mkdir_lock_fallback() {
   local sbx; sbx=$(new_sandbox "mkdir-lock-ansible")
   local log="$sbx/install.log"; : >"$log"
   remove_flock "$sbx/bin"
-  make_install_mock "$sbx/bin" brew "$log" ansible-language-server
+  make_install_mock "$sbx/bin" brew "$log" --target=ansible-language-server
   if ! _run_installer "$sbx" ansible-language-server >"$sbx/out.log" 2>&1; then
     echo "mkdir-lock fallback exited non-zero:"; cat "$sbx/out.log"; return 1
   fi
@@ -233,11 +202,9 @@ tc_install_mkdir_lock_fallback() {
   if (( calls != 1 )); then
     echo "expected 1 install call via mkdir-lock branch, got $calls:"; cat "$log"; return 1
   fi
-  # The mkdir-lock branch creates "$LOCK_FILE.d" (a directory) and cleans it
-  # up via EXIT trap; the flock branch creates the bare "$LOCK_FILE" (a file)
-  # via the `9>` redirection. Lock paths are scoped to the sandbox by
-  # patch_installer, so the presence of either tells us unambiguously which
-  # branch ran.
+  # The mkdir branch creates "$LOCK_FILE.d" (a directory, cleaned up via EXIT
+  # trap); the flock branch creates the bare "$LOCK_FILE" (a file, via `9>`).
+  # Presence of either tells us which branch actually ran.
   if compgen -G "$sbx/lock-*.lock.d" >/dev/null; then
     echo "mkdir lock dir was not cleaned up:"
     compgen -G "$sbx/lock-*.lock.d"
@@ -250,11 +217,10 @@ tc_install_mkdir_lock_fallback() {
   fi
 }
 
-# Primary install command returns non-zero: script should fail loudly.
 tc_install_failure_propagates() {
   local sbx; sbx=$(new_sandbox "fail-ansible")
   local log="$sbx/install.log"; : >"$log"
-  make_install_mock_failing "$sbx/bin" brew "$log"
+  make_install_mock "$sbx/bin" brew "$log" --exit=1
   local rc=0
   _run_installer "$sbx" ansible-language-server >"$sbx/out.log" 2>&1 || rc=$?
   if (( rc == 0 )); then
@@ -267,13 +233,10 @@ tc_install_failure_propagates() {
   fi
 }
 
-# Install command exits 0 but the binary is still missing afterwards (e.g.
-# brew claims success while writing to a directory not on PATH). The script
-# must catch this with its post-install check and exit non-zero.
 tc_install_post_check_missing_binary() {
   local sbx; sbx=$(new_sandbox "no-binary-after-ansible")
   local log="$sbx/install.log"; : >"$log"
-  make_install_mock_silent_failure "$sbx/bin" brew "$log"
+  make_install_mock "$sbx/bin" brew "$log"
   local rc=0
   _run_installer "$sbx" ansible-language-server >"$sbx/out.log" 2>&1 || rc=$?
   if (( rc == 0 )); then

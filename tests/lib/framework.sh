@@ -1,7 +1,3 @@
-# Test framework. Sourced by tests/run.sh.
-# Tests register themselves via `register_test "<name>" "<fn>"`.
-
-# Use indexed arrays to preserve registration order.
 TEST_NAMES=()
 TEST_FNS=()
 

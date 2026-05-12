@@ -1,50 +1,49 @@
-# Helpers to construct a mocked PATH sandbox for installer-script tests.
-# Sourced by 04-installer-behavior.sh and 05-installer-concurrency.sh.
-
-# Copy and patch a check-*.sh script so its LOCK_FILE paths live inside the
-# sandbox dir (i.e. alongside the patched script itself). Scoping to the
-# sandbox isolates tests from each other: two scenarios for the same plugin
-# don't share lockfile state. Concurrency tests run both invocations against
-# the same sandbox so they intentionally share the lockfile.
-# Usage: patch_installer <plugin> <out-path>
+# Rewrite the installer's hard-coded /tmp/claude-lsp-*.lock paths to live
+# inside the sandbox dir, so lockfile state can't leak between scenarios.
+# Concurrency tests intentionally share a sandbox so both invocations see the
+# same lockfile.
 patch_installer() {
   local plugin="$1" out="$2"
-  local src
-  src=$(ls "$ROOT_DIR/$plugin/hooks/"check-*.sh | head -n1)
-  local sbx_dir
-  sbx_dir=$(dirname "$out")
-  # /tmp/claude-lsp-<kind>.lock => $sbx/lock-<kind>.lock
-  local prefix="${sbx_dir}/lock-"
-  sed "s|/tmp/claude-lsp-|${prefix}|g" "$src" > "$out"
+  local files=("$ROOT_DIR/$plugin/hooks/"check-*.sh)
+  local prefix
+  prefix=$(dirname "$out")/lock-
+  sed "s|/tmp/claude-lsp-|${prefix}|g" "${files[0]}" > "$out"
   chmod +x "$out"
 }
 
-# Create a fake install command that:
-#   - logs its call to $log
-#   - on completion creates a fake binary at $bin_dir/$target (if $target non-empty)
-# Usage: make_install_mock <bin_dir> <mock_name> <log> <target_binary>
+# make_install_mock <bin_dir> <name> <log> [--target=BIN] [--exit=N]
+# Omitting --target makes the mock "succeed" without installing anything,
+# triggering the installer's post-install missing-binary check.
 make_install_mock() {
-  local bin_dir="$1" name="$2" log="$3" target="${4:-}"
+  local bin_dir="$1" name="$2" log="$3"
+  shift 3
+  local target="" exit_code=0
+  while (( $# > 0 )); do
+    case "$1" in
+      --target=*) target="${1#--target=}" ;;
+      --exit=*)   exit_code="${1#--exit=}" ;;
+      *) echo "make_install_mock: unknown arg $1" >&2; return 2 ;;
+    esac
+    shift
+  done
   cat >"$bin_dir/$name" <<EOF
 #!/usr/bin/env bash
 printf '%s %s\n' "$name" "\$*" >> "$log"
 EOF
   if [[ -n "$target" ]]; then
     cat >>"$bin_dir/$name" <<EOF
-mkdir -p "$bin_dir"
 tmpf=\$(mktemp "$bin_dir/.tmp.XXXXXX")
 printf '#!/usr/bin/env bash\nexit 0\n' > "\$tmpf"
 chmod +x "\$tmpf"
 mv "\$tmpf" "$bin_dir/$target"
 EOF
   fi
+  printf 'exit %s\n' "$exit_code" >> "$bin_dir/$name"
   chmod +x "$bin_dir/$name"
 }
 
-# Fake curl that:
-#   - logs the full argv
-#   - in "-o <path>" mode, writes a stub executable to <path>
-#   - otherwise, writes 1 byte to stdout (so pipes don't appear empty)
+# In `-o PATH` mode the mock writes a stub executable; otherwise it emits one
+# byte so a piped consumer (e.g. tar) doesn't see an empty stream.
 make_curl_mock() {
   local bin_dir="$1" log="$2"
   cat >"$bin_dir/curl" <<EOF
@@ -70,8 +69,7 @@ EOF
   chmod +x "$bin_dir/curl"
 }
 
-# Fake tar that logs and, when given "-C <dir>", produces a "cue" stub there.
-# Reads and discards stdin so the upstream curl doesn't SIGPIPE.
+# Drains stdin to avoid SIGPIPE on the upstream piped curl.
 make_tar_mock() {
   local bin_dir="$1" log="$2"
   cat >"$bin_dir/tar" <<EOF
@@ -94,23 +92,31 @@ EOF
   chmod +x "$bin_dir/tar"
 }
 
-# Symlink the system tools the installer scripts genuinely need (bash, flock,
-# mkdir, etc.) into the sandbox bin so we can use a fully-controlled PATH that
-# does NOT include /usr/bin or /bin. This prevents real brew/npm/curl/tar from
-# being discovered when an installer script calls `command -v` against them,
-# which would turn the "all install methods absent" test into a real install.
-_provision_real_tools() {
-  local bin_dir="$1"
+# Sandbox PATH must NOT include /usr/bin: otherwise real brew/npm/curl/tar
+# would leak in and turn "all install methods absent" into a real install.
+# Symlink only the tools the installer scripts actually need.
+_REAL_TOOL_PATHS=()
+_resolve_real_tools_once() {
+  if (( ${#_REAL_TOOL_PATHS[@]} > 0 )); then return; fi
   local t real
   for t in bash flock mkdir rmdir sleep uname tr mktemp mv chmod rm cat grep sed awk; do
-    [[ -e "$bin_dir/$t" ]] && continue
     real=$(command -v "$t" 2>/dev/null) || continue
-    ln -s "$real" "$bin_dir/$t"
+    _REAL_TOOL_PATHS+=("$t=$real")
   done
 }
 
-# Build a fresh sandbox directory.
-# Echoes the sandbox path on stdout.
+_provision_real_tools() {
+  local bin_dir="$1"
+  _resolve_real_tools_once
+  local entry name real
+  for entry in "${_REAL_TOOL_PATHS[@]}"; do
+    name="${entry%%=*}"
+    real="${entry#*=}"
+    [[ -e "$bin_dir/$name" ]] && continue
+    ln -s "$real" "$bin_dir/$name"
+  done
+}
+
 new_sandbox() {
   local tag="$1"
   local dir="$TMP_DIR/sandbox/$tag"
@@ -120,8 +126,6 @@ new_sandbox() {
   echo "$dir"
 }
 
-# Replace the symlinked real `uname` with a mock that reports a fixed OS/arch.
-# Used to exercise OS-conditional code paths (Darwin vs Linux) deterministically.
 make_uname_mock() {
   local bin_dir="$1" os="$2" arch="${3:-x86_64}"
   rm -f "$bin_dir/uname"
@@ -140,30 +144,6 @@ EOF
   chmod +x "$bin_dir/uname"
 }
 
-# Drop flock so the installer scripts' mkdir-lock fallback branch runs.
 remove_flock() {
   rm -f "$1/flock"
-}
-
-# Failing install mock: logs the call but exits non-zero and does NOT install.
-make_install_mock_failing() {
-  local bin_dir="$1" name="$2" log="$3"
-  cat >"$bin_dir/$name" <<EOF
-#!/usr/bin/env bash
-printf '%s %s\n' "$name" "\$*" >> "$log"
-exit 1
-EOF
-  chmod +x "$bin_dir/$name"
-}
-
-# "Lying" install mock: returns success but does not create the binary,
-# so the script's post-install command -v check fails.
-make_install_mock_silent_failure() {
-  local bin_dir="$1" name="$2" log="$3"
-  cat >"$bin_dir/$name" <<EOF
-#!/usr/bin/env bash
-printf '%s %s\n' "$name" "\$*" >> "$log"
-exit 0
-EOF
-  chmod +x "$bin_dir/$name"
 }

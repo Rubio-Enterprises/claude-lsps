@@ -1,5 +1,3 @@
-# Proxy framing tests, executed via a Node harness.
-
 _proxy_run() {
   local scenario="$1"
   node "$TESTS_DIR/helpers/proxy-suite.js" "$scenario"

@@ -1,5 +1,3 @@
-# Regal warmup tests (regal-lsp/lsp-proxy.js only).
-
 _warmup_run() {
   node "$TESTS_DIR/helpers/warmup-suite.js" "$1"
 }

@@ -31,8 +31,8 @@ export ROOT_DIR TESTS_DIR TMP_DIR NODE_V8_COVERAGE
 # shellcheck source=lib/framework.sh
 source "$TESTS_DIR/lib/framework.sh"
 
+# Cases are sourced (not exec'd), so PLUGINS is inherited without export.
 PLUGINS=(ansible-language-server bash-language-server cue-lsp pyright regal-lsp vtsls)
-export PLUGINS
 
 for f in "$TESTS_DIR"/cases/*.sh; do
   # shellcheck disable=SC1090
