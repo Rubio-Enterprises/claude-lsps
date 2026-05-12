@@ -113,3 +113,51 @@ new_sandbox() {
   _provision_real_tools "$dir/bin"
   echo "$dir"
 }
+
+# Replace the symlinked real `uname` with a mock that reports a fixed OS/arch.
+# Used to exercise OS-conditional code paths (Darwin vs Linux) deterministically.
+make_uname_mock() {
+  local bin_dir="$1" os="$2" arch="${3:-x86_64}"
+  rm -f "$bin_dir/uname"
+  cat >"$bin_dir/uname" <<EOF
+#!/usr/bin/env bash
+while [[ \$# -gt 0 ]]; do
+  case "\$1" in
+    -s) printf '%s\n' "$os" ;;
+    -m) printf '%s\n' "$arch" ;;
+    -a) printf '%s %s\n' "$os" "$arch" ;;
+    *)  printf '%s\n' "$os" ;;
+  esac
+  shift
+done
+EOF
+  chmod +x "$bin_dir/uname"
+}
+
+# Drop flock so the installer scripts' mkdir-lock fallback branch runs.
+remove_flock() {
+  rm -f "$1/flock"
+}
+
+# Failing install mock: logs the call but exits non-zero and does NOT install.
+make_install_mock_failing() {
+  local bin_dir="$1" name="$2" log="$3"
+  cat >"$bin_dir/$name" <<EOF
+#!/usr/bin/env bash
+printf '%s %s\n' "$name" "\$*" >> "$log"
+exit 1
+EOF
+  chmod +x "$bin_dir/$name"
+}
+
+# "Lying" install mock: returns success but does not create the binary,
+# so the script's post-install command -v check fails.
+make_install_mock_silent_failure() {
+  local bin_dir="$1" name="$2" log="$3"
+  cat >"$bin_dir/$name" <<EOF
+#!/usr/bin/env bash
+printf '%s %s\n' "$name" "\$*" >> "$log"
+exit 0
+EOF
+  chmod +x "$bin_dir/$name"
+}

@@ -1,0 +1,46 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: tests / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pin Node to match the version the suite was developed against. Coverage
+      # collection uses NODE_V8_COVERAGE which has been stable since Node 18.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # jq and shellcheck are required by tests/run.sh's preflight check.
+      - name: install jq + shellcheck (linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq shellcheck
+
+      - name: install jq + shellcheck (macos)
+        if: runner.os == 'macOS'
+        run: |
+          brew install jq shellcheck
+
+      - name: print tool versions
+        run: |
+          bash --version | head -1
+          node --version
+          jq --version
+          shellcheck --version | head -2
+
+      - name: run test suite
+        run: bash tests/run.sh

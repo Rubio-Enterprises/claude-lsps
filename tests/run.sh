@@ -21,7 +21,12 @@ mkdir -p "$TMP_DIR"
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
-export ROOT_DIR TESTS_DIR TMP_DIR
+# Collect V8 coverage from every Node subprocess the harness launches so the
+# final coverage gate can verify the lsp-proxy.js files are well-exercised.
+NODE_V8_COVERAGE="$TMP_DIR/cov"
+mkdir -p "$NODE_V8_COVERAGE"
+
+export ROOT_DIR TESTS_DIR TMP_DIR NODE_V8_COVERAGE
 
 # shellcheck source=lib/framework.sh
 source "$TESTS_DIR/lib/framework.sh"

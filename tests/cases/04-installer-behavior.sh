@@ -194,6 +194,81 @@ tc_install_absent_bash()    { _test_all_absent_fails bash-language-server; }
 tc_install_absent_pyright() { _test_all_absent_fails pyright; }
 tc_install_absent_vtsls()   { _test_all_absent_fails vtsls; }
 
+# ----- parity tests: OS-conditional and lock-mechanism branches -----
+
+# Regal's brew branch only runs on Darwin (the Linux branch always forces the
+# binary path). Mock uname so the Darwin code path is exercised on any host.
+tc_install_darwin_regal() {
+  local sbx; sbx=$(new_sandbox "darwin-regal")
+  local log="$sbx/install.log"; : >"$log"
+  make_uname_mock "$sbx/bin" Darwin arm64
+  make_install_mock "$sbx/bin" brew "$log" regal
+  if ! _run_installer "$sbx" regal-lsp >"$sbx/out.log" 2>&1; then
+    echo "darwin regal install exited non-zero:"; cat "$sbx/out.log"; return 1
+  fi
+  local line; line=$(head -n1 "$log")
+  if [[ "$line" != "brew install styrainc/tap/regal" ]]; then
+    echo "expected 'brew install styrainc/tap/regal', got '$line'"; return 1
+  fi
+}
+
+# When flock is unavailable the scripts fall back to a mkdir-based lock. Drop
+# the flock symlink and verify the install still runs to completion.
+tc_install_mkdir_lock_fallback() {
+  local sbx; sbx=$(new_sandbox "mkdir-lock-ansible")
+  local log="$sbx/install.log"; : >"$log"
+  remove_flock "$sbx/bin"
+  make_install_mock "$sbx/bin" brew "$log" ansible-language-server
+  if ! _run_installer "$sbx" ansible-language-server >"$sbx/out.log" 2>&1; then
+    echo "mkdir-lock fallback exited non-zero:"; cat "$sbx/out.log"; return 1
+  fi
+  local calls; calls=$(wc -l <"$log")
+  if (( calls != 1 )); then
+    echo "expected 1 install call via mkdir-lock branch, got $calls:"; cat "$log"; return 1
+  fi
+  # The mkdir-lock branch creates "$LOCK_FILE.d" and cleans it up via trap.
+  # We just need to confirm the install completed; no lingering lock dir.
+  if compgen -G "$sbx/lock-ansible-language-server-*.d" >/dev/null; then
+    echo "mkdir lock dir was not cleaned up"; return 1
+  fi
+}
+
+# Primary install command returns non-zero: script should fail loudly.
+tc_install_failure_propagates() {
+  local sbx; sbx=$(new_sandbox "fail-ansible")
+  local log="$sbx/install.log"; : >"$log"
+  make_install_mock_failing "$sbx/bin" brew "$log"
+  local rc=0
+  _run_installer "$sbx" ansible-language-server >"$sbx/out.log" 2>&1 || rc=$?
+  if (( rc == 0 )); then
+    echo "expected non-zero exit on install failure; got 0"
+    cat "$sbx/out.log"
+    return 1
+  fi
+  if ! grep -F 'brew install failed' "$sbx/out.log" >/dev/null; then
+    echo "expected 'brew install failed' message; got:"; cat "$sbx/out.log"; return 1
+  fi
+}
+
+# Install command exits 0 but the binary is still missing afterwards (e.g.
+# brew claims success while writing to a directory not on PATH). The script
+# must catch this with its post-install check and exit non-zero.
+tc_install_post_check_missing_binary() {
+  local sbx; sbx=$(new_sandbox "no-binary-after-ansible")
+  local log="$sbx/install.log"; : >"$log"
+  make_install_mock_silent_failure "$sbx/bin" brew "$log"
+  local rc=0
+  _run_installer "$sbx" ansible-language-server >"$sbx/out.log" 2>&1 || rc=$?
+  if (( rc == 0 )); then
+    echo "expected non-zero exit when binary missing post-install; got 0"
+    cat "$sbx/out.log"
+    return 1
+  fi
+  if ! grep -F 'Not in PATH after install' "$sbx/out.log" >/dev/null; then
+    echo "expected post-install message; got:"; cat "$sbx/out.log"; return 1
+  fi
+}
+
 register_test "installer/noop-ansible"     tc_install_noop_ansible
 register_test "installer/noop-bash"        tc_install_noop_bash
 register_test "installer/noop-cue"         tc_install_noop_cue
@@ -219,3 +294,8 @@ register_test "installer/absent-ansible"   tc_install_absent_ansible
 register_test "installer/absent-bash"      tc_install_absent_bash
 register_test "installer/absent-pyright"   tc_install_absent_pyright
 register_test "installer/absent-vtsls"     tc_install_absent_vtsls
+
+register_test "installer/darwin-regal"           tc_install_darwin_regal
+register_test "installer/mkdir-lock-fallback"    tc_install_mkdir_lock_fallback
+register_test "installer/failure-propagates"     tc_install_failure_propagates
+register_test "installer/post-check-missing"     tc_install_post_check_missing_binary
