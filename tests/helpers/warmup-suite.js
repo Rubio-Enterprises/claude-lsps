@@ -268,10 +268,75 @@ async function warmupAbsentNoOpen() {
   await proxy.exited;
 }
 
+async function warmupMultiExtension() {
+  // The proxy's extToLang table maps several extensions to languageIds, with
+  // a slice(1) fallback for unknown extensions. Exercise the loop body across
+  // multiple languages to keep coverage robust against benign refactors of
+  // the warmup walker.
+  const wd = newWorkdir("multi-ext");
+  const stubLog = path.join(wd, "stub");
+  fs.mkdirSync(stubLog, { recursive: true });
+  const tree = path.join(wd, "tree");
+  fs.mkdirSync(tree, { recursive: true });
+  writeRegoTree(tree, {
+    "a.rego": "package a",
+    "b.py": "x = 1",
+    "c.ts": "const x = 1;",
+    "d.swift": "let x = 1",
+    "e.foo": "bar",          // unknown ext → languageId = "foo" via slice(1)
+  });
+
+  const cfg = path.join(wd, "proxy.json");
+  fs.writeFileSync(cfg, JSON.stringify({
+    server: ["node", STUB],
+    blocked: [],
+    warmup: {
+      extensions: [".rego", ".py", ".ts", ".swift", ".foo"],
+      exclude: ["node_modules", ".git", "vendor"],
+    },
+  }));
+
+  const proxy = spawnProxy({
+    STUB_LOG_DIR: stubLog,
+    STUB_AUTO_INIT: "1",
+  }, cfg);
+
+  await driveInitialize(proxy, tree);
+  await waitFor(() => {
+    const msgs = readJsonLines(path.join(stubLog, "recv.jsonl"));
+    return msgs.filter((m) => m.method === "textDocument/didOpen").length >= 5;
+  });
+  await sleep(150);
+
+  const msgs = readJsonLines(path.join(stubLog, "recv.jsonl"));
+  const opens = msgs.filter((m) => m.method === "textDocument/didOpen");
+  // Build a map of filename → languageId so order doesn't matter.
+  const langByFile = {};
+  for (const o of opens) {
+    const uri = o.params.textDocument.uri;
+    langByFile[path.basename(uri)] = o.params.textDocument.languageId;
+  }
+  const expected = {
+    "a.rego": "rego",
+    "b.py": "python",
+    "c.ts": "typescript",
+    "d.swift": "swift",
+    "e.foo": "foo",
+  };
+  for (const [file, lang] of Object.entries(expected)) {
+    assert(langByFile[file] === lang,
+      `expected ${file} languageId='${lang}', got '${langByFile[file]}'`);
+  }
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
 const SCENARIOS = {
   "files-opened": warmupOpensRegoFiles,
   "empty-tree": warmupEmptyTree,
   "no-warmup-section": warmupAbsentNoOpen,
+  "multi-extension": warmupMultiExtension,
 };
 
 const name = process.argv[2];

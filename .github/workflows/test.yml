@@ -17,23 +17,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Pin Node to match the version the suite was developed against. Coverage
-      # collection uses NODE_V8_COVERAGE which has been stable since Node 18.
+      # Pin Node to a specific patch so setup-node@v4 can't drift across runs.
+      # Coverage collection uses NODE_V8_COVERAGE which has been stable since
+      # Node 18, but a fixed version keeps the coverage gate deterministic.
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.11.0'
 
-      # jq and shellcheck are required by tests/run.sh's preflight check.
-      - name: install jq + shellcheck (linux)
-        if: runner.os == 'Linux'
+      # jq is bundled with both runner images at compatible versions. We pin
+      # shellcheck explicitly because new releases periodically add diagnostics
+      # that would otherwise flip the suite from green to red without any code
+      # change. Identical binary on both OSes.
+      - name: install shellcheck (pinned)
+        env:
+          SHELLCHECK_VERSION: v0.10.0
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends jq shellcheck
+          set -euo pipefail
+          case "${{ runner.os }}" in
+            Linux)  pkg="shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" ;;
+            macOS)  pkg="shellcheck-${SHELLCHECK_VERSION}.darwin.x86_64.tar.xz" ;;
+            *) echo "unsupported runner OS"; exit 1 ;;
+          esac
+          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/${pkg}"
+          tmp=$(mktemp -d)
+          curl -fsSL "$url" | tar -xJ -C "$tmp"
+          sudo mv "$tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          rm -rf "$tmp"
 
-      - name: install jq + shellcheck (macos)
-        if: runner.os == 'macOS'
+      - name: install jq
         run: |
-          brew install jq shellcheck
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends jq
+          else
+            brew install jq
+          fi
 
       - name: print tool versions
         run: |

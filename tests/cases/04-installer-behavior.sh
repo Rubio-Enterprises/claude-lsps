@@ -206,6 +206,13 @@ tc_install_darwin_regal() {
   if ! _run_installer "$sbx" regal-lsp >"$sbx/out.log" 2>&1; then
     echo "darwin regal install exited non-zero:"; cat "$sbx/out.log"; return 1
   fi
+  local calls; calls=$(wc -l <"$log")
+  if (( calls != 1 )); then
+    echo "expected exactly 1 install call, got $calls:"; cat "$log"; return 1
+  fi
+  if grep -q '^curl ' "$log"; then
+    echo "Darwin path unexpectedly invoked curl:"; cat "$log"; return 1
+  fi
   local line; line=$(head -n1 "$log")
   if [[ "$line" != "brew install styrainc/tap/regal" ]]; then
     echo "expected 'brew install styrainc/tap/regal', got '$line'"; return 1
@@ -226,10 +233,20 @@ tc_install_mkdir_lock_fallback() {
   if (( calls != 1 )); then
     echo "expected 1 install call via mkdir-lock branch, got $calls:"; cat "$log"; return 1
   fi
-  # The mkdir-lock branch creates "$LOCK_FILE.d" and cleans it up via trap.
-  # We just need to confirm the install completed; no lingering lock dir.
-  if compgen -G "$sbx/lock-ansible-language-server-*.d" >/dev/null; then
-    echo "mkdir lock dir was not cleaned up"; return 1
+  # The mkdir-lock branch creates "$LOCK_FILE.d" (a directory) and cleans it
+  # up via EXIT trap; the flock branch creates the bare "$LOCK_FILE" (a file)
+  # via the `9>` redirection. Lock paths are scoped to the sandbox by
+  # patch_installer, so the presence of either tells us unambiguously which
+  # branch ran.
+  if compgen -G "$sbx/lock-*.lock.d" >/dev/null; then
+    echo "mkdir lock dir was not cleaned up:"
+    compgen -G "$sbx/lock-*.lock.d"
+    return 1
+  fi
+  if compgen -G "$sbx/lock-*.lock" >/dev/null; then
+    echo "flock branch ran instead of mkdir branch (.lock file exists in sandbox):"
+    compgen -G "$sbx/lock-*.lock"
+    return 1
   fi
 }
 

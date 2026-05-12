@@ -64,9 +64,15 @@ function computeCoverage(sourcePath, entries) {
   for (const entry of entries) {
     const local = new Uint8Array(len);
     for (const fn of entry.functions || []) {
-      // V8 emits ranges from outermost to innermost, so applying them in order
-      // lets the inner ranges override their parents within this entry.
-      for (const r of fn.ranges) {
+      // V8 typically emits ranges outermost-first within a function, but that
+      // ordering isn't part of any public contract. Sort defensively so inner
+      // (smaller/later-starting) ranges always override their enclosing range
+      // regardless of how the engine chose to emit them.
+      const sorted = fn.ranges.slice().sort((a, b) => {
+        if (a.startOffset !== b.startOffset) return a.startOffset - b.startOffset;
+        return b.endOffset - a.endOffset; // wider range first → inner overrides
+      });
+      for (const r of sorted) {
         const mark = r.count > 0 ? 1 : 2;
         const start = Math.max(0, r.startOffset | 0);
         const end = Math.min(len, r.endOffset | 0);
@@ -116,11 +122,14 @@ function main() {
     process.exit(1);
   }
 
-  // Group all V8 script-coverage entries by source file.
+  // Group V8 script-coverage entries by source file. Only retain entries for
+  // files we actually gate on, so memory stays bounded as scenarios scale.
+  const targetSet = new Set(TARGETS);
   const byFile = new Map();
   for (const cov of all) {
     for (const result of cov.result || []) {
       const p = urlToPath(result.url || "");
+      if (!targetSet.has(p)) continue;
       if (!byFile.has(p)) byFile.set(p, []);
       byFile.get(p).push(result);
     }

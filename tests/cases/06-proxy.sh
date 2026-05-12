@@ -23,6 +23,7 @@ tc_proxy_stdin_eof()            { _proxy_run stdin-eof; }
 tc_proxy_config_missing()       { _proxy_run config-missing; }
 tc_proxy_config_unreadable()    { _proxy_run config-unreadable; }
 tc_proxy_config_empty_server()  { _proxy_run config-empty-server; }
+tc_proxy_child_spawn_error()    { _proxy_run child-spawn-error; }
 
 register_test "proxy/passthrough"              tc_proxy_passthrough
 register_test "proxy/passthrough-server-to-client" tc_proxy_passthrough_s2c
@@ -42,3 +43,4 @@ register_test "proxy/stdin-eof"                tc_proxy_stdin_eof
 register_test "proxy/config-missing"           tc_proxy_config_missing
 register_test "proxy/config-unreadable"        tc_proxy_config_unreadable
 register_test "proxy/config-empty-server"      tc_proxy_config_empty_server
+register_test "proxy/child-spawn-error"        tc_proxy_child_spawn_error

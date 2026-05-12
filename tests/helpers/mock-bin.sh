@@ -1,14 +1,20 @@
 # Helpers to construct a mocked PATH sandbox for installer-script tests.
 # Sourced by 04-installer-behavior.sh and 05-installer-concurrency.sh.
 
-# Copy and patch a check-*.sh script so its LOCK_FILE paths live inside TMP_DIR.
+# Copy and patch a check-*.sh script so its LOCK_FILE paths live inside the
+# sandbox dir (i.e. alongside the patched script itself). Scoping to the
+# sandbox isolates tests from each other: two scenarios for the same plugin
+# don't share lockfile state. Concurrency tests run both invocations against
+# the same sandbox so they intentionally share the lockfile.
 # Usage: patch_installer <plugin> <out-path>
 patch_installer() {
   local plugin="$1" out="$2"
   local src
   src=$(ls "$ROOT_DIR/$plugin/hooks/"check-*.sh | head -n1)
-  # /tmp/claude-lsp-<kind>.lock => $TMP_DIR/lock-<kind>-<plugin>.lock
-  local prefix="$TMP_DIR/lock-${plugin}-"
+  local sbx_dir
+  sbx_dir=$(dirname "$out")
+  # /tmp/claude-lsp-<kind>.lock => $sbx/lock-<kind>.lock
+  local prefix="${sbx_dir}/lock-"
   sed "s|/tmp/claude-lsp-|${prefix}|g" "$src" > "$out"
   chmod +x "$out"
 }

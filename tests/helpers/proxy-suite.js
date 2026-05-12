@@ -314,16 +314,30 @@ async function splitBuffer() {
   await proxy.exited;
 }
 
+// Round-trip a no-op notification through the proxy. By the time the stub
+// has logged it, both processes have fully booted: the proxy's stdin handler
+// fired (which means the script reached the bottom, registering signal
+// handlers), and the stub has installed its own handlers as well. Replaces
+// brittle fixed sleeps that race on cold CI runners.
+async function waitForHandshake(proxy, logDir) {
+  const ping = { jsonrpc: "2.0", method: "$/test-ready-ping", params: {} };
+  proxy.child.stdin.write(frameOf(ping));
+  const log = path.join(logDir, "recv.jsonl");
+  await waitFor(() => {
+    if (!fs.existsSync(log)) return false;
+    return readJsonLines(log).some((m) => m.method === "$/test-ready-ping");
+  }, { timeout: 8000 });
+}
+
 async function signalForwarded(sig) {
   const wd = newWorkdir(`signal-${sig.toLowerCase()}`);
   const sigLog = path.join(wd, "signals.log");
   const proxy = spawnProxy({
     config: { server: ["node", STUB], blocked: [] },
-    stubEnv: { STUB_SIGNAL_LOG: sigLog },
+    stubEnv: { STUB_LOG_DIR: wd, STUB_SIGNAL_LOG: sigLog },
   });
 
-  // Give the child time to install signal handlers.
-  await sleep(200);
+  await waitForHandshake(proxy, wd);
   proxy.child.kill(sig);
   await proxy.exited;
 
@@ -353,10 +367,10 @@ async function stdinEofTerminatesChild() {
   const sigLog = path.join(wd, "signals.log");
   const proxy = spawnProxy({
     config: { server: ["node", STUB], blocked: [] },
-    stubEnv: { STUB_SIGNAL_LOG: sigLog },
+    stubEnv: { STUB_LOG_DIR: wd, STUB_SIGNAL_LOG: sigLog },
   });
 
-  await sleep(200);
+  await waitForHandshake(proxy, wd);
   proxy.child.stdin.end();
   await proxy.exited;
 
@@ -394,6 +408,30 @@ async function configUnreadable() {
   assert(result !== 0, `expected non-zero exit; got ${result}`);
   const err = Buffer.concat(stderrChunks).toString("utf8");
   assert(/Failed to read config/i.test(err), `expected read-failure message; got: ${err}`);
+}
+
+async function childSpawnError() {
+  // Valid config but server[0] points at a binary that doesn't exist. The
+  // child process will emit an 'error' (ENOENT) on spawn; the proxy must
+  // log via stderr and exit non-zero.
+  const wd = newWorkdir("spawn-error");
+  const cfg = path.join(wd, "proxy.json");
+  fs.writeFileSync(cfg, JSON.stringify({
+    server: ["/no/such/binary/__definitely_not_there__", "--stdio"],
+    blocked: [],
+  }));
+  const child = spawn(process.execPath, [ANSIBLE_PROXY, "--config", cfg], {
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const stderrChunks = [];
+  child.stderr.on("data", (b) => stderrChunks.push(b));
+  const result = await new Promise((resolve) => {
+    child.on("exit", (code) => resolve(code));
+  });
+  assert(result !== 0, `expected non-zero exit on spawn ENOENT; got ${result}`);
+  const err = Buffer.concat(stderrChunks).toString("utf8");
+  assert(/child error/i.test(err) || /ENOENT/.test(err),
+    `expected child-error message in stderr; got: ${err}`);
 }
 
 async function configEmptyServer() {
@@ -510,6 +548,7 @@ const SCENARIOS = {
   "config-missing": configMissing,
   "config-unreadable": configUnreadable,
   "config-empty-server": configEmptyServer,
+  "child-spawn-error": childSpawnError,
 };
 
 const name = process.argv[2];
