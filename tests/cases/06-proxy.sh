@@ -6,8 +6,11 @@ _proxy_run() {
 }
 
 tc_proxy_passthrough()          { _proxy_run passthrough; }
+tc_proxy_passthrough_s2c()      { _proxy_run passthrough-server-to-client; }
 tc_proxy_blocked_request()      { _proxy_run blocked-request; }
 tc_proxy_blocked_notification() { _proxy_run blocked-notification; }
+tc_proxy_malformed_header()     { _proxy_run malformed-header-forwarded; }
+tc_proxy_unparseable_body()     { _proxy_run unparseable-body-forwarded; }
 tc_proxy_auto_ack_register()    { _proxy_run auto-ack-register; }
 tc_proxy_auto_ack_unregister()  { _proxy_run auto-ack-unregister; }
 tc_proxy_auto_ack_configuration() { _proxy_run auto-ack-configuration; }
@@ -22,8 +25,11 @@ tc_proxy_config_unreadable()    { _proxy_run config-unreadable; }
 tc_proxy_config_empty_server()  { _proxy_run config-empty-server; }
 
 register_test "proxy/passthrough"              tc_proxy_passthrough
+register_test "proxy/passthrough-server-to-client" tc_proxy_passthrough_s2c
 register_test "proxy/blocked-request"          tc_proxy_blocked_request
 register_test "proxy/blocked-notification"     tc_proxy_blocked_notification
+register_test "proxy/malformed-header"         tc_proxy_malformed_header
+register_test "proxy/unparseable-body"         tc_proxy_unparseable_body
 register_test "proxy/auto-ack-register"        tc_proxy_auto_ack_register
 register_test "proxy/auto-ack-unregister"      tc_proxy_auto_ack_unregister
 register_test "proxy/auto-ack-configuration"   tc_proxy_auto_ack_configuration

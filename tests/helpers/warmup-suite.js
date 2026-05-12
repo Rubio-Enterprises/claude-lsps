@@ -221,9 +221,57 @@ async function warmupEmptyTree() {
   await proxy.exited;
 }
 
+async function warmupAbsentNoOpen() {
+  // The regal proxy must also be usable without a warmup section: initialize
+  // and initialized are forwarded normally, no didOpen is emitted, and no
+  // warmup log line is produced.
+  const wd = newWorkdir("no-warmup");
+  const stubLog = path.join(wd, "stub");
+  fs.mkdirSync(stubLog, { recursive: true });
+  const tree = path.join(wd, "tree");
+  fs.mkdirSync(tree, { recursive: true });
+  // Populate with .rego files that *would* be opened if warmup were enabled.
+  writeRegoTree(tree, {
+    "policy.rego": "package a",
+    "sub/sub.rego": "package b",
+  });
+
+  const cfg = path.join(wd, "proxy.json");
+  fs.writeFileSync(cfg, JSON.stringify({
+    server: ["node", STUB],
+    blocked: [],
+    // No warmup key.
+  }));
+
+  const proxy = spawnProxy({
+    STUB_LOG_DIR: stubLog,
+    STUB_AUTO_INIT: "1",
+  }, cfg);
+
+  await driveInitialize(proxy, tree);
+  // Wait until the stub has seen 'initialized'; then settle.
+  await waitFor(() => {
+    const msgs = readJsonLines(path.join(stubLog, "recv.jsonl"));
+    return msgs.some((m) => m.method === "initialized");
+  });
+  await sleep(250);
+
+  const msgs = readJsonLines(path.join(stubLog, "recv.jsonl"));
+  const opens = msgs.filter((m) => m.method === "textDocument/didOpen");
+  assert(opens.length === 0,
+    `expected zero didOpen with no warmup config; got ${opens.length}`);
+  const err = proxy.stderr();
+  assert(!/warmup:/.test(err),
+    `proxy emitted a warmup log line with no warmup config:\n${err}`);
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
 const SCENARIOS = {
   "files-opened": warmupOpensRegoFiles,
   "empty-tree": warmupEmptyTree,
+  "no-warmup-section": warmupAbsentNoOpen,
 };
 
 const name = process.argv[2];

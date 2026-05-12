@@ -88,12 +88,28 @@ EOF
   chmod +x "$bin_dir/tar"
 }
 
+# Symlink the system tools the installer scripts genuinely need (bash, flock,
+# mkdir, etc.) into the sandbox bin so we can use a fully-controlled PATH that
+# does NOT include /usr/bin or /bin. This prevents real brew/npm/curl/tar from
+# being discovered when an installer script calls `command -v` against them,
+# which would turn the "all install methods absent" test into a real install.
+_provision_real_tools() {
+  local bin_dir="$1"
+  local t real
+  for t in bash flock mkdir rmdir sleep uname tr mktemp mv chmod rm cat grep sed awk; do
+    [[ -e "$bin_dir/$t" ]] && continue
+    real=$(command -v "$t" 2>/dev/null) || continue
+    ln -s "$real" "$bin_dir/$t"
+  done
+}
+
 # Build a fresh sandbox directory.
 # Echoes the sandbox path on stdout.
 new_sandbox() {
   local tag="$1"
   local dir="$TMP_DIR/sandbox/$tag"
   rm -rf "$dir"
-  mkdir -p "$dir/bin" "$dir/home/.local/bin"
+  mkdir -p "$dir/bin" "$dir/home/.local/bin" "$dir/tmp"
+  _provision_real_tools "$dir/bin"
   echo "$dir"
 }

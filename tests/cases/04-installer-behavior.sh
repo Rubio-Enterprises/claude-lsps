@@ -23,13 +23,14 @@ _run_installer() {
   local sbx="$1" plugin="$2"
   local script="$sbx/check.sh"
   patch_installer "$plugin" "$script"
-  local extra="${SBX_EXTRA_BIN:-}"
+  # PATH is sandbox-only: we symlinked the real system tools we need into
+  # $sbx/bin (see _provision_real_tools). brew/npm/curl/tar can only resolve
+  # if a test explicitly installs a mock for them.
   local path="$sbx/bin:$sbx/home/.local/bin"
-  [[ -n "$extra" ]] && path="$extra:$path"
-  path="$path:/usr/bin:/bin"
   env -i \
     PATH="$path" \
     HOME="$sbx/home" \
+    TMPDIR="$sbx/tmp" \
     TMP_DIR="$TMP_DIR" \
     bash "$script"
 }
@@ -117,8 +118,9 @@ _test_cue_binary_install() {
     cat "$log"
     return 1
   fi
-  # tar invocation must include xz (i.e. extract gzipped).
-  if ! grep -E '^tar (.*)?xz' "$log" >/dev/null; then
+  # tar invocation must include the 'xz' flag pair (extract + gunzip).
+  # Match `xz` as its own argument: surrounded by start/space and space/end.
+  if ! grep -E '^tar( .*)? xz( |$)' "$log" >/dev/null; then
     echo "tar call missing 'xz' flag:"; cat "$log"; return 1
   fi
 }
@@ -136,8 +138,9 @@ _test_regal_binary_install() {
   if (( curl_calls != 1 )); then
     echo "expected exactly 1 curl call, got $curl_calls:"; cat "$log"; return 1
   fi
-  # Curl call must write to $HOME/.local/bin/regal.
-  if ! grep -E '^curl .*-o '"$sbx"'/home/\.local/bin/regal' "$log" >/dev/null; then
+  # Curl call must write to $HOME/.local/bin/regal. grep -F so $sbx isn't
+  # interpreted as a regex.
+  if ! grep -F -- "-o $sbx/home/.local/bin/regal" "$log" >/dev/null; then
     echo "curl call did not target the expected install path:"; cat "$log"; return 1
   fi
 }

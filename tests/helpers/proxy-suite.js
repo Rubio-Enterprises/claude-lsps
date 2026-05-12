@@ -378,7 +378,8 @@ async function configMissing() {
   });
   assert(result !== 0, `expected non-zero exit; got ${result}`);
   const err = Buffer.concat(stderrChunks).toString("utf8");
-  assert(/Usage|--config/i.test(err), `expected usage message; got: ${err}`);
+  assert(/Usage:/.test(err) && /--config/.test(err),
+    `expected 'Usage:' with --config in stderr; got: ${err}`);
 }
 
 async function configUnreadable() {
@@ -412,12 +413,87 @@ async function configEmptyServer() {
   assert(/non-empty array/i.test(err), `expected non-empty-array message; got: ${err}`);
 }
 
+async function malformedHeaderForwarded() {
+  // No Content-Length in the header block: the proxy falls back to forwarding
+  // the buffer as-is to the child. (Same fallback exists in the server->client
+  // direction; we test the client->server side here.)
+  const wd = newWorkdir("malformed-header");
+  const proxy = spawnProxy({
+    config: { server: ["node", STUB], blocked: [] },
+    stubEnv: { STUB_LOG_DIR: wd },
+  });
+  const bytes = Buffer.from("X-Header: foo\r\n\r\nopaque-body-bytes");
+  proxy.child.stdin.write(bytes);
+  await waitFor(() => {
+    const f = path.join(wd, "recv.log");
+    return fs.existsSync(f) && fs.statSync(f).size >= bytes.length;
+  });
+  const received = fs.readFileSync(path.join(wd, "recv.log"));
+  assert(received.equals(bytes),
+    `stub did not receive the malformed bytes verbatim; got ${received.length}B, sent ${bytes.length}B`);
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+async function unparseableBodyForwarded() {
+  // Properly framed message whose body is not JSON: proxy can't classify it
+  // as blocked, so it must forward the raw bytes unchanged.
+  const wd = newWorkdir("unparseable-body");
+  const proxy = spawnProxy({
+    config: { server: ["node", STUB], blocked: ["textDocument/references"] },
+    stubEnv: { STUB_LOG_DIR: wd },
+  });
+  const body = Buffer.from("{not-json");
+  const wire = Buffer.concat([
+    Buffer.from(`Content-Length: ${body.length}\r\n\r\n`),
+    body,
+  ]);
+  proxy.child.stdin.write(wire);
+  await waitFor(() => {
+    const f = path.join(wd, "recv.log");
+    return fs.existsSync(f) && fs.statSync(f).size >= wire.length;
+  });
+  const received = fs.readFileSync(path.join(wd, "recv.log"));
+  assert(received.equals(wire),
+    `stub did not receive raw frame; got ${received.length}B, sent ${wire.length}B`);
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+async function serverToClientByteIdentical() {
+  // Stub emits a known notification; the client must receive byte-identical
+  // bytes (header + body) on the proxy's stdout.
+  const notif = {
+    jsonrpc: "2.0",
+    method: "window/showMessage",
+    params: { type: 3, message: "hello-from-server" },
+  };
+  const body = Buffer.from(JSON.stringify(notif));
+  const expected = Buffer.concat([
+    Buffer.from(`Content-Length: ${body.length}\r\n\r\n`),
+    body,
+  ]);
+  const proxy = spawnProxy({
+    config: { server: ["node", STUB], blocked: [] },
+    stubEnv: { STUB_EMIT: JSON.stringify([notif]) },
+  });
+  await waitFor(() => proxy.stdoutBuf().length >= expected.length);
+  // Give the proxy a moment to ensure no extra bytes follow.
+  await sleep(80);
+  const got = proxy.stdoutBuf();
+  assert(got.equals(expected),
+    `server->client bytes differ; got ${got.length}B '${got.toString("utf8")}', expected '${expected.toString("utf8")}'`);
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
 // ============================================================================
 // Dispatch
 // ============================================================================
 
 const SCENARIOS = {
   "passthrough": passthrough,
+  "passthrough-server-to-client": serverToClientByteIdentical,
   "blocked-request": blockedRequest,
   "blocked-notification": blockedNotification,
   "auto-ack-register": () => autoAckMethod("client/registerCapability"),
@@ -425,6 +501,8 @@ const SCENARIOS = {
   "auto-ack-configuration": () => autoAckMethod("workspace/configuration"),
   "auto-ack-workdone": () => autoAckMethod("window/workDoneProgress/create"),
   "split-buffer": splitBuffer,
+  "malformed-header-forwarded": malformedHeaderForwarded,
+  "unparseable-body-forwarded": unparseableBodyForwarded,
   "sigterm": () => signalForwarded("SIGTERM"),
   "sigint": () => signalForwarded("SIGINT"),
   "exit-code-propagated": childExitCodePropagated,

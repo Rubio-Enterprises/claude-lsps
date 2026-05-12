@@ -6,6 +6,8 @@ _warmup_run() {
 
 tc_warmup_files_opened() { _warmup_run files-opened; }
 tc_warmup_empty_tree()   { _warmup_run empty-tree; }
+tc_warmup_no_section()   { _warmup_run no-warmup-section; }
 
-register_test "warmup/files-opened" tc_warmup_files_opened
-register_test "warmup/empty-tree"   tc_warmup_empty_tree
+register_test "warmup/files-opened"    tc_warmup_files_opened
+register_test "warmup/empty-tree"      tc_warmup_empty_tree
+register_test "warmup/no-warmup-section" tc_warmup_no_section

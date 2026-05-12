@@ -54,12 +54,12 @@ _run_two() {
   local sbx="$1" plugin="$2"
   local script="$sbx/check.sh"
   patch_installer "$plugin" "$script"
-  local path="$sbx/bin:$sbx/home/.local/bin:/usr/bin:/bin"
+  local path="$sbx/bin:$sbx/home/.local/bin"
   local p1 p2
-  env -i PATH="$path" HOME="$sbx/home" bash "$script" \
+  env -i PATH="$path" HOME="$sbx/home" TMPDIR="$sbx/tmp" bash "$script" \
       >"$sbx/out1.log" 2>"$sbx/err1.log" &
   p1=$!
-  env -i PATH="$path" HOME="$sbx/home" bash "$script" \
+  env -i PATH="$path" HOME="$sbx/home" TMPDIR="$sbx/tmp" bash "$script" \
       >"$sbx/out2.log" 2>"$sbx/err2.log" &
   p2=$!
   local rc1=0 rc2=0
