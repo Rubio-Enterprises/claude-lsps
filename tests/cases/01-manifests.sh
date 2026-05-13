@@ -22,7 +22,7 @@ tc_plugin_json_required_keys() {
     if [[ ! -f "$f" ]]; then
       echo "missing $f"; rc=1; continue
     fi
-    for k in name version description; do
+    for k in name version description license; do
       local t v
       t=$(jq -r --arg k "$k" '.[$k] | type' "$f")
       v=$(jq -r --arg k "$k" '.[$k] // empty' "$f")
@@ -31,6 +31,12 @@ tc_plugin_json_required_keys() {
         rc=1
       fi
     done
+    local an
+    an=$(jq -r '.author.name // empty' "$f")
+    if [[ -z "$an" ]]; then
+      echo "$p plugin.json: missing/non-string author.name"
+      rc=1
+    fi
   done
   return $rc
 }
@@ -123,6 +129,17 @@ tc_marketplace_matches_plugins() {
   local mp="$ROOT_DIR/.claude-plugin/marketplace.json"
   local rc=0
 
+  # Top-level marketplace fields.
+  local schema mp_owner
+  schema=$(jq -r '."$schema" // empty' "$mp")
+  mp_owner=$(jq -r '.owner.name // empty' "$mp")
+  if [[ -z "$schema" ]]; then
+    echo "marketplace.json: missing \$schema"; rc=1
+  fi
+  if [[ -z "$mp_owner" ]]; then
+    echo "marketplace.json: missing owner.name"; rc=1
+  fi
+
   local sources actual
   sources=$(jq -r '.plugins[].source | sub("^\\./"; "")' "$mp" | LC_ALL=C sort)
   actual=$(printf '%s\n' "${PLUGINS[@]}" | LC_ALL=C sort)
@@ -132,23 +149,39 @@ tc_marketplace_matches_plugins() {
     rc=1
   fi
 
-  while IFS=$'\t' read -r src name version description; do
+  while IFS=$'\t' read -r src name version description category author_name; do
     local sub="${src#./}"
     local pj="$ROOT_DIR/$sub/.claude-plugin/plugin.json"
     if [[ ! -f "$pj" ]]; then
       echo "marketplace references missing plugin: $src"; rc=1; continue
     fi
-    local pjn pjv pjd
+    local pjn pjv pjd pjan
     pjn=$(jq -r '.name' "$pj")
     pjv=$(jq -r '.version' "$pj")
     pjd=$(jq -r '.description' "$pj")
+    pjan=$(jq -r '.author.name // empty' "$pj")
     if [[ "$name" != "$pjn" || "$version" != "$pjv" || "$description" != "$pjd" ]]; then
       echo "marketplace[$src] mismatch:"
       echo "  marketplace: name=$name version=$version description=$description"
       echo "  plugin.json: name=$pjn version=$pjv description=$pjd"
       rc=1
     fi
-  done < <(jq -r '.plugins[] | [.source, .name, .version, .description] | @tsv' "$mp")
+    if [[ -z "$category" || "$category" == "null" ]]; then
+      echo "marketplace[$src]: missing category"; rc=1
+    fi
+    if [[ -z "$author_name" || "$author_name" == "null" ]]; then
+      echo "marketplace[$src]: missing author.name"; rc=1
+    elif [[ "$author_name" != "$pjan" ]]; then
+      echo "marketplace[$src]: author.name='$author_name' != plugin.json author.name='$pjan'"
+      rc=1
+    fi
+    # Tags must be a non-empty array of strings.
+    local tags_ok
+    tags_ok=$(jq -r --arg s "$src" '.plugins[] | select(.source == $s) | (.tags | type == "array" and length > 0 and all(type == "string"))' "$mp")
+    if [[ "$tags_ok" != "true" ]]; then
+      echo "marketplace[$src]: tags must be non-empty array of strings"; rc=1
+    fi
+  done < <(jq -r '.plugins[] | [.source, .name, .version, .description, (.category // ""), (.author.name // "")] | @tsv' "$mp")
   return $rc
 }
 

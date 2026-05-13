@@ -13,6 +13,7 @@ tc_proxy_auto_ack_register()    { _proxy_run auto-ack-register; }
 tc_proxy_auto_ack_unregister()  { _proxy_run auto-ack-unregister; }
 tc_proxy_auto_ack_configuration() { _proxy_run auto-ack-configuration; }
 tc_proxy_auto_ack_workdone()    { _proxy_run auto-ack-workdone; }
+tc_proxy_server_req_forwarded() { _proxy_run server-req-forwarded; }
 tc_proxy_split_buffer()         { _proxy_run split-buffer; }
 tc_proxy_sigterm()              { _proxy_run sigterm; }
 tc_proxy_sigint()               { _proxy_run sigint; }
@@ -22,6 +23,8 @@ tc_proxy_config_missing()       { _proxy_run config-missing; }
 tc_proxy_config_unreadable()    { _proxy_run config-unreadable; }
 tc_proxy_config_empty_server()  { _proxy_run config-empty-server; }
 tc_proxy_child_spawn_error()    { _proxy_run child-spawn-error; }
+tc_proxy_regal_passthrough()    { _proxy_run regal-passthrough; }
+tc_proxy_regal_blocked()        { _proxy_run regal-blocked-request; }
 
 register_test "proxy/passthrough"              tc_proxy_passthrough
 register_test "proxy/passthrough-server-to-client" tc_proxy_passthrough_s2c
@@ -33,6 +36,7 @@ register_test "proxy/auto-ack-register"        tc_proxy_auto_ack_register
 register_test "proxy/auto-ack-unregister"      tc_proxy_auto_ack_unregister
 register_test "proxy/auto-ack-configuration"   tc_proxy_auto_ack_configuration
 register_test "proxy/auto-ack-workdone"        tc_proxy_auto_ack_workdone
+register_test "proxy/server-req-forwarded"     tc_proxy_server_req_forwarded
 register_test "proxy/split-buffer"             tc_proxy_split_buffer
 register_test "proxy/sigterm"                  tc_proxy_sigterm
 register_test "proxy/sigint"                   tc_proxy_sigint
@@ -42,3 +46,5 @@ register_test "proxy/config-missing"           tc_proxy_config_missing
 register_test "proxy/config-unreadable"        tc_proxy_config_unreadable
 register_test "proxy/config-empty-server"      tc_proxy_config_empty_server
 register_test "proxy/child-spawn-error"        tc_proxy_child_spawn_error
+register_test "proxy/regal-passthrough"        tc_proxy_regal_passthrough
+register_test "proxy/regal-blocked-request"    tc_proxy_regal_blocked

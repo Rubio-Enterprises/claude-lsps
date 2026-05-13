@@ -15,9 +15,16 @@ run_all() {
   for ((i = 0; i < total; i++)); do
     local name="${TEST_NAMES[$i]}"
     local fn="${TEST_FNS[$i]}"
-    local log="$TMP_DIR/$(printf '%s' "$name" | tr '/ ' '__').log"
+    # Prefix the log with the test index so two test names that differ only in
+    # punctuation can't collide on disk (`a/b` and `a_b` both collapse via tr).
+    local sanitized log
+    sanitized=$(printf '%s' "$name" | tr '/ ' '__')
+    log=$(printf '%s/%04d-%s.log' "$TMP_DIR" "$i" "$sanitized")
     local rc=0
-    ( "$fn" ) >"$log" 2>&1 || rc=$?
+    # The subshell explicitly disables -e so cases can use the rc-aggregation
+    # idiom (`rc=1; ... return $rc`) inherited from run.sh's `set -e`. Run-level
+    # fail-fast remains via `|| rc=$?` below.
+    ( set +e; "$fn" ) >"$log" 2>&1 || rc=$?
     if (( rc == 0 )); then
       passed=$((passed + 1))
       printf '[%d/%d] %s ... PASS\n' "$((i + 1))" "$total" "$name"

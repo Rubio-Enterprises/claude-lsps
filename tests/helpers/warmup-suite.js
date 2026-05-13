@@ -6,7 +6,7 @@ const path = require("path");
 const { pathToFileURL } = require("url");
 
 const {
-  requireEnv, frameOf, parseFrames, sleep, waitFor, newWorkdir,
+  requireEnv, frameOf, parseFrames, waitFor, newWorkdir,
   readJsonLines, assert, spawnProxy, dispatch,
 } = require("./lsp-test-utils.js");
 
@@ -63,6 +63,8 @@ async function warmupOpensRegoFiles(setProxy) {
     "node_modules/lib.rego": "package skip",
     "vendor/v.rego": "package skip",
     ".git/g.rego": "package skip",
+    ".venv/v2.rego": "package skip",
+    ".claude/c.rego": "package skip",
     "other.txt": "skip me",
   });
   const cfg = path.join(dir, "proxy.json");
@@ -81,9 +83,11 @@ async function warmupOpensRegoFiles(setProxy) {
   setProxy(proxy);
 
   await driveInitialize(proxy, tree);
-  await waitFor(() => readJsonLines(path.join(stubLog, "recv.jsonl"))
-    .filter((m) => m.method === "textDocument/didOpen").length >= 2);
-  await sleep(150);
+  // The proxy emits "warmup: sent N didOpen notification(s)" on stderr when
+  // the burst is fully written. Waiting on that sentinel eliminates the prior
+  // `>=` race + 150ms sleep, and also asserts the count from the proxy's
+  // side as a cross-check against what the stub received.
+  await waitFor(() => /warmup: sent 2 didOpen notification\(s\)/.test(proxy.stderr()), { timeout: 8000 });
 
   const msgs = readJsonLines(path.join(stubLog, "recv.jsonl"));
   const idxInitialized = msgs.findIndex((m) => m.method === "initialized");
@@ -94,7 +98,7 @@ async function warmupOpensRegoFiles(setProxy) {
       `didOpen languageId not 'rego': ${JSON.stringify(o.params.textDocument)}`);
     assert(o.params.textDocument.uri.startsWith("file://"),
       `didOpen uri not file://: ${o.params.textDocument.uri}`);
-    for (const excluded of ["/node_modules/", "/vendor/", "/.git/"]) {
+    for (const excluded of ["/node_modules/", "/vendor/", "/.git/", "/.venv/", "/.claude/"]) {
       assert(!o.params.textDocument.uri.includes(excluded),
         `excluded dir leaked: ${o.params.textDocument.uri}`);
     }
@@ -130,7 +134,12 @@ async function warmupEmptyTree(setProxy) {
 
   await driveInitialize(proxy, tree);
   await waitFor(() => /warmup: no files found/.test(proxy.stderr()));
-  await sleep(200);
+  // After the "no files found" sentinel, drive a sentinel notification and
+  // wait for it at the stub. Anything the proxy was going to emit for warmup
+  // would already be there.
+  proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "$/test-sentinel", params: {} }));
+  await waitFor(() => readJsonLines(path.join(stubLog, "recv.jsonl"))
+    .some((m) => m.method === "$/test-sentinel"));
 
   const opens = readJsonLines(path.join(stubLog, "recv.jsonl"))
     .filter((m) => m.method === "textDocument/didOpen");
@@ -159,7 +168,11 @@ async function warmupAbsentNoOpen(setProxy) {
   await driveInitialize(proxy, tree);
   await waitFor(() => readJsonLines(path.join(stubLog, "recv.jsonl"))
     .some((m) => m.method === "initialized"));
-  await sleep(250);
+  // Sentinel: after a known notification reaches the stub, any warmup the
+  // proxy was going to send would already be visible.
+  proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "$/test-sentinel", params: {} }));
+  await waitFor(() => readJsonLines(path.join(stubLog, "recv.jsonl"))
+    .some((m) => m.method === "$/test-sentinel"));
 
   const msgs = readJsonLines(path.join(stubLog, "recv.jsonl"));
   const opens = msgs.filter((m) => m.method === "textDocument/didOpen");
@@ -196,12 +209,16 @@ async function warmupMultiExtension(setProxy) {
   setProxy(proxy);
 
   await driveInitialize(proxy, tree);
-  await waitFor(() => readJsonLines(path.join(stubLog, "recv.jsonl"))
-    .filter((m) => m.method === "textDocument/didOpen").length >= 5);
-  await sleep(150);
+  // Wait for the proxy's "sent N" sentinel rather than `length >= 5`, which
+  // short-circuits the moment the 5th frame arrives and might miss a 6th
+  // that shouldn't exist. Asserting `=== 5` against the sentinel gives a
+  // hard upper bound.
+  await waitFor(() => /warmup: sent 5 didOpen notification\(s\)/.test(proxy.stderr()), { timeout: 8000 });
 
   const opens = readJsonLines(path.join(stubLog, "recv.jsonl"))
     .filter((m) => m.method === "textDocument/didOpen");
+  assert(opens.length === 5,
+    `expected exactly 5 didOpen, got ${opens.length}: ${opens.map((o) => o.params.textDocument.uri).join(", ")}`);
   const langByFile = {};
   for (const o of opens) {
     langByFile[path.basename(o.params.textDocument.uri)] = o.params.textDocument.languageId;

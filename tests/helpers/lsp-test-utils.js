@@ -23,6 +23,10 @@ function frameOf(obj) {
   return Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`), body]);
 }
 
+// Parse as many complete frames as the buffer holds. The `remaining` count
+// lets callers assert "no trailing garbage" when they expect a clean parse;
+// silent truncation here would otherwise turn a malformed-header bug into a
+// confusing "expected N frames, got N-1" assertion failure downstream.
 function parseFrames(buf) {
   const out = [];
   let i = 0;
@@ -44,6 +48,7 @@ function parseFrames(buf) {
     });
     i = end;
   }
+  out.remaining = buf.length - i;
   return out;
 }
 
@@ -109,27 +114,46 @@ function spawnProxy({ proxyJs, config, configPath, stubEnv = {} }) {
 }
 
 // Run each scenario and exit with non-zero on the first failure. Always kill
-// the spawned proxy if it's still running so a hung waitFor doesn't orphan a
-// child process.
+// any spawned proxy if it's still running so a hung waitFor doesn't orphan a
+// child process. SIGTERM first with a short grace window — Node only flushes
+// NODE_V8_COVERAGE to disk on clean exit, so SIGKILL'ing here would drop
+// coverage data on every scenario that throws and silently lower the gate.
+async function _killGracefully(child, graceMs = 750) {
+  if (!child || child.killed) return;
+  try { child.kill("SIGTERM"); } catch {}
+  const exited = new Promise((resolve) => {
+    if (child.exitCode !== null) return resolve();
+    child.once("exit", () => resolve());
+  });
+  let timer;
+  const timeout = new Promise((resolve) => { timer = setTimeout(resolve, graceMs); });
+  await Promise.race([exited, timeout]);
+  clearTimeout(timer);
+  if (child.exitCode === null && !child.killed) {
+    try { child.kill("SIGKILL"); } catch {}
+  }
+}
+
 function dispatch(scenarios, name) {
   if (!name || !scenarios[name]) {
     console.error(`unknown scenario: ${name}`);
     console.error("available:", Object.keys(scenarios).join(", "));
     process.exit(2);
   }
-  let activeProxy = null;
-  const setProxy = (p) => { activeProxy = p; };
+  // Track every proxy a scenario spawns (some may chain multiple) so cleanup
+  // can't leak a stale child.
+  const activeProxies = [];
+  const setProxy = (p) => { activeProxies.push(p); };
   (async () => {
+    let exitCode = 0;
     try {
       await scenarios[name](setProxy);
-      process.exit(0);
     } catch (err) {
       console.error(err && err.stack ? err.stack : String(err));
-      process.exit(1);
+      exitCode = 1;
     } finally {
-      if (activeProxy && activeProxy.child && !activeProxy.child.killed) {
-        try { activeProxy.child.kill("SIGKILL"); } catch {}
-      }
+      await Promise.all(activeProxies.map((p) => _killGracefully(p && p.child)));
+      process.exit(exitCode);
     }
   })();
 }

@@ -13,10 +13,15 @@ if (!ROOT_DIR || !COV_DIR) {
   process.exit(2);
 }
 
-const TARGETS = [
-  path.join(ROOT_DIR, "ansible-language-server", "lsp-proxy.js"),
-  path.join(ROOT_DIR, "regal-lsp", "lsp-proxy.js"),
-];
+// Glob every plugin directory for lsp-proxy.js so a new proxy added later
+// automatically falls under the coverage gate instead of silently shipping
+// at 0%.
+const TARGETS = fs.readdirSync(ROOT_DIR)
+  .map((d) => path.join(ROOT_DIR, d, "lsp-proxy.js"))
+  .filter((p) => fs.existsSync(p))
+  // Realpath both sides so macOS' /private/var <-> /var mapping in V8 URLs
+  // doesn't cause us to miss a file's coverage entries.
+  .map((p) => fs.realpathSync(p));
 
 let threshold = 80;
 for (const arg of process.argv.slice(2)) {
@@ -29,9 +34,13 @@ function loadCoverageFiles() {
   return fs.readdirSync(COV_DIR)
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
+      const full = path.join(COV_DIR, f);
       try {
-        return JSON.parse(fs.readFileSync(path.join(COV_DIR, f), "utf8"));
-      } catch {
+        return JSON.parse(fs.readFileSync(full, "utf8"));
+      } catch (err) {
+        // A corrupt coverage file would otherwise silently lower the count
+        // and could make a 79% gate pass spuriously. Log loudly.
+        console.error(`coverage-check: failed to parse ${full}: ${err.message}`);
         return null;
       }
     })
@@ -39,7 +48,10 @@ function loadCoverageFiles() {
 }
 
 function urlToPath(url) {
-  return url.startsWith("file://") ? fileURLToPath(url) : url;
+  const p = url.startsWith("file://") ? fileURLToPath(url) : url;
+  // Normalize via realpath so /private/var-vs-/var on macOS doesn't cause a
+  // miss against TARGETS (which are already realpath-ed above).
+  try { return fs.realpathSync(p); } catch { return p; }
 }
 
 // V8 coverage is range-based. Per-byte state: 0 = no instrumentation, 1 =
@@ -78,6 +90,8 @@ function computeCoverage(sourcePath, entries) {
   // uncovered bytes but no covered byte; otherwise it's outside the
   // denominator (blank lines, comments, code outside any function body).
   let covered = 0, uncovered = 0, total = 0;
+  const uncoveredLineNums = [];
+  let line = 0;
   let i = 0;
   while (i <= len) {
     let end = i;
@@ -88,8 +102,12 @@ function computeCoverage(sourcePath, entries) {
       else if (state[j] === 2) hasUncovered = true;
     }
     total++;
+    line++;
     if (hasCovered) covered++;
-    else if (hasUncovered) uncovered++;
+    else if (hasUncovered) {
+      uncovered++;
+      uncoveredLineNums.push(line);
+    }
     i = end + 1;
   }
   const denom = covered + uncovered;
@@ -97,6 +115,7 @@ function computeCoverage(sourcePath, entries) {
     sourceLines: total,
     coveredLines: covered,
     uncoveredLines: uncovered,
+    uncoveredLineNums,
     percent: denom === 0 ? 100 : (covered / denom) * 100,
   };
 }
@@ -128,13 +147,18 @@ function main() {
       pass = false;
       continue;
     }
-    const { coveredLines, uncoveredLines, percent } = computeCoverage(target, entries);
+    const { coveredLines, uncoveredLines, percent, uncoveredLineNums } = computeCoverage(target, entries);
     const status = percent >= threshold ? "ok" : "FAIL";
     lines.push(
       `  ${path.relative(ROOT_DIR, target)}: ${percent.toFixed(1)}% ` +
       `(${coveredLines} covered / ${coveredLines + uncoveredLines} executable) [${status}]`
     );
-    if (percent < threshold) pass = false;
+    if (percent < threshold) {
+      pass = false;
+      const sample = uncoveredLineNums.slice(0, 15).join(", ");
+      const more = uncoveredLineNums.length > 15 ? ` ...(+${uncoveredLineNums.length - 15} more)` : "";
+      lines.push(`      uncovered lines: ${sample}${more}`);
+    }
   }
 
   console.log(`coverage gate (threshold ${threshold}%):`);

@@ -4,11 +4,26 @@
 # same lockfile.
 patch_installer() {
   local plugin="$1" out="$2"
+  shopt -s nullglob
   local files=("$ROOT_DIR/$plugin/hooks/"check-*.sh)
+  shopt -u nullglob
+  if (( ${#files[@]} == 0 )); then
+    echo "patch_installer: no check-*.sh in $plugin/hooks/" >&2; return 1
+  fi
+  if (( ${#files[@]} > 1 )); then
+    # Don't silently pick `files[0]` from an unsorted glob — fail loudly so a
+    # newly added installer script is noticed.
+    echo "patch_installer: multiple check-*.sh in $plugin/hooks/: ${files[*]}" >&2; return 1
+  fi
   local prefix
   prefix=$(dirname "$out")/lock-
   sed "s|/tmp/claude-lsp-|${prefix}|g" "${files[0]}" > "$out"
   chmod +x "$out"
+  # Sanity check: nothing reaches the real /tmp/claude-lsp- prefix.
+  if grep -F '/tmp/claude-lsp-' "$out" >/dev/null; then
+    echo "patch_installer: rewrite missed a /tmp/claude-lsp- occurrence in $out" >&2
+    return 1
+  fi
 }
 
 # make_install_mock <bin_dir> <name> <log> [--target=BIN] [--exit=N]
@@ -44,11 +59,23 @@ EOF
 
 # In `-o PATH` mode the mock writes a stub executable; otherwise it emits one
 # byte so a piped consumer (e.g. tar) doesn't see an empty stream.
+# Optional --exit=N flag forces the mock to exit non-zero so installer
+# error paths (download failed) can be exercised.
 make_curl_mock() {
   local bin_dir="$1" log="$2"
+  shift 2
+  local exit_code=0
+  while (( $# > 0 )); do
+    case "$1" in
+      --exit=*) exit_code="${1#--exit=}" ;;
+      *) echo "make_curl_mock: unknown arg $1" >&2; return 2 ;;
+    esac
+    shift
+  done
   cat >"$bin_dir/curl" <<EOF
 #!/usr/bin/env bash
 printf 'curl %s\n' "\$*" >> "$log"
+exit_code=$exit_code
 out=""
 args=( "\$@" )
 i=0
@@ -58,6 +85,9 @@ while (( i < \${#args[@]} )); do
     *) i=\$((i+1)) ;;
   esac
 done
+if (( exit_code != 0 )); then
+  exit \$exit_code
+fi
 if [[ -n "\$out" ]]; then
   mkdir -p "\$(dirname "\$out")"
   printf '#!/usr/bin/env bash\nexit 0\n' > "\$out"

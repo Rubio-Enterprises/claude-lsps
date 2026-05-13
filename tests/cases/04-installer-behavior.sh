@@ -47,7 +47,6 @@ _test_primary_install_brew() {
   local log="$sbx/install.log"
   : > "$log"
   make_install_mock "$sbx/bin" brew "$log" --target="$target"
-  local out
   if ! _run_installer "$sbx" "$plugin" >"$sbx/out.log" 2>&1; then
     echo "installer exited non-zero:"; cat "$sbx/out.log"; return 1
   fi
@@ -84,6 +83,9 @@ _test_cue_binary_install() {
   local sbx; sbx=$(new_sandbox "cue-binary")
   local log="$sbx/install.log"
   : > "$log"
+  # Pin uname so the test exercises a known os/arch branch regardless of host
+  # (otherwise the test passes "by accident" using the runner's real uname).
+  make_uname_mock "$sbx/bin" Linux x86_64
   make_curl_mock "$sbx/bin" "$log"
   make_tar_mock  "$sbx/bin" "$log"
   if ! _run_installer "$sbx" cue-lsp >"$sbx/out.log" 2>&1; then
@@ -103,12 +105,21 @@ _test_cue_binary_install() {
   if ! grep -E '^tar( .*)? xz( |$)' "$log" >/dev/null; then
     echo "tar call missing 'xz' flag:"; cat "$log"; return 1
   fi
+  # Version pin: a silent bump in check-cue.sh would otherwise ship green.
+  if ! grep -F 'releases/download/v0.16.0/' "$log" >/dev/null; then
+    echo "cue download URL missing pinned version v0.16.0:"; cat "$log"; return 1
+  fi
+  # OS/arch must come from the mocked uname, not the host.
+  if ! grep -F 'cue_v0.16.0_linux_amd64.tar.gz' "$log" >/dev/null; then
+    echo "cue URL did not reflect mocked uname (linux/x86_64 -> amd64):"; cat "$log"; return 1
+  fi
 }
 
 _test_regal_binary_install() {
   local sbx; sbx=$(new_sandbox "regal-binary")
   local log="$sbx/install.log"
   : > "$log"
+  make_uname_mock "$sbx/bin" Linux x86_64
   make_curl_mock "$sbx/bin" "$log"
   if ! _run_installer "$sbx" regal-lsp >"$sbx/out.log" 2>&1; then
     echo "regal binary install exited non-zero:"; cat "$sbx/out.log"; return 1
@@ -120,6 +131,53 @@ _test_regal_binary_install() {
   # grep -F so $sbx isn't interpreted as a regex.
   if ! grep -F -- "-o $sbx/home/.local/bin/regal" "$log" >/dev/null; then
     echo "curl call did not target the expected install path:"; cat "$log"; return 1
+  fi
+  # Version pin: a silent bump in check-regal.sh would otherwise ship green.
+  if ! grep -F 'releases/download/v0.39.0/' "$log" >/dev/null; then
+    echo "regal download URL missing pinned version v0.39.0:"; cat "$log"; return 1
+  fi
+  if ! grep -F 'regal_Linux_x86_64' "$log" >/dev/null; then
+    echo "regal URL did not reflect mocked uname (Linux/x86_64):"; cat "$log"; return 1
+  fi
+}
+
+# Curl exit-non-zero must propagate as a failed installer with the recognizable
+# "Binary download failed" message. Note: only the regal-lsp installer uses
+# `curl -fsSL -o <file>` so curl's exit propagates directly. The cue-lsp
+# installer pipes curl into tar without `set -o pipefail`, so curl's exit is
+# masked by tar's. That asymmetry is a known installer issue, separate from
+# this test PR; covering cue's "Binary download failed" branch would require
+# failing tar instead (a future _test_tar_failure helper).
+_test_binary_download_failure() {
+  local plugin="$1"
+  local sbx; sbx=$(new_sandbox "binary-fail-$plugin")
+  local log="$sbx/install.log"; : >"$log"
+  make_uname_mock "$sbx/bin" Linux x86_64
+  make_curl_mock "$sbx/bin" "$log" --exit=22
+  local rc=0
+  _run_installer "$sbx" "$plugin" >"$sbx/out.log" 2>&1 || rc=$?
+  if (( rc == 0 )); then
+    echo "expected non-zero exit on curl failure; got 0"; cat "$sbx/out.log"; return 1
+  fi
+  if ! grep -F 'Binary download failed' "$sbx/out.log" >/dev/null; then
+    echo "expected 'Binary download failed' message; got:"; cat "$sbx/out.log"; return 1
+  fi
+}
+
+# npm-only host (no brew on PATH): the installer must hit the npm branch and
+# its failure must propagate. Covers the previously-untested rc=1-from-npm path.
+_test_npm_failure_propagates() {
+  local plugin="$1"
+  local sbx; sbx=$(new_sandbox "npm-fail-$plugin")
+  local log="$sbx/install.log"; : >"$log"
+  make_install_mock "$sbx/bin" npm "$log" --exit=1
+  local rc=0
+  _run_installer "$sbx" "$plugin" >"$sbx/out.log" 2>&1 || rc=$?
+  if (( rc == 0 )); then
+    echo "expected non-zero exit on npm failure; got 0"; cat "$sbx/out.log"; return 1
+  fi
+  if ! grep -F 'npm install failed' "$sbx/out.log" >/dev/null; then
+    echo "expected 'npm install failed' message; got:"; cat "$sbx/out.log"; return 1
   fi
 }
 
@@ -161,6 +219,13 @@ tc_install_npm_vtsls()     { _test_primary_install_npm vtsls "@vtsls/language-se
 
 tc_install_binary_cue()    { _test_cue_binary_install; }
 tc_install_binary_regal()  { _test_regal_binary_install; }
+
+tc_install_binary_regal_curl_fails() { _test_binary_download_failure regal-lsp; }
+
+tc_install_npm_fail_ansible() { _test_npm_failure_propagates ansible-language-server; }
+tc_install_npm_fail_bash()    { _test_npm_failure_propagates bash-language-server; }
+tc_install_npm_fail_pyright() { _test_npm_failure_propagates pyright; }
+tc_install_npm_fail_vtsls()   { _test_npm_failure_propagates vtsls; }
 
 tc_install_absent_ansible() { _test_all_absent_fails ansible-language-server; }
 tc_install_absent_bash()    { _test_all_absent_fails bash-language-server; }
@@ -269,6 +334,13 @@ register_test "installer/npm-vtsls"        tc_install_npm_vtsls
 
 register_test "installer/binary-cue"       tc_install_binary_cue
 register_test "installer/binary-regal"     tc_install_binary_regal
+
+register_test "installer/binary-regal-curl-fails" tc_install_binary_regal_curl_fails
+
+register_test "installer/npm-fail-ansible" tc_install_npm_fail_ansible
+register_test "installer/npm-fail-bash"    tc_install_npm_fail_bash
+register_test "installer/npm-fail-pyright" tc_install_npm_fail_pyright
+register_test "installer/npm-fail-vtsls"   tc_install_npm_fail_vtsls
 
 register_test "installer/absent-ansible"   tc_install_absent_ansible
 register_test "installer/absent-bash"      tc_install_absent_bash

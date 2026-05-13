@@ -12,6 +12,7 @@ const {
 
 const { ROOT_DIR, TMP_DIR, TESTS_DIR } = requireEnv();
 const ANSIBLE_PROXY = path.join(ROOT_DIR, "ansible-language-server", "lsp-proxy.js");
+const REGAL_PROXY = path.join(ROOT_DIR, "regal-lsp", "lsp-proxy.js");
 const STUB = path.join(TESTS_DIR, "helpers", "stub-server.js");
 
 const wd = (tag) => newWorkdir(TMP_DIR, tag);
@@ -85,7 +86,14 @@ async function blockedRequest(setProxy) {
   const resp = parseFrames(proxy.stdoutBuf()).find((f) => f.body.id === 42);
   assert(resp, "expected synthesized response for blocked request");
   assert(resp.body.jsonrpc === "2.0", "missing jsonrpc field");
+  // NOTE: This codifies SUT behavior, not LSP spec. The JSON-RPC spec calls
+  // for a -32601 (MethodNotFound) error for unsupported requests; lsp-proxy
+  // currently synthesizes {result: null}. An LSP client reading this will
+  // misrender as "no references" rather than "unsupported". Tracked as a
+  // known proxy bug — flip these asserts when the proxy is fixed.
   assert(resp.body.result === null, `expected result:null, got ${JSON.stringify(resp.body.result)}`);
+  assert(resp.body.error === undefined, "result:null and error are mutually exclusive in JSON-RPC");
+  assert(resp.body.id === 42, "blocked response id must mirror request id");
   assert(resp.contentLength === Buffer.from(JSON.stringify(resp.body)).length,
     "Content-Length mismatch");
 
@@ -107,13 +115,26 @@ async function blockedNotification(setProxy) {
   });
   setProxy(proxy);
 
+  // Sentinel idiom: send the blocked notification, then a known-non-blocked
+  // notification. When the second one shows up at the stub, the first has
+  // already been processed (and dropped if blocking works). Eliminates the
+  // 200ms sleep race.
   proxy.child.stdin.write(frameOf({
     jsonrpc: "2.0",
     method: "textDocument/references",
     params: { uri: "file:///x" },
   }));
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    method: "$/test-sentinel-after-blocked",
+    params: {},
+  }));
 
-  await sleep(200);
+  await waitFor(() => {
+    const f = path.join(dir, "recv.jsonl");
+    return fs.existsSync(f) && readJsonLines(f).some((m) => m.method === "$/test-sentinel-after-blocked");
+  });
+
   const stubFile = path.join(dir, "recv.log");
   const stubReceived = fs.existsSync(stubFile) ? fs.readFileSync(stubFile, "utf8") : "";
   assert(!stubReceived.includes("textDocument/references"),
@@ -137,13 +158,54 @@ async function autoAckMethod(method, setProxy) {
   });
   setProxy(proxy);
 
+  // Wait for the proxy's auto-ack to land at the stub: id matches, result is
+  // null, *and* method is absent (so we're not matching the stub's outbound
+  // request being mistakenly logged as inbound).
   await waitFor(() => readJsonLines(path.join(dir, "recv.jsonl"))
-    .some((m) => m.id === 99 && m.result === null));
+    .some((m) => m.id === 99 && m.result === null && m.method === undefined && m.jsonrpc === "2.0"));
 
-  await sleep(150);
+  // Drive a sentinel notification through the proxy and wait for the stub to
+  // see it. Once it has, any client-bound frame the proxy was going to emit
+  // for the server-initiated request would already be in stdoutBuf.
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    method: "$/test-sentinel-after-autoack",
+    params: {},
+  }));
+  await waitFor(() => readJsonLines(path.join(dir, "recv.jsonl"))
+    .some((m) => m.method === "$/test-sentinel-after-autoack"));
+
   const clientFrames = parseFrames(proxy.stdoutBuf());
   assert(!clientFrames.some((f) => f.body.id === 99 && f.body.method === method),
     `client unexpectedly received server-initiated ${method}`);
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+// Negative case: a server-initiated request that is NOT in the auto-ack set
+// must be forwarded to the client, not synthetically answered by the proxy.
+async function serverRequestForwardedWhenNotAutoAcked(setProxy) {
+  const dir = wd("server-req-forwarded");
+  const method = "window/showMessageRequest";
+  const serverReq = { jsonrpc: "2.0", id: 77, method, params: { type: 3, message: "pick one", actions: [] } };
+  const proxy = spawnProxy({
+    proxyJs: ANSIBLE_PROXY,
+    config: proxyConfig(),
+    stubEnv: { STUB_LOG_DIR: dir, STUB_EMIT: JSON.stringify([serverReq]) },
+  });
+  setProxy(proxy);
+
+  await waitFor(() => parseFrames(proxy.stdoutBuf())
+    .some((f) => f.body.id === 77 && f.body.method === method));
+
+  const clientFrames = parseFrames(proxy.stdoutBuf());
+  const fwd = clientFrames.find((f) => f.body.id === 77 && f.body.method === method);
+  assert(fwd, `expected ${method} to be forwarded to client`);
+  // Proxy must not also pre-answer; if it did, we'd see a response frame for id=77.
+  const ackedAtStub = readJsonLines(path.join(dir, "recv.jsonl"))
+    .some((m) => m.id === 77 && m.result !== undefined);
+  assert(!ackedAtStub, "proxy auto-answered a method not in the auto-ack set");
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -234,28 +296,94 @@ async function unparseableBodyForwarded(setProxy) {
 }
 
 async function serverToClientByteIdentical(setProxy) {
+  // Emit a notification followed by a sentinel terminator. Once the terminator
+  // arrives at the client, the proxy has finished emitting everything queued
+  // before it — observable bound on completion replaces the 80ms sleep.
   const notif = {
     jsonrpc: "2.0",
     method: "window/showMessage",
     params: { type: 3, message: "hello-from-server" },
   };
-  const body = Buffer.from(JSON.stringify(notif));
-  const expected = Buffer.concat([
-    Buffer.from(`Content-Length: ${body.length}\r\n\r\n`),
-    body,
-  ]);
+  const terminator = {
+    jsonrpc: "2.0",
+    method: "$/test-terminator",
+    params: {},
+  };
+  const expected = Buffer.concat([frameOf(notif), frameOf(terminator)]);
   const proxy = spawnProxy({
     proxyJs: ANSIBLE_PROXY,
     config: proxyConfig(),
-    stubEnv: { STUB_EMIT: JSON.stringify([notif]) },
+    stubEnv: { STUB_EMIT: JSON.stringify([notif, terminator]) },
   });
   setProxy(proxy);
 
   await waitFor(() => proxy.stdoutBuf().length >= expected.length);
-  await sleep(80);
   const got = proxy.stdoutBuf();
   assert(got.equals(expected),
     `server->client bytes differ; got ${got.length}B '${got.toString("utf8")}', expected '${expected.toString("utf8")}'`);
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+// Framing parity for regal-lsp/lsp-proxy.js: identical pass-through behavior.
+// Without this, a future divergence between the two proxies would slip past
+// the suite (proxy tests target ANSIBLE_PROXY, warmup tests target REGAL_PROXY
+// but only exercise the warmup-specific code paths).
+async function regalPassthroughParity(setProxy) {
+  const dir = wd("regal-passthrough");
+  const proxy = spawnProxy({
+    proxyJs: REGAL_PROXY,
+    config: proxyConfig(),
+    stubEnv: { STUB_LOG_DIR: dir, STUB_HOVER_RESULT: "1" },
+  });
+  setProxy(proxy);
+
+  const hover = {
+    jsonrpc: "2.0",
+    id: 11,
+    method: "textDocument/hover",
+    params: { textDocument: { uri: "file:///x.rego" }, position: { line: 0, character: 0 } },
+  };
+  const sentBytes = frameOf(hover);
+  proxy.child.stdin.write(sentBytes);
+
+  await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 11));
+
+  const resp = parseFrames(proxy.stdoutBuf()).find((f) => f.body.id === 11);
+  assert(resp && resp.body.result && resp.body.result.contents === "hover-result",
+    `regal proxy passthrough failed: ${JSON.stringify(resp && resp.body)}`);
+
+  const stubReceived = fs.readFileSync(path.join(dir, "recv.log"));
+  assert(stubReceived.equals(sentBytes),
+    `regal stub bytes differ from client bytes; got ${stubReceived.length}B, sent ${sentBytes.length}B`);
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+async function regalBlockedRequestParity(setProxy) {
+  const dir = wd("regal-blocked");
+  const proxy = spawnProxy({
+    proxyJs: REGAL_PROXY,
+    config: proxyConfig({ blocked: ["textDocument/references"] }),
+    stubEnv: { STUB_LOG_DIR: dir },
+  });
+  setProxy(proxy);
+
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    id: 88,
+    method: "textDocument/references",
+    params: { textDocument: { uri: "file:///x.rego" }, position: { line: 0, character: 0 } },
+  }));
+  await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 88));
+  const resp = parseFrames(proxy.stdoutBuf()).find((f) => f.body.id === 88);
+  assert(resp && resp.body.result === null,
+    "regal proxy did not synthesize result:null for blocked request");
+
+  const recv = fs.existsSync(path.join(dir, "recv.log")) ? fs.readFileSync(path.join(dir, "recv.log"), "utf8") : "";
+  assert(!recv.includes("textDocument/references"), "regal stub received the blocked request");
+
   proxy.child.stdin.end();
   await proxy.exited;
 }
@@ -369,6 +497,7 @@ const SCENARIOS = {
   "auto-ack-unregister": (setProxy) => autoAckMethod("client/unregisterCapability", setProxy),
   "auto-ack-configuration": (setProxy) => autoAckMethod("workspace/configuration", setProxy),
   "auto-ack-workdone": (setProxy) => autoAckMethod("window/workDoneProgress/create", setProxy),
+  "server-req-forwarded": serverRequestForwardedWhenNotAutoAcked,
   "split-buffer": splitBuffer,
   "malformed-header-forwarded": malformedHeaderForwarded,
   "unparseable-body-forwarded": unparseableBodyForwarded,
@@ -380,6 +509,8 @@ const SCENARIOS = {
   "config-unreadable": configUnreadable,
   "config-empty-server": configEmptyServer,
   "child-spawn-error": childSpawnError,
+  "regal-passthrough": regalPassthroughParity,
+  "regal-blocked-request": regalBlockedRequestParity,
 };
 
 dispatch(SCENARIOS, process.argv[2]);
