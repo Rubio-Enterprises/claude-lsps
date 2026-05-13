@@ -38,9 +38,13 @@ export ROOT_DIR TESTS_DIR TMP_DIR NODE_V8_COVERAGE
 source "$TESTS_DIR/lib/framework.sh"
 
 # Derive PLUGINS from marketplace.json so the suite self-updates when plugins
-# are added or renamed. Falls back to a hardcoded list if jq output is empty
-# (e.g. malformed manifest), which 01-manifests will catch separately.
-mapfile -t PLUGINS < <(jq -r '.plugins[].source | sub("^\\./"; "")' "$ROOT_DIR/.claude-plugin/marketplace.json" | LC_ALL=C sort)
+# are added or renamed. `while read` instead of `mapfile` because macOS ships
+# bash 3.2 at /bin/bash, which the github-actions macOS runner uses as the
+# default shell — `mapfile` is bash 4+ and would exit 127 there.
+PLUGINS=()
+while IFS= read -r _line; do
+  [[ -n "$_line" ]] && PLUGINS+=("$_line")
+done < <(jq -r '.plugins[].source | sub("^\\./"; "")' "$ROOT_DIR/.claude-plugin/marketplace.json" | LC_ALL=C sort)
 if (( ${#PLUGINS[@]} == 0 )); then
   printf 'could not derive PLUGINS from marketplace.json\n' >&2
   exit 2
