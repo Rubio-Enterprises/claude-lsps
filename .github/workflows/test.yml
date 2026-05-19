@@ -12,13 +12,17 @@ permissions:
 
 jobs:
   test:
-    name: tests / ${{ matrix.os }}
+    name: tests / ${{ matrix.name }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
-    runs-on: ${{ matrix.os }}
+        include:
+          - name: ubuntu-24.04
+            runner: ubuntu-24.04
+          - name: macos
+            runner: [self-hosted, macOS, ARM64]
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
