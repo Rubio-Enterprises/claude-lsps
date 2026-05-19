@@ -10,19 +10,19 @@ fi
 
 # Determine install method: Homebrew on macOS, binary download on Linux
 case "$(uname -s)" in
-  Darwin)
-    if command -v brew &>/dev/null; then
-      INSTALL_METHOD="brew"
-      LOCK_FILE="/tmp/claude-lsp-brew.lock"
-    else
-      INSTALL_METHOD="binary"
-      LOCK_FILE="/tmp/claude-lsp-binary.lock"
-    fi
-    ;;
-  *)
+Darwin)
+  if command -v brew &>/dev/null; then
+    INSTALL_METHOD="brew"
+    LOCK_FILE="/tmp/claude-lsp-brew.lock"
+  else
     INSTALL_METHOD="binary"
     LOCK_FILE="/tmp/claude-lsp-binary.lock"
-    ;;
+  fi
+  ;;
+*)
+  INSTALL_METHOD="binary"
+  LOCK_FILE="/tmp/claude-lsp-binary.lock"
+  ;;
 esac
 
 LOCK_TIMEOUT=120
@@ -40,16 +40,22 @@ do_install() {
     echo "[$BINARY] Installing binary from GitHub..."
     local arch
     case "$(uname -m)" in
-      x86_64)  arch="x86_64" ;;
-      aarch64|arm64) arch="arm64" ;;
-      *) echo "[$BINARY] Unsupported architecture: $(uname -m)"; return 1 ;;
+    x86_64) arch="x86_64" ;;
+    aarch64 | arm64) arch="arm64" ;;
+    *)
+      echo "[$BINARY] Unsupported architecture: $(uname -m)"
+      return 1
+      ;;
     esac
 
     local os
     case "$(uname -s)" in
-      Linux)  os="Linux" ;;
-      Darwin) os="Darwin" ;;
-      *) echo "[$BINARY] Unsupported OS: $(uname -s)"; return 1 ;;
+    Linux) os="Linux" ;;
+    Darwin) os="Darwin" ;;
+    *)
+      echo "[$BINARY] Unsupported OS: $(uname -s)"
+      return 1
+      ;;
     esac
 
     local version="0.39.0"
@@ -70,19 +76,22 @@ do_install() {
 # Serialized install (flock with mkdir fallback for macOS)
 if command -v flock &>/dev/null; then
   (
-    flock --timeout "$LOCK_TIMEOUT" 9 || { echo "[$BINARY] Lock timeout"; exit 1; }
+    flock --timeout "$LOCK_TIMEOUT" 9 || {
+      echo "[$BINARY] Lock timeout"
+      exit 1
+    }
     command -v "$BINARY" &>/dev/null && exit 0
     do_install
   ) 9>"$LOCK_FILE"
 else
   waited=0
   while ! mkdir "$LOCK_FILE.d" 2>/dev/null; do
-    if (( waited >= LOCK_TIMEOUT )); then
+    if ((waited >= LOCK_TIMEOUT)); then
       echo "[$BINARY] Lock timeout"
       exit 1
     fi
     sleep 2
-    (( waited += 2 ))
+    ((waited += 2))
   done
   trap 'rmdir "$LOCK_FILE.d" 2>/dev/null' EXIT
   command -v "$BINARY" &>/dev/null || do_install

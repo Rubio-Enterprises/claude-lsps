@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 TEST_NAMES=()
 TEST_FNS=()
 
@@ -24,8 +25,11 @@ run_all() {
     # The subshell explicitly disables -e so cases can use the rc-aggregation
     # idiom (`rc=1; ... return $rc`) inherited from run.sh's `set -e`. Run-level
     # fail-fast remains via `|| rc=$?` below.
-    ( set +e; "$fn" ) >"$log" 2>&1 || rc=$?
-    if (( rc == 0 )); then
+    (
+      set +e
+      "$fn"
+    ) >"$log" 2>&1 || rc=$?
+    if ((rc == 0)); then
       passed=$((passed + 1))
       printf '[%d/%d] %s ... PASS\n' "$((i + 1))" "$total" "$name"
     else
@@ -36,7 +40,7 @@ run_all() {
     fi
   done
 
-  if (( failed == 0 )); then
+  if ((failed == 0)); then
     printf 'PASS: %d tests, 0 failures\n' "$total"
     return 0
   else

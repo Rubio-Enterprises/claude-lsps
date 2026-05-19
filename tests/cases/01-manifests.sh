@@ -1,11 +1,12 @@
+# shellcheck shell=bash
 tc_manifests_json_valid() {
   local rc=0
   local f
   for f in "$ROOT_DIR"/*/.claude-plugin/plugin.json \
-           "$ROOT_DIR"/*/.lsp.json \
-           "$ROOT_DIR"/*/hooks/hooks.json \
-           "$ROOT_DIR"/*/proxy.json \
-           "$ROOT_DIR/.claude-plugin/marketplace.json"; do
+    "$ROOT_DIR"/*/.lsp.json \
+    "$ROOT_DIR"/*/hooks/hooks.json \
+    "$ROOT_DIR"/*/proxy.json \
+    "$ROOT_DIR/.claude-plugin/marketplace.json"; do
     [[ -e "$f" ]] || continue
     if ! jq -e . "$f" >/dev/null 2>&1; then
       echo "invalid JSON: $f"
@@ -20,7 +21,9 @@ tc_plugin_json_required_keys() {
   for p in "${PLUGINS[@]}"; do
     local f="$ROOT_DIR/$p/.claude-plugin/plugin.json"
     if [[ ! -f "$f" ]]; then
-      echo "missing $f"; rc=1; continue
+      echo "missing $f"
+      rc=1
+      continue
     fi
     for k in name version description license; do
       local t v
@@ -46,12 +49,16 @@ tc_lsp_json_structure() {
   for p in "${PLUGINS[@]}"; do
     local f="$ROOT_DIR/$p/.lsp.json"
     if [[ ! -f "$f" ]]; then
-      echo "missing $f"; rc=1; continue
+      echo "missing $f"
+      rc=1
+      continue
     fi
     local count
     count=$(jq 'keys | length' "$f")
-    if (( count < 1 )); then
-      echo "$p .lsp.json: no languageId keys"; rc=1; continue
+    if ((count < 1)); then
+      echo "$p .lsp.json: no languageId keys"
+      rc=1
+      continue
     fi
     local check
     check=$(jq '
@@ -79,7 +86,9 @@ tc_hooks_json_structure() {
   for p in "${PLUGINS[@]}"; do
     local f="$ROOT_DIR/$p/hooks/hooks.json"
     if [[ ! -f "$f" ]]; then
-      echo "missing $f"; rc=1; continue
+      echo "missing $f"
+      rc=1
+      continue
     fi
     local check
     check=$(jq '
@@ -134,10 +143,12 @@ tc_marketplace_matches_plugins() {
   schema=$(jq -r '."$schema" // empty' "$mp")
   mp_owner=$(jq -r '.owner.name // empty' "$mp")
   if [[ -z "$schema" ]]; then
-    echo "marketplace.json: missing \$schema"; rc=1
+    echo "marketplace.json: missing \$schema"
+    rc=1
   fi
   if [[ -z "$mp_owner" ]]; then
-    echo "marketplace.json: missing owner.name"; rc=1
+    echo "marketplace.json: missing owner.name"
+    rc=1
   fi
 
   local sources actual
@@ -153,7 +164,9 @@ tc_marketplace_matches_plugins() {
     local sub="${src#./}"
     local pj="$ROOT_DIR/$sub/.claude-plugin/plugin.json"
     if [[ ! -f "$pj" ]]; then
-      echo "marketplace references missing plugin: $src"; rc=1; continue
+      echo "marketplace references missing plugin: $src"
+      rc=1
+      continue
     fi
     local pjn pjv pjd pjan
     pjn=$(jq -r '.name' "$pj")
@@ -167,10 +180,12 @@ tc_marketplace_matches_plugins() {
       rc=1
     fi
     if [[ -z "$category" || "$category" == "null" ]]; then
-      echo "marketplace[$src]: missing category"; rc=1
+      echo "marketplace[$src]: missing category"
+      rc=1
     fi
     if [[ -z "$author_name" || "$author_name" == "null" ]]; then
-      echo "marketplace[$src]: missing author.name"; rc=1
+      echo "marketplace[$src]: missing author.name"
+      rc=1
     elif [[ "$author_name" != "$pjan" ]]; then
       echo "marketplace[$src]: author.name='$author_name' != plugin.json author.name='$pjan'"
       rc=1
@@ -179,7 +194,8 @@ tc_marketplace_matches_plugins() {
     local tags_ok
     tags_ok=$(jq -r --arg s "$src" '.plugins[] | select(.source == $s) | (.tags | type == "array" and length > 0 and all(type == "string"))' "$mp")
     if [[ "$tags_ok" != "true" ]]; then
-      echo "marketplace[$src]: tags must be non-empty array of strings"; rc=1
+      echo "marketplace[$src]: tags must be non-empty array of strings"
+      rc=1
     fi
   done < <(jq -r '.plugins[] | [.source, .name, .version, .description, (.category // ""), (.author.name // "")] | @tsv' "$mp")
   return $rc
