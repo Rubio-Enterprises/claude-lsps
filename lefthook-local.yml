@@ -1,0 +1,21 @@
+# lefthook.local.yml — repo-local overrides for the standards-template lefthook.yml.
+#
+# Severity bump on shellcheck: this repo's tests/cases/*.sh deliberately use
+# single-quoted ${CLAUDE_PLUGIN_ROOT} literal patterns (SC2016 info) and source
+# files that shellcheck can't statically follow without `-x` (SC1091 info). The
+# standards template's default `shellcheck {staged_files}` runs at default
+# severity, which makes shellcheck exit non-zero on those info findings —
+# tripping the central lint-hooks CI gate even after the SC2148 (missing-shebang)
+# errors are fixed via per-file `# shellcheck shell=bash` directives.
+#
+# Match the repo's own `tests/cases/03-installer-lint.sh` which uses
+# `--severity=warning`, treating info-level shellcheck findings as advisory.
+# Errors and warnings still fail (the original SC2148 errors that surfaced this
+# would still trip the gate without the per-file directives).
+#
+# Listed in the template's `_skip_if_exists`, so `copier update` won't clobber
+# this file.
+pre-commit:
+  commands:
+    shellcheck:
+      run: shellcheck --severity=warning {staged_files}

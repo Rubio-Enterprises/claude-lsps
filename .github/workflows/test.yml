@@ -27,7 +27,7 @@ jobs:
       # Node 18, but a fixed version keeps the coverage gate deterministic.
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.11.0'
+          node-version: "22.11.0"
 
       # jq is bundled with both runner images at compatible versions. We pin
       # shellcheck explicitly because new releases periodically add diagnostics

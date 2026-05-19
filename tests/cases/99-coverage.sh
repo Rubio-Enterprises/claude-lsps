@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 tc_coverage_gate() {
   node "$TESTS_DIR/helpers/coverage-check.js" --threshold=80
 }

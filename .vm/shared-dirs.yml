@@ -32,7 +32,6 @@ dirs:
   #     destination: /home/vagrant/.config/gh
   #     mode: rw
 
-
   # Other Examples:
   # =============================================================================
   # Shared Code Libraries

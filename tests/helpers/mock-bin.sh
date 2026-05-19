@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Rewrite the installer's hard-coded /tmp/claude-lsp-*.lock paths to live
 # inside the sandbox dir, so lockfile state can't leak between scenarios.
 # Concurrency tests intentionally share a sandbox so both invocations see the
@@ -7,17 +8,19 @@ patch_installer() {
   shopt -s nullglob
   local files=("$ROOT_DIR/$plugin/hooks/"check-*.sh)
   shopt -u nullglob
-  if (( ${#files[@]} == 0 )); then
-    echo "patch_installer: no check-*.sh in $plugin/hooks/" >&2; return 1
+  if ((${#files[@]} == 0)); then
+    echo "patch_installer: no check-*.sh in $plugin/hooks/" >&2
+    return 1
   fi
-  if (( ${#files[@]} > 1 )); then
+  if ((${#files[@]} > 1)); then
     # Don't silently pick `files[0]` from an unsorted glob — fail loudly so a
     # newly added installer script is noticed.
-    echo "patch_installer: multiple check-*.sh in $plugin/hooks/: ${files[*]}" >&2; return 1
+    echo "patch_installer: multiple check-*.sh in $plugin/hooks/: ${files[*]}" >&2
+    return 1
   fi
   local prefix
   prefix=$(dirname "$out")/lock-
-  sed "s|/tmp/claude-lsp-|${prefix}|g" "${files[0]}" > "$out"
+  sed "s|/tmp/claude-lsp-|${prefix}|g" "${files[0]}" >"$out"
   chmod +x "$out"
   # Sanity check: nothing reaches the real /tmp/claude-lsp- prefix.
   if grep -F '/tmp/claude-lsp-' "$out" >/dev/null; then
@@ -33,11 +36,14 @@ make_install_mock() {
   local bin_dir="$1" name="$2" log="$3"
   shift 3
   local target="" exit_code=0
-  while (( $# > 0 )); do
+  while (($# > 0)); do
     case "$1" in
-      --target=*) target="${1#--target=}" ;;
-      --exit=*)   exit_code="${1#--exit=}" ;;
-      *) echo "make_install_mock: unknown arg $1" >&2; return 2 ;;
+    --target=*) target="${1#--target=}" ;;
+    --exit=*) exit_code="${1#--exit=}" ;;
+    *)
+      echo "make_install_mock: unknown arg $1" >&2
+      return 2
+      ;;
     esac
     shift
   done
@@ -53,7 +59,7 @@ chmod +x "\$tmpf"
 mv "\$tmpf" "$bin_dir/$target"
 EOF
   fi
-  printf 'exit %s\n' "$exit_code" >> "$bin_dir/$name"
+  printf 'exit %s\n' "$exit_code" >>"$bin_dir/$name"
   chmod +x "$bin_dir/$name"
 }
 
@@ -65,10 +71,13 @@ make_curl_mock() {
   local bin_dir="$1" log="$2"
   shift 2
   local exit_code=0
-  while (( $# > 0 )); do
+  while (($# > 0)); do
     case "$1" in
-      --exit=*) exit_code="${1#--exit=}" ;;
-      *) echo "make_curl_mock: unknown arg $1" >&2; return 2 ;;
+    --exit=*) exit_code="${1#--exit=}" ;;
+    *)
+      echo "make_curl_mock: unknown arg $1" >&2
+      return 2
+      ;;
     esac
     shift
   done
@@ -127,7 +136,7 @@ EOF
 # Symlink only the tools the installer scripts actually need.
 _REAL_TOOL_PATHS=()
 _resolve_real_tools_once() {
-  if (( ${#_REAL_TOOL_PATHS[@]} > 0 )); then return; fi
+  if ((${#_REAL_TOOL_PATHS[@]} > 0)); then return; fi
   local t real
   for t in bash flock mkdir rmdir sleep uname tr mktemp mv chmod rm cat grep sed awk; do
     real=$(command -v "$t" 2>/dev/null) || continue

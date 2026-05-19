@@ -15,13 +15,16 @@ missing=()
 for tool in "${REQUIRED_TOOLS[@]}"; do
   command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
 done
-if (( ${#missing[@]} > 0 )); then
+if ((${#missing[@]} > 0)); then
   printf 'missing required tools: %s\n' "${missing[*]}" >&2
   exit 2
 fi
 
 # Cheap insurance: refuse to rm anything outside tests/tmp/.
-[[ "$TMP_DIR" == */tests/tmp ]] || { echo "refusing to clean unexpected TMP_DIR=$TMP_DIR" >&2; exit 2; }
+[[ "$TMP_DIR" == */tests/tmp ]] || {
+  echo "refusing to clean unexpected TMP_DIR=$TMP_DIR" >&2
+  exit 2
+}
 rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR"
 cleanup() { rm -rf "$TMP_DIR"; }
@@ -45,7 +48,7 @@ PLUGINS=()
 while IFS= read -r _line; do
   [[ -n "$_line" ]] && PLUGINS+=("$_line")
 done < <(jq -r '.plugins[].source | sub("^\\./"; "")' "$ROOT_DIR/.claude-plugin/marketplace.json" | LC_ALL=C sort)
-if (( ${#PLUGINS[@]} == 0 )); then
+if ((${#PLUGINS[@]} == 0)); then
   printf 'could not derive PLUGINS from marketplace.json\n' >&2
   exit 2
 fi
