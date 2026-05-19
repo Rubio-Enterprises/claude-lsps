@@ -1,0 +1,26 @@
+creation_rules:
+  # Prod: laptop admin ONLY by default. Per-host PROD-DEPLOY keys appended
+  # manually post-scaffold (see Plan 1 §8.10 appendix). If laptop access is
+  # ever fully lost, fall back to Path 5 — rotate credentials at the upstream
+  # service that issued them. There is intentionally no centralized "backup"
+  # age key in this architecture.
+  - path_regex: \.prod\.enc\.(yaml|json|env)$
+    age: >-
+      age1kylz6duyzn4gahd8fp007npphh5tkfxwtdz9q8nasqwxsy30ev6sfs8gp3
+    mac_only_encrypted: true
+
+  # Staging: every operator host (laptop + Mac Studio + tailnet VMs) + CI.
+  - path_regex: \.staging\.enc\.(yaml|json|env)$
+    age: >-
+      age1kylz6duyzn4gahd8fp007npphh5tkfxwtdz9q8nasqwxsy30ev6sfs8gp3,
+      age18kgtf34wj88lkrchj2n746n3wu7vfvu5q46g0283vpnhnecsv4mshdxx2t,
+      age1sf5r85x0pl78tglmfhec93656384vwzve68cc2u4fd0ewlle5e0qpzy56z
+    mac_only_encrypted: true
+
+  # Fallback (any other .enc.*): same recipient set as staging.
+  - path_regex: \.enc\.(yaml|json|env)$
+    age: >-
+      age1kylz6duyzn4gahd8fp007npphh5tkfxwtdz9q8nasqwxsy30ev6sfs8gp3,
+      age18kgtf34wj88lkrchj2n746n3wu7vfvu5q46g0283vpnhnecsv4mshdxx2t,
+      age1sf5r85x0pl78tglmfhec93656384vwzve68cc2u4fd0ewlle5e0qpzy56z
+    mac_only_encrypted: true

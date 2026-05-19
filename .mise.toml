@@ -1,0 +1,39 @@
+# .mise.toml — task runner contract (§6.3: `mise run lint`, `mise run test`, `mise run e2e`, `mise run build`)
+# Backend-prefixed pins (`npm:`, `aqua:`, `github:`) live here, not in .tool-versions.
+
+[tools]
+# commitlint via mise's npm: backend so the binary lands on PATH across every
+# archetype. Earlier the template assumed TS consumers carried commitlint as a
+# package.json devDep, but Pattern E preserves the consumer's package.json
+# (`_skip_if_exists`), so the assumption broke. mise pinning is the consistent
+# audit-side contract — same as how gitleaks/conftest/check-jsonschema work.
+"npm:@commitlint/cli" = "20"
+"npm:@commitlint/config-conventional" = "20"
+
+# Hook tools backing lefthook.yml. Universal across archetypes — every
+# archetype's lefthook runs markdownlint/yamllint/prettier and most run
+# shellcheck/shfmt/sops. Pinning here is the only way `lefthook run` can
+# resolve these binaries on a fresh CI runner (and via `mise exec --` locally
+# without polluting the developer's global tool surface).
+"aqua:koalaman/shellcheck" = "0.10"
+"aqua:mvdan/sh"            = "3.10"   # shfmt
+"aqua:getsops/sops"        = "3.9"
+"npm:markdownlint-cli2"    = "0.18"
+"npm:prettier"             = "3.4"
+"pipx:yamllint"            = "1.37"
+# lefthook binary itself. The lint-hooks CI job runs `mise exec -- lefthook
+# run pre-commit --all-files`, which requires lefthook on PATH from mise (the
+# CI runner doesn't carry it natively). Locally developers usually have
+# lefthook via Homebrew; pinning here keeps CI and the developer-laptop
+# parity. The audit-side .standards/.mise.toml does NOT pin lefthook because
+# audit.yml doesn't invoke it — only consumer-side lint-hooks does.
+"aqua:evilmartians/lefthook" = "2"
+# gitleaks here mirrors the audit-side pin in .standards/.mise.toml. The
+# lefthook pre-commit gitleaks hook invokes a bare `gitleaks git --staged`,
+# which needs the binary on PATH — the consumer-side lint-hooks CI job
+# doesn't materialize .standards/ so cannot rely on that pin.
+"aqua:gitleaks/gitleaks"     = "8"
+# yq — used by the `_tasks` merge-yamllint.sh hook to deep-merge consumer-side
+# .yamllint.local into the template-rendered .yamllint at copier render time.
+# Pinning universally so consumers can rely on it for their own scripts too.
+"aqua:mikefarah/yq"          = "4"

@@ -13,3 +13,22 @@ Vagrantfile
 !.vm/worktree-files.yml
 !.vm/worktree-setup.sh
 # END agent-sandbox managed
+
+# >>> rubio-standards >>>
+# Managed by rubio-standards Copier template. Do not edit between sentinels —
+# `scripts/merge-gitignore.sh` rewrites this block on every `copier copy/update`.
+.DS_Store
+.envrc.local
+*.log
+node_modules/
+dist/
+build/
+coverage/
+reports/
+
+# secrets — local is plaintext+gitignored (§6.10)
+secrets.local.*
+!secrets.local.example.*
+
+# Per-archetype
+# <<< rubio-standards <<<

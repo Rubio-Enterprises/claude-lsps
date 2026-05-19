@@ -1,0 +1,23 @@
+// markdownlint-cli2 config — relax org rules for the documentation files
+// the standards template ships (AGENTS.md, CLAUDE.md, SECRETS.md) and any
+// organic project markdown that pre-dates this config.
+{
+  "config": {
+    "default": true,
+    // Org markdown is plain prose; line-length isn't enforced because long
+    // sentences and inline URLs are common in standards/architecture docs.
+    "MD013": false,
+    // Inline HTML is allowed (used for badges, collapsible sections, etc.).
+    "MD033": false,
+    // Bare URLs are allowed in agent-facing docs (CLAUDE.md, AGENTS.md, etc.).
+    "MD034": false,
+    // Allow duplicate headings (e.g., multiple "## Usage" in archetype tables).
+    "MD024": false,
+    // First-line H1 not required.
+    "MD041": false,
+    // Allow fenced code blocks without a language hint (README has plain
+    // shell-output blocks where adding a tag would be misleading).
+    "MD040": false
+  },
+  "ignores": ["node_modules", ".astro", "dist", "build", "playwright-report", "test-results"]
+}
