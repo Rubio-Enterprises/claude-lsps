@@ -19,5 +19,5 @@
     // shell-output blocks where adding a tag would be misleading).
     "MD040": false
   },
-  "ignores": ["node_modules", ".astro", "dist", "build", "playwright-report", "test-results"]
+  "ignores": ["node_modules", ".astro", "dist", "build", "playwright-report", "test-results", "CHANGELOG.md"]
 }
