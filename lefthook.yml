@@ -6,6 +6,14 @@
 # per-repo lefthook binary via its own logic. No repo-side `core.hooksPath`
 # override is required or wanted — repo-local `.githooks/` directories are
 # banned by `check.sh` to keep the dispatcher path canonical across the fleet.
+#
+# `stage_fixed` default — fork-aware (see MIGRATION.md §"--all-files + stage_fixed"):
+# non-fork repos auto-stage formatter rewrites (`stage_fixed: true`), which is the
+# desired behavior since every file in the working tree is fair game for org-floor
+# formatting. Fork consumers (`is_fork: true`) get `stage_fixed: false` so a stray
+# `lefthook --all-files` (or a partial stage in a mostly-upstream file) cannot
+# silently absorb upstream-pristine rewrites into the next commit. Forks that want
+# auto-staging back can override via `lefthook-local.yml` per hook.
 
 commit-msg:
   commands:
