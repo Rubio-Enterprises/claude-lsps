@@ -18,7 +18,7 @@
 "aqua:koalaman/shellcheck" = "0.10"
 "aqua:mvdan/sh"            = "3.10"   # shfmt
 "aqua:getsops/sops"        = "3.9"
-"npm:markdownlint-cli2"    = "0.18"
+"npm:markdownlint-cli2"    = "0.22"
 "npm:prettier"             = "3.4"
 "pipx:yamllint"            = "1.37"
 # lefthook binary itself. The lint-hooks CI job runs `mise exec -- lefthook
