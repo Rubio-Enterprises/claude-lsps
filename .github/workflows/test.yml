@@ -24,14 +24,14 @@ jobs:
             runner: [self-hosted, macOS, ARM64]
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       # Pin Node to a specific patch so setup-node@v4 can't drift across runs.
       # Coverage collection uses NODE_V8_COVERAGE which has been stable since
       # Node 18, but a fixed version keeps the coverage gate deterministic.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "22.11.0"
+          node-version: "22.22.3"
 
       # jq is bundled with both runner images at compatible versions. We pin
       # shellcheck explicitly because new releases periodically add diagnostics
