@@ -25,7 +25,7 @@ jobs:
     # the SHA when .github@v1 advances. Without it, the SHA pin is opaque to
     # Renovate and never gets updated.
     if: github.event_name != 'pull_request' || github.event.action != 'edited'
-    uses: Rubio-Enterprises/.github/.github/workflows/audit.yml@f8ea98b63617de828595d87efccca54934cc55fe # v1
+    uses: Rubio-Enterprises/.github/.github/workflows/audit.yml@01fe99f85085e4694b71387b01933bc8cebe0aa2 # v1
   commitlint-pr-title:
     # PR-title conventional-commit check. Uses the canonical
     # amannn/action-semantic-pull-request action: it bundles commitlint and
@@ -62,7 +62,7 @@ jobs:
           requireScope: false
   gitleaks:
     if: github.event_name == 'pull_request' && github.event.action != 'edited'
-    uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@f8ea98b63617de828595d87efccca54934cc55fe # v1
+    uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@01fe99f85085e4694b71387b01933bc8cebe0aa2 # v1
     with: { mode: gitleaks }
   trufflehog:
     # schedule = weekly automated; workflow_dispatch = manual re-trigger for
@@ -71,7 +71,7 @@ jobs:
     # Rubio-Enterprises/.github for the path-suppression flow that makes the
     # manual-trigger affordance load-bearing.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@f8ea98b63617de828595d87efccca54934cc55fe # v1
+    uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@01fe99f85085e4694b71387b01933bc8cebe0aa2 # v1
     with: { mode: trufflehog }
 
   lint-hooks:
@@ -79,7 +79,7 @@ jobs:
     # diffs). Catches drift in hook-tool pins / PATH wiring that local commits
     # would otherwise hit first. PR-only; push/schedule paths skip.
     if: github.event_name == 'pull_request' && github.event.action != 'edited'
-    uses: Rubio-Enterprises/.github/.github/workflows/lint-hooks.yml@f8ea98b63617de828595d87efccca54934cc55fe # v1
+    uses: Rubio-Enterprises/.github/.github/workflows/lint-hooks.yml@01fe99f85085e4694b71387b01933bc8cebe0aa2 # v1
   copier-sync:
     # Weekly + manual: detect drift between this repo's rendered template state
     # and the latest `template/v1` release, then open a PR with the rendered
@@ -90,7 +90,7 @@ jobs:
     if: >-
       github.event_name == 'schedule' && github.event.schedule == '0 8 * * 1'
       || github.event_name == 'workflow_dispatch'
-    uses: Rubio-Enterprises/.github/.github/workflows/copier-sync.yml@f8ea98b63617de828595d87efccca54934cc55fe # v1
+    uses: Rubio-Enterprises/.github/.github/workflows/copier-sync.yml@01fe99f85085e4694b71387b01933bc8cebe0aa2 # v1
     permissions:
       contents: write
       pull-requests: write
