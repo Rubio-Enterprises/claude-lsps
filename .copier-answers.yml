@@ -1,5 +1,6 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.23.6
+_commit: template/v1.24.1
+_rubio_template_version: template/v1.24.1
 _src_path: gh:Rubio-Enterprises/standards
 age_admin_pubkey: age1kylz6duyzn4gahd8fp007npphh5tkfxwtdz9q8nasqwxsy30ev6sfs8gp3
 age_per_host_pubkeys:
