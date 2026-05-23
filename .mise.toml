@@ -12,12 +12,11 @@
 
 # Hook tools backing lefthook.yml. Universal across archetypes — every
 # archetype's lefthook runs markdownlint/yamllint/prettier and most run
-# shellcheck/shfmt/sops. Pinning here is the only way `lefthook run` can
+# shellcheck/shfmt. Pinning here is the only way `lefthook run` can
 # resolve these binaries on a fresh CI runner (and via `mise exec --` locally
 # without polluting the developer's global tool surface).
 "aqua:koalaman/shellcheck" = "0.10"
 "aqua:mvdan/sh"            = "3.10"   # shfmt
-"aqua:getsops/sops"        = "3.9"
 "npm:markdownlint-cli2"    = "0.22"
 "npm:prettier"             = "3.4"
 "pipx:yamllint"            = "1.37"

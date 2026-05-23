@@ -1,10 +1,7 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.24.3
-_rubio_template_version: template/v1.24.3
+_commit: template/v1.25.0
+_rubio_template_version: template/v1.25.0
 _src_path: gh:Rubio-Enterprises/standards
-age_admin_pubkey: age1kylz6duyzn4gahd8fp007npphh5tkfxwtdz9q8nasqwxsy30ev6sfs8gp3
-age_per_host_pubkeys:
-- age18kgtf34wj88lkrchj2n746n3wu7vfvu5q46g0283vpnhnecsv4mshdxx2t
 archetype: bare
 default_branch: main
 is_fork: false
