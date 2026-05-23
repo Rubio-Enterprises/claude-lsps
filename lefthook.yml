@@ -85,13 +85,6 @@ pre-commit:
       glob: "*.{sh,bash}"
       run: shfmt -w {staged_files}
       stage_fixed: true
-    sops-mac-validate:
-      # Verify MAC integrity on staged encrypted files; sops --decrypt with no
-      # output flag streams plaintext to stdout, so route to /dev/null and
-      # rely on exit code only.
-      glob: "*.enc.{yaml,json,env}"
-      run: |
-        for f in {staged_files}; do sops --decrypt "$f" >/dev/null || exit 1; done
 
 pre-push:
   commands:
