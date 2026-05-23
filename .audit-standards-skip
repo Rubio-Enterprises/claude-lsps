@@ -1,0 +1,8 @@
+# Per-repo audit rule opt-outs honored by Rubio-Enterprises/standards check.sh.
+# One rule ID per line. Lines starting with `#` and blank lines ignored.
+
+# Bare archetype: Claude Code plugin marketplace shipping LSP proxies. No
+# product install/usage flow — the §6.11 sectioned skeleton (Install / Usage /
+# Configuration / Development / License) doesn't map for a marketplace catalog
+# repo.
+README-BADGES-SENTINEL
