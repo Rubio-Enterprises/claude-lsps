@@ -19,7 +19,7 @@
 "aqua:mvdan/sh"            = "3.10"   # shfmt
 "npm:markdownlint-cli2"    = "0.22"
 "npm:prettier"             = "3.4"
-"pipx:yamllint"            = "1.37"
+"pipx:yamllint"            = "1.38.0"
 # lefthook binary itself. The lint-hooks CI job runs `mise exec -- lefthook
 # run pre-commit --all-files`, which requires lefthook on PATH from mise (the
 # CI runner doesn't carry it natively). Locally developers usually have
