@@ -13,9 +13,32 @@
 # Errors and warnings still fail (the original SC2148 errors that surfaced this
 # would still trip the gate without the per-file directives).
 #
+# Fixture exclusion (shellcheck, shfmt, yaml-prettier): tests/fixtures/** holds
+# deliberately-malformed inputs fed to the live LSP suite — bash/broken.sh has
+# an intentional parse error, ansible/broken.yml an unclosed flow sequence — so
+# the org-floor lint/format hooks must skip them, and shfmt/prettier
+# `stage_fixed` rewrites must not mutate the crafted inputs. shellcheck and
+# shfmt have no native file-ignore mechanism, so lefthook `exclude` is the only
+# layer that works; yaml-prettier follows the template's own convention of
+# listing file exclusions here (cf. its lockfile/action.yml `exclude` in
+# lefthook.yml) rather than in a `.prettierignore`. The yamllint exclusion is
+# NOT here — it lives natively in .yamllint / .yamllint.local, matching the
+# template's convention for that tool. This archetype-bare repo ships no
+# lockfiles or vendored action.yml, so dropping the template's yaml-prettier
+# excludes by overriding the list is inconsequential; every real script/config
+# lives outside tests/fixtures/ and stays linted.
+#
 # Listed in the template's `_skip_if_exists`, so `copier update` won't clobber
 # this file.
 pre-commit:
   commands:
     shellcheck:
       run: shellcheck --severity=warning {staged_files}
+      exclude:
+        - "tests/fixtures/**"
+    shfmt:
+      exclude:
+        - "tests/fixtures/**"
+    yaml-prettier:
+      exclude:
+        - "tests/fixtures/**"

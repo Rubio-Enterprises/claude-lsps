@@ -1,0 +1,7 @@
+---
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: bad indentation
+      ansible.builtin.debug:
+        msg: [unclosed
