@@ -5,8 +5,8 @@ const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
 
-const { requireEnv, newWorkdir, assert, waitFor, dispatch } = require("./lsp-test-utils.js");
-const { LspClient, parseLspJson } = require("./lsp-client.js");
+const { requireEnv, newWorkdir, dispatch } = require("./lsp-test-utils.js");
+const { LspClient, parseLspJson, wireLanguageIdFor } = require("./lsp-client.js");
 
 const { ROOT_DIR, TMP_DIR, TESTS_DIR } = requireEnv();
 const FIXTURES = path.join(TESTS_DIR, "fixtures");
@@ -33,7 +33,7 @@ async function runStandard(spec, setProxy) {
   const {
     pluginName, fixturesSubdir, includes, primaryFile,
     expectZero, expectMatch, scenarioTag, extraEnv,
-    diagMode, diagTimeoutMs, diagQuietMs, viaWarmup,
+    diagMode, diagTimeoutMs, diagQuietMs, viaWarmup, requirePublish,
   } = spec;
 
   const dir = prepWorkdir(scenarioTag, path.join(FIXTURES, fixturesSubdir), includes);
@@ -41,28 +41,44 @@ async function runStandard(spec, setProxy) {
   const rootUri = pathToFileURL(dir).href;
 
   const pluginDir = path.join(ROOT_DIR, pluginName);
-  const { command, args, languageId } = parseLspJson(pluginDir);
-  const client = new LspClient({ command, args, cwd: dir, env: extraEnv || {} });
+  const parsed = parseLspJson(pluginDir);
+  const client = new LspClient({
+    command: parsed.command, args: parsed.args, cwd: dir, env: extraEnv || {},
+  });
   await client.start();
   setProxy(client);  // dispatch() reads .child for SIGTERM-with-grace cleanup
 
   let diags = [];
+  let aliveAfterWait = false;
   let stderrSnapshot = "";
   try {
     await client.initialize({ rootUri });
     if (!viaWarmup) {
       const text = fs.readFileSync(path.join(dir, primaryFile), "utf8");
-      client.didOpen({ uri: fileUri, languageId, text });
+      client.didOpen({ uri: fileUri, languageId: wireLanguageIdFor(parsed, primaryFile), text });
     }
     diags = await client.waitForDiagnostics({
       uri: fileUri,
       mode: diagMode || "auto",
       timeout: diagTimeoutMs,
       quietMs: diagQuietMs,
+      requirePublish: requirePublish !== false,
     });
+    aliveAfterWait = client.isAlive();
     stderrSnapshot = client.stderr();
   } finally {
     try { await client.shutdown(); } catch {}
+  }
+
+  // Servers that never publish for clean files (cue lsp, vtsls/tsserver) use
+  // requirePublish: false, so a silent crash would otherwise sail through the
+  // expectZero check as "0 diagnostics". Assert the server actually survived
+  // the analysis window to keep the no-publish path honest.
+  if (requirePublish === false && !aliveAfterWait) {
+    throw new Error(
+      `server exited before the diagnostics window elapsed (crash?)` +
+      (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : "")
+    );
   }
 
   if (expectZero) {
@@ -113,7 +129,9 @@ const scenarios = {
     scenarioTag: "bash-broken",
   }, sp),
 
-  // pyright advertises diagnosticProvider → pull mode.
+  // pyright does NOT advertise diagnosticProvider (no pull support); it pushes
+  // publishDiagnostics, including an empty array for clean files — so
+  // pyright-clean is a real assertion (waits for the empty publish).
   "pyright-clean": (sp) => runStandard({
     pluginName: "pyright",
     fixturesSubdir: "pyright",
@@ -133,7 +151,12 @@ const scenarios = {
     diagTimeoutMs: 15000,
   }, sp),
 
-  // vtsls advertises diagnosticProvider → pull mode. Needs tsconfig.json.
+  // vtsls (tsserver) does NOT advertise diagnosticProvider and, unlike pyright,
+  // does NOT publish an empty diagnostic set for clean .ts files — it only
+  // publishes when a file has diagnostics. So vtsls-clean uses
+  // requirePublish: false (no publish is expected) and relies on the
+  // runStandard liveness check + the vtsls-broken scenario to prove the server
+  // is actually analyzing. Needs tsconfig.json for the project to load.
   "vtsls-clean": (sp) => runStandard({
     pluginName: "vtsls",
     fixturesSubdir: "vtsls",
@@ -141,7 +164,8 @@ const scenarios = {
     primaryFile: "clean.ts",
     expectZero: true,
     scenarioTag: "vtsls-clean",
-    diagTimeoutMs: 15000,
+    requirePublish: false,
+    diagTimeoutMs: 8000,
   }, sp),
   "vtsls-broken": (sp) => runStandard({
     pluginName: "vtsls",
@@ -156,8 +180,9 @@ const scenarios = {
   // cue-lsp: validates that `cue lsp serve` spawns, accepts the handshake,
   // accepts didOpen, and doesn't crash. As of cue v0.16.0, `cue lsp serve`
   // does not publish diagnostics (textDocument/diagnostic also unsupported),
-  // so we can't yet assert on broken-file detection. Re-add a `cue-broken`
-  // scenario when upstream gains diagnostic support.
+  // so we set requirePublish: false to let waitForDiagnostics return [] on
+  // timeout without throwing. Re-add a `cue-broken` scenario (and drop the
+  // requirePublish override) when upstream gains diagnostic support.
   "cue-clean": (sp) => runStandard({
     pluginName: "cue-lsp",
     fixturesSubdir: "cue",
@@ -165,6 +190,7 @@ const scenarios = {
     primaryFile: "clean.cue",
     expectZero: true,
     scenarioTag: "cue-clean",
+    requirePublish: false,
   }, sp),
 
   // ansible-language-server: through the proxy. Push diagnostics.
@@ -268,7 +294,7 @@ const scenarios = {
       );
     }
     const messages = diags.map((d) => d.message || "").join(" | ");
-    if (!/assignment|use-assignment|deprecated|=/i.test(messages)) {
+    if (!/prefer.*==|equality|use-assignment|deprecated/i.test(messages)) {
       throw new Error(
         `warmup produced diagnostics but none matched expected pattern; got:\n` +
         diags.slice(0, 5).map((d) => `  - ${d.message}`).join("\n")
