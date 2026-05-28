@@ -1,0 +1,13 @@
+# .yamllint.local — consumer extensions merged into .yamllint by the template's
+# `merge-yamllint.sh` Copier `_tasks` hook (yq `*+`: arrays append, deduped).
+# See the header of .yamllint for the full merge pipeline description.
+#
+# tests/fixtures/** holds deliberately-malformed inputs fed to the live LSP
+# suite (e.g. ansible/broken.yml has an unclosed flow sequence, used to assert
+# the ansible language server reports a diagnostic). They are test *data*, not
+# repo source, so yamllint must skip them — otherwise the central lint-hooks CI
+# gate (`lefthook run pre-commit --all-files`) fails on the intentional
+# breakage. This entry is also applied directly to the committed .yamllint so it
+# takes effect before the next copier regeneration; the two converge.
+ignore:
+  - tests/fixtures/**

@@ -67,6 +67,7 @@ ignore:
   - go.sum
   - bun.lock
   - bun.lockb
+  - tests/fixtures/**
 
 rules:
   line-length:
