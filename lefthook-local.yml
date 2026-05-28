@@ -13,9 +13,33 @@
 # Errors and warnings still fail (the original SC2148 errors that surfaced this
 # would still trip the gate without the per-file directives).
 #
+# Fixture exclusion: tests/fixtures/** holds deliberately-malformed inputs fed
+# to the live LSP suite (e.g. bash/broken.sh has an intentional parse error,
+# ansible/broken.yml has an unclosed flow sequence). These are test *data*, not
+# repo source, so they're excluded from the org-floor shell/yaml lint+format
+# hooks — otherwise the central lint-hooks CI gate (`lefthook --all-files`)
+# fails on the intentional breakage, and shfmt/prettier `stage_fixed` rewrites
+# would mutate the crafted inputs. Every real script/config lives outside
+# tests/fixtures/ and is still linted. The override merges field-wise over the
+# template command (glob/run inherited), the same way the shellcheck `run`
+# override above does; lefthook replaces the exclude array rather than appending,
+# but this archetype-bare repo ships no lockfiles or vendored action.yml, so the
+# template's yaml-prettier excludes are moot here.
+#
 # Listed in the template's `_skip_if_exists`, so `copier update` won't clobber
 # this file.
 pre-commit:
   commands:
     shellcheck:
       run: shellcheck --severity=warning {staged_files}
+      exclude:
+        - "tests/fixtures/**"
+    shfmt:
+      exclude:
+        - "tests/fixtures/**"
+    yamllint:
+      exclude:
+        - "tests/fixtures/**"
+    yaml-prettier:
+      exclude:
+        - "tests/fixtures/**"
