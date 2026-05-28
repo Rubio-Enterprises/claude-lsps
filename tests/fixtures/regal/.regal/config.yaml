@@ -1,0 +1,12 @@
+rules:
+  idiomatic:
+    directory-package-mismatch:
+      level: ignore
+  imports:
+    use-rego-v1:
+      level: ignore
+  style:
+    use-if:
+      level: ignore
+    opa-fmt:
+      level: ignore
