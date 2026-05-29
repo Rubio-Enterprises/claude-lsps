@@ -7,7 +7,8 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/install-lsps.sh\"",
-            "statusMessage": "Ensuring LSP servers for the live test suite are installed"
+            "timeout": 300,
+            "statusMessage": "Ensuring lint toolchain and LSP servers are installed"
           }
         ]
       }
