@@ -29,6 +29,12 @@
 #   6. Emit ONE concise line on stdout (a SessionStart hook's stdout becomes
 #      Claude's context); all install chatter goes to stderr.
 #   7. Idempotent: check-if-present before reinstalling.
+#   8. Optional repo bootstrap: after the warmup, run a repo-owned
+#      scripts/session-bootstrap.sh (if present + executable) for startup this
+#      template cannot know about — extra toolchains, workspace installs, a dev
+#      daemon, env defaults. NOT rendered by the template; abort-proof so it can
+#      never fail the session. Absent the file the hook is unchanged, so every
+#      rendered hook is the same pure template render.
 set -euo pipefail
 
 # Self-bootstrap PATH: hooks run as non-login non-interactive shells, which do
@@ -51,12 +57,6 @@ if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ "${CLAUDE_PROJECT_DIR}" != "$repo_root"
   log "NOTE: CLAUDE_PROJECT_DIR ($CLAUDE_PROJECT_DIR) differs from the script-derived repo root ($repo_root); using the script-derived root."
 fi
 cd "$repo_root" || exit 0
-
-# repo-specific session startup (runs before the mise warmup so it is
-# independent of the warmup no-mise early-exit paths). Self-guarded sub-script.
-if [ -x "$repo_root/scripts/install-lsps.sh" ]; then
-  "$repo_root/scripts/install-lsps.sh" || true
-fi
 
 # Only act inside this repo — a SessionStart hook can fire in unrelated
 # checkouts. The mise manifest is the repo marker.
@@ -90,8 +90,8 @@ fi
 
 # (7) Idempotent toolchain check: install only when something is missing. A warm
 # environment costs well under a second.
-if ! mise -C "$repo_root" ls --installed --quiet >/dev/null 2>&1 \
-  || ! mise -C "$repo_root" which shellcheck >/dev/null 2>&1; then
+if ! mise -C "$repo_root" ls --installed --quiet >/dev/null 2>&1 ||
+  ! mise -C "$repo_root" which shellcheck >/dev/null 2>&1; then
   mise trust "$repo_root" >/dev/null 2>&1 || true
   log "installing pinned toolchain via mise"
   mise -C "$repo_root" install || warn "mise install reported errors (often api.github.com rate limiting); re-run 'mise install' if git hooks fail"
@@ -110,6 +110,23 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
       "$(dirname -- "$mise_bin")" \
       "${HOME:-/root}/.local/share/mise/shims" >>"$CLAUDE_ENV_FILE" || true
   fi
+fi
+
+# (8) Optional repo-owned session bootstrap. The template owns the mise warmup
+# + PATH above and the cloud drift NOTE below; a repo drops in startup this
+# template cannot know about (an extra language toolchain, a workspace install,
+# a dev daemon, env-var defaults) as scripts/session-bootstrap.sh. It runs HERE
+# — after the pinned toolchain is installed and reachable (the mise shims dir is
+# on PATH from the top of this script, so the child inherits the toolchain) and
+# abort-proof (`|| true`) so a bootstrap hiccup can never fail the session.
+# Absent the file this is a zero-cost no-op, so a repo with no bespoke startup
+# renders the identical hook. The child runs with: cwd = repo root; the pinned
+# toolchain on PATH; $CLAUDE_ENV_FILE available to persist its own env/PATH;
+# $GITHUB_TOKEN bridged; $CLAUDE_CODE_REMOTE set in cloud. Contract: keep stdout
+# clean (this hook's stdout is Claude's context — chatter to stderr) and end in
+# `exit 0`. This file is repo-owned and NOT managed/rendered by the template.
+if [ -x "$repo_root/scripts/session-bootstrap.sh" ]; then
+  "$repo_root/scripts/session-bootstrap.sh" || true
 fi
 
 # (5) Cloud env-cache drift check. scripts/cloud-setup.sh bakes a fingerprint
