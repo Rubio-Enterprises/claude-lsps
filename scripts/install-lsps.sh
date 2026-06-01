@@ -36,6 +36,8 @@ add_path() {
   case ":${PATH}:" in
   *":${dir}:"*) return 0 ;;
   esac
+  # Literal $PATH is intentional: it expands when the env file is sourced.
+  # shellcheck disable=SC2016
   printf 'export PATH="%s:$PATH"\n' "$dir" >>"$CLAUDE_ENV_FILE"
 }
 
