@@ -13,5 +13,89 @@
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "claude-lsps": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/claude-lsps"
+      }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "devenv-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/devenv-skills"
+      }
+    },
+    "infra-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/infra-skills"
+      }
+    },
+    "playwright-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/playwright-skills"
+      }
+    },
+    "prd-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/prd-skills"
+      }
+    },
+    "rubio": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/standards"
+      }
+    },
+    "superpowers-dev": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/superpowers"
+      }
+    },
+    "tools-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/tools-skills"
+      }
+    },
+    "vibe-kanban-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/vibe-kanban-skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "ansible-language-server@claude-lsps": true,
+    "bash-language-server@claude-lsps": true,
+    "claude-md-management@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "cue-lsp@claude-lsps": true,
+    "devenv@devenv-skills": true,
+    "feature-dev@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "infra-skills@infra-skills": true,
+    "playwright-skills@playwright-skills": true,
+    "prd-skills@prd-skills": true,
+    "pyright@claude-lsps": true,
+    "regal-lsp@claude-lsps": true,
+    "rubio-standards@rubio": true,
+    "security-guidance@claude-plugins-official": true,
+    "superpowers@superpowers-dev": true,
+    "swift-lsp@claude-plugins-official": true,
+    "tools-skills@tools-skills": true,
+    "vibe-kanban-skills@vibe-kanban-skills": true,
+    "vtsls@claude-lsps": true
   }
 }
