@@ -18,7 +18,11 @@
 # surfaced by live/skip-report), not abort the session or emit noise.
 set -uo pipefail
 
-ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+# Resolve the repo root from THIS script's own location (BASH_SOURCE), not from
+# CLAUDE_PROJECT_DIR or the caller's cwd — the multi-repo-safe pattern. This
+# script lives at scripts/install-lsps.sh, so the repo root is one dir up.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT" || exit 0
 
 # Append a dir to PATH for subsequent Bash commands this session, via the

@@ -6,9 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/install-lsps.sh\"",
-            "timeout": 300,
-            "statusMessage": "Ensuring lint toolchain and LSP servers are installed"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/claude-session-start.sh"
           }
         ]
       }

@@ -15,5 +15,17 @@ reports/
 secrets.local.*
 !secrets.local.example.*
 
+# .claude deny-block (template/v1.29.0): ignore the whole .claude/ dir EXCEPT
+# the committed cloud carrier + hooks/commands/agents. CONTENTS form (.claude/*)
+# is mandatory — a dir-form `.claude/` would make the `!` negations silent
+# no-ops (git cannot re-include a path under an ignored DIRECTORY). Keeps
+# settings.json + hooks/commands/agents trackable while ignoring
+# settings.local.json and other local-only .claude/ state.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/commands/
+!.claude/agents/
+
 # Per-archetype
 # <<< rubio-standards <<<
