@@ -11,10 +11,6 @@ build/
 coverage/
 reports/
 
-# secrets — local is plaintext+gitignored (§6.10)
-secrets.local.*
-!secrets.local.example.*
-
 # .claude deny-block (template/v1.29.0): ignore the whole .claude/ dir EXCEPT
 # the committed cloud carrier + hooks/commands/agents. CONTENTS form (.claude/*)
 # is mandatory — a dir-form `.claude/` would make the `!` negations silent

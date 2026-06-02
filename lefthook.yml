@@ -20,7 +20,7 @@ commit-msg:
     commitlint:
       # `{1}` is lefthook's positional placeholder for the commit-message file
       # path under git's native commit-msg invocation. lint-hooks CI exercises
-      # the same hook via `lefthook run commit-msg --files <path>`, where
+      # the same hook via `lefthook run commit-msg --file <path>`, where
       # lefthook substitutes `{staged_files}` instead and leaves `{1}` literal.
       # The shell wrapper below resolves whichever placeholder lefthook filled.
       #
