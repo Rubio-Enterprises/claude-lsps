@@ -54,7 +54,7 @@ pre-commit:
       # bogus `--source .` which made gitleaks >= 8.x error out with
       # `unknown flag: --source` on every commit. CI was unaffected (different
       # subcommand). Reproduced under gitleaks 8.30.1.
-      run: gitleaks git --staged --redact --no-banner
+      run: mise exec -- gitleaks git --staged --redact --no-banner
     markdownlint:
       glob: "*.md"
       run: mise exec -- markdownlint-cli2 {staged_files}
@@ -80,10 +80,10 @@ pre-commit:
       stage_fixed: true
     shellcheck:
       glob: "*.{sh,bash}"
-      run: shellcheck {staged_files}
+      run: mise exec -- shellcheck {staged_files}
     shfmt:
       glob: "*.{sh,bash}"
-      run: shfmt -w {staged_files}
+      run: mise exec -- shfmt -w {staged_files}
       stage_fixed: true
 
 pre-push:
