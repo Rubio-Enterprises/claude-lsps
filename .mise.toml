@@ -26,7 +26,7 @@
 # lefthook via Homebrew; pinning here keeps CI and the developer-laptop
 # parity. The audit-side .standards/.mise.toml does NOT pin lefthook because
 # audit.yml doesn't invoke it — only consumer-side lint-hooks does.
-"aqua:evilmartians/lefthook" = "2"
+"aqua:evilmartians/lefthook" = "2.1.8"
 # gitleaks here mirrors the audit-side pin in .standards/.mise.toml. The
 # lefthook pre-commit gitleaks hook invokes a bare `gitleaks git --staged`,
 # which needs the binary on PATH — the consumer-side lint-hooks CI job
