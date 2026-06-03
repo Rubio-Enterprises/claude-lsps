@@ -7,8 +7,8 @@
 # package.json devDep, but Pattern E preserves the consumer's package.json
 # (`_skip_if_exists`), so the assumption broke. mise pinning is the consistent
 # audit-side contract — same as how gitleaks/conftest/check-jsonschema work.
-"npm:@commitlint/cli" = "20"
-"npm:@commitlint/config-conventional" = "20"
+"npm:@commitlint/cli" = "20.5.3"
+"npm:@commitlint/config-conventional" = "20.5.3"
 
 # Hook tools backing lefthook.yml. Universal across archetypes — every
 # archetype's lefthook runs markdownlint/yamllint/prettier and most run
