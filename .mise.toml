@@ -16,7 +16,7 @@
 # resolve these binaries on a fresh CI runner (and via `mise exec --` locally
 # without polluting the developer's global tool surface).
 "aqua:koalaman/shellcheck" = "0.10"
-"aqua:mvdan/sh"            = "3.10"   # shfmt
+"aqua:mvdan/sh"            = "3.13.1"   # shfmt
 "npm:markdownlint-cli2"    = "0.22"
 "npm:prettier"             = "3.4"
 "pipx:yamllint"            = "1.38.0"
