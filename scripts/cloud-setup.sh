@@ -15,15 +15,19 @@
 
 # ===== 8< ===== COPY FROM THE NEXT LINE INTO THE WEB "Setup script" FIELD =====
 #!/usr/bin/env bash
+# Repo-agnostic: this EXACT block works in every repo's cloud environment —
+# nothing below is project-specific, so one shared block fits the whole fleet.
 # Bump CACHE_EPOCH (e.g. 1 -> 2) and re-save this field to force an env-cache rebuild.
 CACHE_EPOCH=1
 export CACHE_EPOCH
-for d in "${CLAUDE_PROJECT_DIR:-}" "$PWD" /home/user/claude-lsps; do
-  [ -n "$d" ] && [ -f "$d/scripts/cloud-setup.sh" ] &&
-    { cd "$d" && exec bash scripts/cloud-setup.sh; }
+for d in "${CLAUDE_PROJECT_DIR:-}" "$PWD"; do
+  for sub in scripts Scripts; do
+    [ -n "$d" ] && [ -f "$d/$sub/cloud-setup.sh" ] &&
+      { cd "$d" && exec bash "$sub/cloud-setup.sh"; }
+  done
 done
-s="$(find /home /root /workspace -maxdepth 5 -path '*/scripts/cloud-setup.sh' 2>/dev/null | head -n1)"
-[ -n "$s" ] && { cd "$(dirname "$s")/.." && exec bash scripts/cloud-setup.sh; }
+s="$(find /home /root /workspace -maxdepth 5 -iname cloud-setup.sh -ipath '*/scripts/*' 2>/dev/null | head -n1)"
+[ -n "$s" ] && { cd "$(dirname "$s")/.." && exec bash "$s"; }
 echo "cloud-setup.sh not found on this branch; SessionStart hook will bootstrap" >&2
 # ===== 8< ===== COPY UP TO THE PREVIOUS LINE =====
 
