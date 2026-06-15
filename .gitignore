@@ -11,24 +11,5 @@ build/
 coverage/
 reports/
 
-# .claude deny-block (template/v1.29.0): ignore the whole .claude/ dir EXCEPT
-# the committed cloud carrier + hooks/commands/agents. CONTENTS form (.claude/*)
-# is mandatory — a dir-form `.claude/` would make the `!` negations silent
-# no-ops (git cannot re-include a path under an ignored DIRECTORY). Keeps
-# settings.json + hooks/commands/agents trackable while ignoring
-# settings.local.json and other local-only .claude/ state.
-# The leading `!.claude/` re-includes the directory itself FIRST, so the
-# negations below still fire when a parent ignore shadows .claude/ — e.g. a
-# developer whose GLOBAL ~/.gitignore ignores `.claude/`. Without it, git
-# can't re-include a path whose parent dir is excluded, the carrier is
-# silently un-add-able, and MD-09 / CLAUDE-SETTINGS-PLUGIN-BLOCK red-X in CI
-# while local check.sh passes. No-op without such a global ignore.
-!.claude/
-.claude/*
-!.claude/settings.json
-!.claude/hooks/
-!.claude/commands/
-!.claude/agents/
-
 # Per-archetype
 # <<< rubio-standards <<<
