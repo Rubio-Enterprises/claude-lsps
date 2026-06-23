@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.35.7
+_commit: template/v1.36.0
 _rubio_template_version: template/v1.35.7
 _src_path: gh:Rubio-Enterprises/standards
 archetype: bare
