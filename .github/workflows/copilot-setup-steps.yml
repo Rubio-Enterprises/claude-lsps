@@ -1,0 +1,20 @@
+name: Copilot Setup Steps
+
+# Public-repo override (rendered only when is_public=true). GitHub blocks
+# self-hosted runners on public repos, so the org-default Copilot runner
+# (labeled `code-quality`, self-hosted) would queue a public repo's review ~24h
+# and then cancel it. This file pins Copilot code review + coding agent to a
+# GitHub-hosted Ubuntu x64 runner (free for public repos) by declaring the
+# `copilot-setup-steps` job's `runs-on` — GitHub reads that to pick the runner.
+#
+# `"on":` is quoted to satisfy `yaml[truthy]` (yamllint + ansible-lint): YAML 1.1
+# folds bare `on` into the boolean `On`. GitHub Actions and actionlint accept
+# both forms.
+"on": workflow_dispatch
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
