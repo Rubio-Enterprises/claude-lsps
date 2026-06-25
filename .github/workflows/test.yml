@@ -11,18 +11,66 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: tests / ${{ matrix.name }}
+  test-ubuntu:
+    name: tests / ubuntu-24.04
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: ubuntu-24.04
-            runner: ubuntu-24.04
-          - name: macos
-            runner: macos-latest
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ fromJSON(vars.RUNNER_GLUE || '["ubuntu-slim"]') }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      # Pin Node to a specific patch so setup-node@v4 can't drift across runs.
+      # Coverage collection uses NODE_V8_COVERAGE which has been stable since
+      # Node 18, but a fixed version keeps the coverage gate deterministic.
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24.16.0"
+
+      # jq is bundled with both runner images at compatible versions. We pin
+      # shellcheck explicitly because new releases periodically add diagnostics
+      # that would otherwise flip the suite from green to red without any code
+      # change. Identical binary on both OSes.
+      - name: install shellcheck (pinned)
+        env:
+          SHELLCHECK_VERSION: v0.10.0
+        run: |
+          set -euo pipefail
+          # shellcheck's darwin.x86_64 binary runs under Rosetta on macos-14
+          # (arm64); switch to darwin.aarch64 once published for the version
+          # we pin. Linux is always x86_64 on the runners we use.
+          case "${{ runner.os }}-${{ runner.arch }}" in
+            Linux-X64)    pkg="shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" ;;
+            macOS-ARM64|macOS-X64) pkg="shellcheck-${SHELLCHECK_VERSION}.darwin.x86_64.tar.xz" ;;
+            *) echo "unsupported runner: ${{ runner.os }}-${{ runner.arch }}"; exit 1 ;;
+          esac
+          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/${pkg}"
+          tmp=$(mktemp -d)
+          curl -fsSL "$url" | tar -xJ -C "$tmp"
+          sudo mv "$tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          rm -rf "$tmp"
+
+      - name: install jq
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends jq
+          else
+            brew install jq
+          fi
+
+      - name: print tool versions
+        run: |
+          bash --version | head -1
+          node --version
+          jq --version
+          shellcheck --version | head -2
+
+      - name: run test suite
+        run: bash tests/run.sh
+
+  test-macos:
+    name: tests / macos
+    timeout-minutes: 15
+    runs-on: ${{ fromJSON(vars.RUNNER_MACOS_LITE || '["macos-15"]') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
