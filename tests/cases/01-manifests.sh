@@ -92,6 +92,7 @@ tc_hooks_json_structure() {
     fi
     local check
     check=$(jq '
+      (keys == ["hooks"]) and
       (.hooks.SessionStart | type == "array") and
       (.hooks.SessionStart | all(
         (.hooks | type) == "array" and

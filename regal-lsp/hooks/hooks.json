@@ -1,5 +1,4 @@
 {
-  "description": "Check for Regal installation on session start",
   "hooks": {
     "SessionStart": [
       {

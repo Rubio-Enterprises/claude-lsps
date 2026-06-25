@@ -1,5 +1,4 @@
 {
-  "description": "Check for bash-language-server installation on session start",
   "hooks": {
     "SessionStart": [
       {

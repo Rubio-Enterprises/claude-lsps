@@ -1,5 +1,4 @@
 {
-  "description": "Check for CUE CLI installation on session start",
   "hooks": {
     "SessionStart": [
       {

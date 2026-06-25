@@ -1,5 +1,4 @@
 {
-  "description": "Check for ansible-language-server installation on session start",
   "hooks": {
     "SessionStart": [
       {

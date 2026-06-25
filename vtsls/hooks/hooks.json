@@ -1,5 +1,4 @@
 {
-  "description": "Check for vtsls installation on session start",
   "hooks": {
     "SessionStart": [
       {

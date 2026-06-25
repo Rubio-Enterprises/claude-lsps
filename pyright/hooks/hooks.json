@@ -1,5 +1,4 @@
 {
-  "description": "Check for pyright installation on session start",
   "hooks": {
     "SessionStart": [
       {
