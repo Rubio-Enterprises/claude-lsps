@@ -63,11 +63,15 @@ pre-commit:
       run: mise exec -- yamllint {staged_files}
     yaml-prettier:
       # §4 / §6.1: yamllint catches semantic bugs Prettier can't; Prettier handles formatting.
-      # `exclude:` scopes out machine-generated lockfiles and vendored upstream
-      # third-party action.yml files — prettier reformatting them produces
-      # enormous reviewer-noise diffs (`pnpm-lock.yaml` alone is 10K+ lines of
-      # single→double-quote churn on first onboarding) and the upstream
-      # maintainers own those files' style. Pre-commit on a staged lock-file
+      # `exclude:` scopes out machine-generated lockfiles, vendored upstream
+      # third-party action.yml files, and Copier's own `.copier-answers.yml` —
+      # prettier reformatting them produces enormous reviewer-noise diffs
+      # (`pnpm-lock.yaml` alone is 10K+ lines of single→double-quote churn on
+      # first onboarding) or thrash that the generator immediately reverts
+      # (Copier rewrites `.copier-answers.yml` — e.g. `xcode_scheme: ''` — on the
+      # next `copier update`, so prettier's single→double-quote edit never sticks
+      # and just dirties the tree on `--all-files`). The upstream maintainers /
+      # the generator own those files' style. Pre-commit on a staged lock-file
       # change still no-ops cleanly; CI's `lint-hooks --all-files` run no
       # longer touches them.
       glob: "*.{yml,yaml}"
@@ -76,6 +80,7 @@ pre-commit:
         - "package-lock.json"
         - "yarn.lock"
         - ".github/actions/**/action.yml"
+        - ".copier-answers.yml"
       run: mise exec -- prettier --write {staged_files}
       stage_fixed: true
     shellcheck:
