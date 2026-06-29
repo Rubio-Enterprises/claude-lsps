@@ -24,7 +24,7 @@ jobs:
             runner: macos-latest
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       # Pin Node to a specific patch so setup-node@v4 can't drift across runs.
       # Coverage collection uses NODE_V8_COVERAGE which has been stable since
