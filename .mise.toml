@@ -16,9 +16,9 @@
 # resolve these binaries on a fresh CI runner (and via `mise exec --` locally
 # without polluting the developer's global tool surface).
 "aqua:koalaman/shellcheck" = "0.11.0"
-"aqua:mvdan/sh"            = "3.10.0"   # shfmt
+"aqua:mvdan/sh"            = "3.13.1"   # shfmt
 "npm:markdownlint-cli2"    = "0.22.1"
-"npm:prettier"             = "3.4.2"
+"npm:prettier"             = "3.8.4"
 "pipx:yamllint"            = "1.38.0"
 # lefthook binary itself. The lint-hooks CI job runs `mise exec -- lefthook
 # run pre-commit --all-files`, which requires lefthook on PATH from mise (the

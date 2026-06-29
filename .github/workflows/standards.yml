@@ -37,6 +37,9 @@ jobs:
     # Renovate and never gets updated.
     if: github.event_name != 'pull_request' || github.event.action != 'edited'
     uses: Rubio-Enterprises/.github/.github/workflows/audit.yml@5846b4191b1fd77a8edc040ec76c0341888e1106 # v1
+    # standards is private: forward the org STANDARDS_READER_APP_* secrets so the
+    # reusable can mint a read-only token to clone standards@audit/v1.
+    secrets: inherit
   commitlint-pr-title:
     # PR-title conventional-commit check. Uses the canonical
     # amannn/action-semantic-pull-request action: it bundles commitlint and
@@ -75,6 +78,9 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action != 'edited'
     uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@5846b4191b1fd77a8edc040ec76c0341888e1106 # v1
     with: { mode: gitleaks }
+    # standards is private: forward STANDARDS_READER_APP_* so the gitleaks job can
+    # mint a read-only token to clone standards@audit/v1. (trufflehog needs none.)
+    secrets: inherit
   trufflehog:
     # schedule = weekly automated; workflow_dispatch = manual re-trigger for
     # incident response or for verifying a .trufflehogignore change without
@@ -134,3 +140,6 @@ jobs:
     uses: Rubio-Enterprises/.github/.github/workflows/copier-check.yml@5846b4191b1fd77a8edc040ec76c0341888e1106 # v1
     with:
       mode: ${{ github.event_name == 'push' && 'blocking' || 'advisory' }}
+    # standards is private: forward STANDARDS_READER_APP_* so copier-check can mint
+    # a read-only token for the `gh api` SHA resolve + copier's clone of standards.
+    secrets: inherit
