@@ -1,11 +1,12 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.44.1
-_rubio_template_version: template/v1.44.1
+_commit: template/v1.46.0
+_rubio_template_version: template/v1.46.0
 _src_path: gh:Rubio-Enterprises/standards
 archetype: bare
 default_branch: main
 is_fork: false
 is_public: true
+node_version: 22.12.0
 project_name: claude-lsps
 tier: internal
 uses_release_please: false
