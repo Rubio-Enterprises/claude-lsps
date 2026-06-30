@@ -83,10 +83,7 @@ jobs:
     secrets: inherit
   trufflehog:
     # schedule = weekly automated; workflow_dispatch = manual re-trigger for
-    # incident response or for verifying a .trufflehogignore change without
-    # waiting for the next cron tick. See docs/opt-outs.md in
-    # Rubio-Enterprises/.github for the path-suppression flow that makes the
-    # manual-trigger affordance load-bearing.
+    # incident response.
     # Scope to trufflehog's OWN weekly cron. Without the schedule filter this `if`
     # matched EVERY schedule event, so the 08:00 copier-sync cron also fired a
     # redundant trufflehog run. Mirrors the copier-sync job's per-schedule guard.
