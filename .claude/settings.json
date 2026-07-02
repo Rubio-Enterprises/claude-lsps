@@ -1,0 +1,80 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-lsps": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/claude-lsps"
+      }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "devenv-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/devenv-skills"
+      }
+    },
+    "infra-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/infra-skills"
+      }
+    },
+    "mattpocock-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/mattpocock-skills"
+      }
+    },
+    "playwright-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/playwright-skills"
+      }
+    },
+    "rubio": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/standards"
+      }
+    },
+    "tools-skills": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/tools-skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "ansible-language-server@claude-lsps": true,
+    "bash-language-server@claude-lsps": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-modernization@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "cue-lsp@claude-lsps": true,
+    "devenv@devenv-skills": true,
+    "feature-dev@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "hookify@claude-plugins-official": true,
+    "infra-skills@infra-skills": true,
+    "mattpocock-skills@mattpocock-skills": true,
+    "playground@claude-plugins-official": true,
+    "playwright-skills@playwright-skills": true,
+    "plugin-dev@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "pyright@claude-lsps": true,
+    "regal-lsp@claude-lsps": true,
+    "rubio-standards@rubio": true,
+    "security-guidance@claude-plugins-official": true,
+    "session-report@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true,
+    "tools-skills@tools-skills": true,
+    "vtsls@claude-lsps": true
+  }
+}
