@@ -98,7 +98,7 @@ jobs:
     # diffs). Catches drift in hook-tool pins / PATH wiring that local commits
     # would otherwise hit first. PR-only; push/schedule paths skip.
     if: github.event_name == 'pull_request' && github.event.action != 'edited'
-    uses: Rubio-Enterprises/.github/.github/workflows/lint-hooks.yml@5846b4191b1fd77a8edc040ec76c0341888e1106 # v1
+    uses: Rubio-Enterprises/.github/.github/workflows/lint-hooks.yml@90eb7c6866bec248dbd38e7cae809c98e81ff8ee # v1
     # secrets: inherit — the reusable workflow's private-Go-module mint step
     # (consumers setting GO_PRIVATE_MODULE_REPOS) reads the org secrets
     # STANDARDS_READER_APP_ID / STANDARDS_READER_APP_PRIVATE_KEY; a called
