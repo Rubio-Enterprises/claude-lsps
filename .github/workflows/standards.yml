@@ -2,20 +2,25 @@ name: standards
 # `on:` is quoted to satisfy `yaml[truthy]` (yamllint + ansible-lint): without
 # quotes, YAML 1.1 parsers fold `on` into the boolean `On`. GitHub Actions
 # resolves the key by name regardless, and actionlint accepts both forms.
+#
+# The PR gates (audit, lint/format, secret-scan/gitleaks, pr-title, typecheck,
+# python/rust tests) are NO LONGER rendered here — they are Required Governance
+# Workflows injected by org rulesets from `Rubio-Enterprises/.github`, resolved
+# at the repo's channel (`stable`, or `canary` for the canary ring). The
+# copier-sync/copier-check jobs are gone too — the rendered residue now
+# propagates as auto-merged Renovate copier PRs. What remains here is the
+# irreducibly consumer-local surface: the scheduled tree-wide trufflehog scan,
+# the lefthook CI run (lint-hooks — the only CI enforcement for linters with no
+# config-path flag: golangci-lint, pyright, shellcheck, swiftformat, deno …;
+# its 4-linter overlap with the injected gate-lint-format is a known, accepted
+# cost), and (when the archetype has an e2e contract) the Playwright e2e job.
 "on":
-  # `edited` is in the list so commitlint-pr-title re-runs when a contributor
-  # fixes a bad PR title; expensive jobs gate themselves out via `!= 'edited'`.
   pull_request:
-    types: [opened, edited, synchronize, reopened]
-  push:
-    branches: [main]
+    types: [opened, synchronize, reopened]
   schedule:
     # `0 9 * * 1` → weekly trufflehog (secret-scan tree-wide entropy scan).
-    # `0 8 * * 1` → weekly copier-sync; one hour earlier so a sync PR is open
-    #              before the audit runs against it.
     - cron: "0 9 * * 1"
-    - cron: "0 8 * * 1"
-  # Manual trigger for ad-hoc copier-sync runs (drain template-bump backlog).
+  # Manual trigger for incident-response re-runs of trufflehog.
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,70 +28,15 @@ concurrency:
   # Supersede an in-flight run of THIS workflow when a newer commit lands on the
   # same PR, so stale CI stops burning runner minutes. `github.workflow`
   # namespaces the group to standards.yml, so it never cancels the repo's other
-  # workflows. `github.ref` is refs/pull/<n>/merge on a PR (stable across the
-  # PR's pushes, so a new push supersedes) and a unique refs/heads|refs/tags ref
-  # on push. cancel-in-progress is gated to pull_request so it NEVER cancels a
-  # push-to-default-branch, tag, release, or merge_group run (the default-branch
-  # audit, the blocking copier-check gate, and release-please must finish).
+  # workflows. cancel-in-progress is gated to pull_request so it NEVER cancels a
+  # push-to-default-branch, tag, or schedule run.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  audit:
-    # The `# v1` comment tells Renovate which floating tag to track: it bumps
-    # the SHA when .github@v1 advances. Without it, the SHA pin is opaque to
-    # Renovate and never gets updated.
-    if: github.event_name != 'pull_request' || github.event.action != 'edited'
-    uses: Rubio-Enterprises/.github/.github/workflows/audit.yml@1e814145e321a7d47e62a34cbcfe76b4587f7861 # v1
-    # standards is private: forward the org STANDARDS_READER_APP_* secrets so the
-    # reusable can mint a read-only token to clone standards@audit/v1.
-    secrets: inherit
-  commitlint-pr-title:
-    # PR-title conventional-commit check. Uses the canonical
-    # amannn/action-semantic-pull-request action: it bundles commitlint and
-    # config-conventional internally, so we sidestep the mise npm-backend
-    # extends-resolution issue (resolveExtends starts at CWD and can't see
-    # mise's per-package install dirs). Types list mirrors
-    # @commitlint/config-conventional so the local lefthook commit-msg hook
-    # (which uses mise's commitlint) stays in sync with this gate.
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    # Job-scoped: only this job needs to post a check/status on the PR.
-    # The reusable audit/e2e/secret-scan workflows declare their own
-    # permissions internally — giving pull-requests:write at workflow level
-    # would leak it to push and schedule runs that don't need it.
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          types: |
-            feat
-            fix
-            docs
-            style
-            refactor
-            perf
-            test
-            chore
-            build
-            ci
-          requireScope: false
-  gitleaks:
-    if: github.event_name == 'pull_request' && github.event.action != 'edited'
-    uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@1e814145e321a7d47e62a34cbcfe76b4587f7861 # v1
-    with: { mode: gitleaks }
-    # standards is private: forward STANDARDS_READER_APP_* so the gitleaks job can
-    # mint a read-only token to clone standards@audit/v1. (trufflehog needs none.)
-    secrets: inherit
   trufflehog:
     # schedule = weekly automated; workflow_dispatch = manual re-trigger for
-    # incident response.
-    # Scope to trufflehog's OWN weekly cron. Without the schedule filter this `if`
-    # matched EVERY schedule event, so the 08:00 copier-sync cron also fired a
-    # redundant trufflehog run. Mirrors the copier-sync job's per-schedule guard.
+    # incident response. Scope to trufflehog's OWN weekly cron so no other
+    # schedule event fires a redundant run.
     if: >-
       github.event_name == 'schedule' && github.event.schedule == '0 9 * * 1'
       || github.event_name == 'workflow_dispatch'
@@ -105,45 +55,4 @@ jobs:
     # workflow receives no caller secrets unless inherited (surfaced by
     # gha-outrunner, the first GO_PRIVATE_MODULE_REPOS consumer, on .github
     # release 90eb7c68).
-    secrets: inherit
-  copier-sync:
-    # Weekly + manual: detect drift between this repo's rendered template state
-    # and the latest `template/v1` release, then open a PR with the rendered
-    # diff. Per Plan 3 Task 13 — replaces the manual `copier update` sweep.
-    # Bootstrap repos (.github, .github-private, standards itself) should NOT
-    # render this template, so they don't get the job. Skipped here in-repo via
-    # the cron+dispatch event guard; consumers receive both triggers.
-    if: >-
-      github.event_name == 'schedule' && github.event.schedule == '0 8 * * 1'
-      || github.event_name == 'workflow_dispatch'
-    uses: Rubio-Enterprises/.github/.github/workflows/copier-sync.yml@1e814145e321a7d47e62a34cbcfe76b4587f7861 # v1
-    permissions:
-      contents: write
-      pull-requests: write
-    # Pass org secrets (COPIER_SYNC_APP_ID / _PRIVATE_KEY) to the reusable so it
-    # can mint a workflow-scoped App token — GITHUB_TOKEN cannot push changes to
-    # .github/workflows/standards.yml (no grantable `workflows` permission).
-    secrets: inherit
-  copier-check:
-    # Template-drift GATE (Layer 2). Detects REAL rendered drift from
-    # `template/v1` (a `git diff` after `copier update`, ignoring
-    # .copier-answers.yml — the same definition copier-sync uses to open a PR,
-    # so a red gate always means a sync PR can fix it).
-    #   • push to main → BLOCKING (fails the branch when drifted,
-    #     so main can't be green and releases can't ship while
-    #     behind the template). `[skip-drift-gate]` in the commit message bypasses
-    #     (emergency hotfix).
-    #   • pull_request → ADVISORY (annotates only, never fails) so in-flight
-    #     feature work isn't blocked by drift the contributor didn't introduce.
-    # Bootstrap repos (.github, .github-private, standards itself) don't render
-    # this template, so they never get the job.
-    if: >-
-      (github.event_name == 'push'
-        && !contains(github.event.head_commit.message, '[skip-drift-gate]'))
-      || (github.event_name == 'pull_request' && github.event.action != 'edited')
-    uses: Rubio-Enterprises/.github/.github/workflows/copier-check.yml@1e814145e321a7d47e62a34cbcfe76b4587f7861 # v1
-    with:
-      mode: ${{ github.event_name == 'push' && 'blocking' || 'advisory' }}
-    # standards is private: forward STANDARDS_READER_APP_* so copier-check can mint
-    # a read-only token for the `gh api` SHA resolve + copier's clone of standards.
     secrets: inherit
