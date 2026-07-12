@@ -1,9 +1,10 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.55.2
-_rubio_template_version: template/v1.55.2
+_commit: template/v1.55.3
+_rubio_template_version: template/v1.55.3
 _src_path: https://github.com/Rubio-Enterprises/standards.git
 archetype: bare
 default_branch: main
+has_codex_plugin: false
 has_lint_hooks: true
 is_fork: false
 is_public: true
