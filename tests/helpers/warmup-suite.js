@@ -93,14 +93,22 @@ async function warmupOpensRegoFiles(setProxy) {
   const idxInitialized = msgs.findIndex((m) => m.method === "initialized");
   const opens = msgs.filter((m) => m.method === "textDocument/didOpen");
   assert(idxInitialized !== -1, "stub never saw 'initialized'");
+  // Match exclusions against the path RELATIVE to the warmup root, one whole
+  // segment at a time. The absolute path can legitimately contain an excluded
+  // name (this repo is checked out under .claude/worktrees/, so every URI holds
+  // "/.claude/"), which a substring match on the full URI would false-positive.
+  const treeUri = pathToFileURL(tree).href;
+  const excludedNames = ["node_modules", "vendor", ".git", ".venv", ".claude"];
   for (const o of opens) {
+    const uri = o.params.textDocument.uri;
     assert(o.params.textDocument.languageId === "rego",
       `didOpen languageId not 'rego': ${JSON.stringify(o.params.textDocument)}`);
-    assert(o.params.textDocument.uri.startsWith("file://"),
-      `didOpen uri not file://: ${o.params.textDocument.uri}`);
-    for (const excluded of ["/node_modules/", "/vendor/", "/.git/", "/.venv/", "/.claude/"]) {
-      assert(!o.params.textDocument.uri.includes(excluded),
-        `excluded dir leaked: ${o.params.textDocument.uri}`);
+    assert(uri.startsWith(`${treeUri}/`),
+      `didOpen uri not under warmup root ${treeUri}: ${uri}`);
+    const relSegments = uri.slice(treeUri.length + 1).split("/");
+    for (const excluded of excludedNames) {
+      assert(!relSegments.includes(excluded),
+        `excluded dir leaked: ${uri.slice(treeUri.length + 1)} (from ${uri})`);
     }
   }
   assert(opens.length === 2,
