@@ -67,10 +67,14 @@ Behavior is driven per-plugin by `proxy.json`:
   out-of-band disk edits (Bash `sed`/git/formatters/other sessions) — validated
   by wire-tapping real sessions, `experiments/lsp-wiretap/FINDINGS.md`. The
   proxy tracks open documents (client didOpens AND warmup opens), polls disk
-  with a one-tick stability gate, and injects full-text `didChange`+`didSave`
-  when disk diverges from the last known buffer. Client didChanges are
-  reconciled (mirrored into buffer/version state), never backed off from; an
+  (stat tuple mtime+ctime+size+ino) with a one-tick stability gate, and
+  injects full-text `didChange`+`didSave` when disk diverges from the last
+  known buffer. Client didChanges are reconciled (mirrored into buffer/version
+  state), never backed off from; a client didChange whose version lags the
+  proxy's injections is rebased to tracked+1 (version monotonicity); an
   incremental (range-based) client didChange disables sync for that document.
+  A deleted tracked file gets a synthetic `didClose` (clears diagnostics) and
+  is reopened if it reappears (e.g. git branch switches).
 
 **Editing the proxy:** all six copies must stay byte-identical
 (`consistency/proxy-copies-identical` enforces it — plugin installs copy each

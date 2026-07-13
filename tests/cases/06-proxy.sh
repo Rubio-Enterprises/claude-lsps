@@ -32,6 +32,10 @@ tc_proxy_sync_incremental() { _proxy_run sync-incremental-disables; }
 tc_proxy_sync_noop_close() { _proxy_run sync-noop-and-didclose; }
 tc_proxy_sync_disabled() { _proxy_run sync-disabled-by-config; }
 tc_proxy_sync_warmup() { _proxy_run sync-tracks-warmup-opens; }
+tc_proxy_sync_delete() { _proxy_run sync-delete-and-reappear; }
+tc_proxy_sync_rebase() { _proxy_run sync-version-rebase; }
+tc_proxy_stdin_eof_exit() { _proxy_run stdin-eof-exit-code; }
+tc_proxy_warmup_dedup() { _proxy_run warmup-skips-client-opened; }
 
 register_test "proxy/passthrough" tc_proxy_passthrough
 register_test "proxy/passthrough-server-to-client" tc_proxy_passthrough_s2c
@@ -61,3 +65,7 @@ register_test "proxy/sync-incremental-disables" tc_proxy_sync_incremental
 register_test "proxy/sync-noop-and-didclose" tc_proxy_sync_noop_close
 register_test "proxy/sync-disabled-by-config" tc_proxy_sync_disabled
 register_test "proxy/sync-tracks-warmup-opens" tc_proxy_sync_warmup
+register_test "proxy/sync-delete-and-reappear" tc_proxy_sync_delete
+register_test "proxy/sync-version-rebase" tc_proxy_sync_rebase
+register_test "proxy/stdin-eof-exit-code" tc_proxy_stdin_eof_exit
+register_test "proxy/warmup-skips-client-opened" tc_proxy_warmup_dedup

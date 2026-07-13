@@ -37,6 +37,17 @@
 //      (range-based) client didChange makes the buffer unreconstructable —
 //      disk-sync is disabled for that document (logged once).
 //
+//      Version rebasing: after an injection, the client's own version counter
+//      lags the server's; a forwarded client didChange whose version doesn't
+//      exceed the tracked one is rewritten to tracked+1 so servers that
+//      enforce monotonically increasing versions never drop a client edit.
+//
+//      Deletion/reappearance: a tracked file that vanishes (rm, git checkout)
+//      gets a synthetic didClose after the same two-tick gate — the server
+//      drops the buffer and clears its diagnostics. The entry stays tracked:
+//      if the file reappears it is reopened with disk content, and a client
+//      edit on a proxy-closed document is converted into a reopen.
+//
 // Usage: node lsp-proxy.js --config <path-to-proxy.json>
 //
 // proxy.json format:
@@ -110,6 +121,11 @@ const child = spawn(SERVER_CMD, SERVER_ARGS, {
   stdio: ["pipe", "pipe", "inherit"],
 });
 
+// Expected-shutdown tracking: stdin EOF and forwarded signals SIGTERM the
+// child, which then usually dies BY the signal (exit code null). Without this
+// flag the normal shutdown path would be reported as exit status 1.
+let shuttingDown = false;
+
 // ---------------------------------------------------------------------------
 // Disk-sync: open-document tracking
 // ---------------------------------------------------------------------------
@@ -128,51 +144,112 @@ function toPath(uri) {
   }
 }
 
+// The change-detection tuple. ctimeMs catches rewrites that restore mtime
+// (ctime cannot be set from userspace); ino catches atomic write-then-rename
+// replaces that keep size and mtime. Residual blind spot: an in-place
+// same-size rewrite landing within one timestamp quantum on a coarse-mtime
+// filesystem — accepted; hashing every open file every tick would cost more
+// than it buys.
 function statOf(p) {
   try {
     const s = statSync(p);
-    return { mtimeMs: s.mtimeMs, size: s.size };
+    return { mtimeMs: s.mtimeMs, ctimeMs: s.ctimeMs, size: s.size, ino: s.ino };
   } catch {
     return null;
   }
 }
 
 function sameStat(a, b) {
-  return a && b && a.mtimeMs === b.mtimeMs && a.size === b.size;
+  return a && b && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs
+    && a.size === b.size && a.ino === b.ino;
 }
 
-function trackOpen(uri, text, version) {
-  if (!SYNC) return;
+// Tracked even when disk-sync is off: openDocs doubles as the warmup dedup
+// set (never send a synthetic didOpen for a document the client already
+// opened — open-after-open is spec-undefined and Regal drops diagnostics on
+// it). The poll loop itself only runs when SYNC is enabled.
+function trackOpen(uri, text, version, languageId) {
   const p = toPath(uri);
   openDocs.set(uri, {
     version: typeof version === "number" ? version : 1,
     text: text != null ? text : "",
+    languageId: languageId || "plaintext",
     path: p,
     stat: p ? statOf(p) : null,
     pending: false,
+    missing: false,
+    closed: false,
     unsyncable: false,
   });
 }
 
-// Mirror a client didChange into the buffer model (reconciliation).
-function trackChange(uri, version, contentChanges) {
-  if (!SYNC) return;
-  const st = openDocs.get(uri);
-  if (!st) return;
-  if (typeof version === "number" && version > st.version) {
-    st.version = version;
-  }
-  if (!Array.isArray(contentChanges)) return;
-  for (const c of contentChanges) {
-    if (c && c.range === undefined && typeof c.text === "string") {
-      st.text = c.text; // full-document replacement
-    } else if (!st.unsyncable) {
-      st.unsyncable = true;
-      process.stderr.write(
-        `${LOG_PREFIX} incremental didChange for ${uri}; disk-sync disabled for it\n`
-      );
+// Reconcile a client didChange with proxy-side disk-sync state. Returns the
+// frame to forward to the server: the original raw bytes, a version-rebased
+// rewrite, or null when the change was converted into a reopen.
+function reconcileClientChange(msg, rawMessage) {
+  const td = msg.params.textDocument;
+  const st = openDocs.get(td.uri);
+  if (!st) return rawMessage;
+
+  const changes = msg.params.contentChanges;
+  let fullText = null;
+  if (Array.isArray(changes)) {
+    for (const c of changes) {
+      if (c && c.range === undefined && typeof c.text === "string") {
+        fullText = c.text; // full-document replacement
+      } else if (!st.unsyncable) {
+        st.unsyncable = true;
+        process.stderr.write(
+          `${LOG_PREFIX} incremental didChange for ${td.uri}; disk-sync disabled for it\n`
+        );
+      }
     }
   }
+  if (fullText !== null) st.text = fullText;
+
+  // The proxy closed this document server-side (file deleted out-of-band) but
+  // the client still edits it: reopen with the client's full content instead
+  // of forwarding a didChange for a document the server considers closed.
+  if (st.closed && fullText !== null) {
+    st.closed = false;
+    st.missing = false;
+    st.pending = false;
+    st.version = Math.max(typeof td.version === "number" ? td.version : 0, st.version + 1);
+    st.stat = st.path ? statOf(st.path) : null;
+    writeMessage(child.stdin, JSON.stringify({
+      jsonrpc: "2.0",
+      method: "textDocument/didOpen",
+      params: {
+        textDocument: {
+          uri: td.uri, languageId: st.languageId, version: st.version, text: fullText,
+        },
+      },
+    }));
+    process.stderr.write(
+      `${LOG_PREFIX} disk-sync: reopened ${td.uri} v${st.version} (client edit after deletion)\n`
+    );
+    return null;
+  }
+
+  const clientV = typeof td.version === "number" ? td.version : null;
+  if (clientV !== null && clientV > st.version) {
+    st.version = clientV;
+    return rawMessage;
+  }
+  // The client's version counter lags the proxy's injected didChanges (it
+  // can't know about them). Rebase the frame onto the next proxy version so
+  // servers that enforce monotonically increasing versions never see the
+  // client's next edit go backwards.
+  st.version += 1;
+  const rebased = {
+    ...msg,
+    params: { ...msg.params, textDocument: { ...td, version: st.version } },
+  };
+  const body = Buffer.from(JSON.stringify(rebased));
+  process.stderr.write(
+    `${LOG_PREFIX} disk-sync: rebased client didChange ${td.uri} v${clientV} -> v${st.version}\n`
+  );
+  return Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`), body]);
 }
 
 // ---------------------------------------------------------------------------
@@ -188,7 +265,28 @@ function pollOpenDocs() {
   for (const [uri, st] of openDocs) {
     if (st.unsyncable || !st.path) continue;
     const cur = statOf(st.path);
-    if (!cur) { st.pending = false; continue; }
+
+    // Deletion: the file vanished out-of-band (rm, git checkout). Same
+    // two-tick stability gate as edits, then inject didClose so the server
+    // drops the buffer and clears its diagnostics. Keep tracking the entry:
+    // if the file reappears (branch switched back), the reopen path below
+    // brings it back.
+    if (!cur) {
+      if (st.closed) { st.pending = false; continue; }
+      if (!st.missing) { st.missing = true; continue; } // first tick: arm
+      st.missing = false;
+      st.pending = false;
+      st.closed = true;
+      st.stat = null;
+      writeMessage(child.stdin, JSON.stringify({
+        jsonrpc: "2.0",
+        method: "textDocument/didClose",
+        params: { textDocument: { uri } },
+      }));
+      process.stderr.write(`${LOG_PREFIX} disk-sync: closed ${uri} (file deleted)\n`);
+      continue;
+    }
+    st.missing = false;
 
     if (!sameStat(cur, st.stat)) {
       // Disk changed since last poll — record and wait one tick to settle.
@@ -202,6 +300,23 @@ function pollOpenDocs() {
     st.pending = false;
     let text;
     try { text = readFileSync(st.path, "utf8"); } catch { continue; }
+
+    // Reappearance of a proxy-closed document: reopen with disk content.
+    if (st.closed) {
+      st.closed = false;
+      st.version += 1;
+      st.text = text;
+      writeMessage(child.stdin, JSON.stringify({
+        jsonrpc: "2.0",
+        method: "textDocument/didOpen",
+        params: {
+          textDocument: { uri, languageId: st.languageId, version: st.version, text },
+        },
+      }));
+      process.stderr.write(`${LOG_PREFIX} disk-sync: reopened ${uri} v${st.version} (file reappeared)\n`);
+      continue;
+    }
+
     if (text === st.text) continue; // content-identical (touch, client's own write)
 
     st.version += 1;
@@ -299,7 +414,13 @@ function warmupServer(rootDir) {
   };
 
   let version = 0;
+  let sent = 0;
   for (const filePath of files) {
+    const uri = pathToFileURL(filePath).href;
+    // The client already opened this document (its didOpen raced ahead of the
+    // deferred warmup) — a second open would be spec-undefined.
+    if (openDocs.has(uri)) continue;
+
     let content;
     try {
       content = readFileSync(filePath, "utf8");
@@ -309,7 +430,6 @@ function warmupServer(rootDir) {
 
     const ext = extname(filePath);
     const languageId = extToLang[ext] || ext.slice(1);
-    const uri = pathToFileURL(filePath).href;
 
     const notification = JSON.stringify({
       jsonrpc: "2.0",
@@ -325,11 +445,12 @@ function warmupServer(rootDir) {
     });
 
     writeMessage(child.stdin, notification);
-    trackOpen(uri, content, version);
+    trackOpen(uri, content, version, languageId);
     version++;
+    sent++;
   }
 
-  process.stderr.write(`${LOG_PREFIX} warmup: sent ${files.length} didOpen notification(s)\n`);
+  process.stderr.write(`${LOG_PREFIX} warmup: sent ${sent} didOpen notification(s)\n`);
 }
 
 // ---------------------------------------------------------------------------
@@ -428,7 +549,7 @@ child.on("error", (err) => {
 
 child.on("exit", (code) => {
   if (pollTimer) clearInterval(pollTimer);
-  process.exit(code ?? 1);
+  process.exit(code ?? (shuttingDown ? 0 : 1));
 });
 
 // ---------------------------------------------------------------------------
@@ -444,6 +565,7 @@ process.stdin.on("data", (chunk) => {
 });
 
 process.stdin.on("end", () => {
+  shuttingDown = true;
   if (pollTimer) clearInterval(pollTimer);
   child.kill("SIGTERM");
 });
@@ -485,14 +607,20 @@ function drainBuffer() {
       process.stderr.write(`${LOG_PREFIX} rootUri: ${rootUri}\n`);
     }
 
-    // Observe document lifecycle for disk-sync bookkeeping.
+    // Observe document lifecycle for disk-sync bookkeeping. didChange may be
+    // version-rebased or converted to a reopen (outFrame rewritten/nulled);
+    // a client didClose for a document the proxy already closed server-side
+    // (deleted file) is swallowed rather than closed twice.
     const td = msg.params && msg.params.textDocument;
+    let outFrame = rawMessage;
     if (msg.method === "textDocument/didOpen" && td && td.uri) {
-      trackOpen(td.uri, td.text, td.version);
-    } else if (msg.method === "textDocument/didChange" && td && td.uri) {
-      trackChange(td.uri, td.version, msg.params.contentChanges);
+      trackOpen(td.uri, td.text, td.version, td.languageId);
+    } else if (msg.method === "textDocument/didChange" && td && td.uri && SYNC) {
+      outFrame = reconcileClientChange(msg, rawMessage);
     } else if (msg.method === "textDocument/didClose" && td && td.uri) {
+      const st = openDocs.get(td.uri);
       openDocs.delete(td.uri);
+      if (st && st.closed) outFrame = null;
     }
 
     // After "initialized" notification, trigger warmup.
@@ -523,8 +651,9 @@ function drainBuffer() {
       continue;
     }
 
-    // Not blocked — forward the original bytes unchanged.
-    child.stdin.write(rawMessage);
+    // Not blocked — forward (raw bytes unless disk-sync rewrote or consumed
+    // the frame above).
+    if (outFrame) child.stdin.write(outFrame);
   }
 }
 
@@ -534,6 +663,7 @@ function drainBuffer() {
 
 for (const sig of ["SIGTERM", "SIGINT"]) {
   process.on(sig, () => {
+    shuttingDown = true;
     if (pollTimer) clearInterval(pollTimer);
     child.kill(sig);
   });

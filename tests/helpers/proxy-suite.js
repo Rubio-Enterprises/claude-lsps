@@ -681,6 +681,91 @@ async function syncDisabledByConfig(setProxy) {
   await proxy.exited;
 }
 
+// Deleting a tracked file injects didClose (server clears diagnostics);
+// recreating it reopens with disk content; a client didClose after the
+// proxy's own close is swallowed (never closed twice).
+async function syncDeleteAndReappear(setProxy) {
+  const { dir, docPath, uri, proxy } = syncSetup("sync-delete");
+  setProxy(proxy);
+
+  proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
+  await waitFor(() => stubMsgs(dir).some((m) => m.method === "textDocument/didOpen"));
+
+  fs.unlinkSync(docPath);
+  await waitFor(() => stubMsgs(dir).some((m) =>
+    m.method === "textDocument/didClose" && m.params.textDocument.uri === uri), { timeout: 6000 });
+
+  // Reappearance (e.g. git checkout back): reopen with the new disk content.
+  fs.writeFileSync(docPath, "reborn\n");
+  await waitFor(() => stubMsgs(dir).some((m) =>
+    m.method === "textDocument/didOpen" && m.params.textDocument.text === "reborn\n"), { timeout: 6000 });
+  const reopen = stubMsgs(dir).find((m) =>
+    m.method === "textDocument/didOpen" && m.params.textDocument.text === "reborn\n");
+  assert(reopen.params.textDocument.version > 1, "reopen must bump the version");
+
+  // Disk-sync must keep working after the reopen.
+  fs.writeFileSync(docPath, "again\n");
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.contentChanges[0].text === "again\n"), { timeout: 6000 });
+
+  // Delete again so the proxy closes, then have the CLIENT close: the proxy
+  // must swallow it (exactly one didClose on the wire for this second cycle).
+  fs.unlinkSync(docPath);
+  await waitFor(() => stubMsgs(dir).filter((m) => m.method === "textDocument/didClose").length >= 2,
+    { timeout: 6000 });
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    method: "textDocument/didClose",
+    params: { textDocument: { uri } },
+  }));
+  proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "$/sentinel-after-close", params: {} }));
+  await waitFor(() => stubMsgs(dir).some((m) => m.method === "$/sentinel-after-close"));
+  assert(stubMsgs(dir).filter((m) => m.method === "textDocument/didClose").length === 2,
+    "client didClose after proxy close must be swallowed, not forwarded");
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+// After an injection advanced the server-side version, a client didChange
+// with a lagging version is rebased to tracked+1 so versions stay monotonic.
+async function syncVersionRebase(setProxy) {
+  const { dir, docPath, uri, proxy } = syncSetup("sync-rebase");
+  setProxy(proxy);
+
+  proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
+  await waitFor(() => stubMsgs(dir).some((m) => m.method === "textDocument/didOpen"));
+
+  // Out-of-band edit → injected didChange v2.
+  fs.writeFileSync(docPath, "two\n");
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.textDocument.version === 2), { timeout: 6000 });
+
+  // Client's own next edit still carries ITS counter (v2) — must arrive as v3.
+  fs.writeFileSync(docPath, "three\n"); // Edit-tool style: disk write + didChange
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    method: "textDocument/didChange",
+    params: { textDocument: { uri, version: 2 }, contentChanges: [{ text: "three\n" }] },
+  }));
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.contentChanges[0].text === "three\n"), { timeout: 6000 });
+  const rebased = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "three\n");
+  assert(rebased.params.textDocument.version === 3,
+    `expected client v2 rebased to v3, got v${rebased.params.textDocument.version}`);
+
+  // And the next injection continues past the rebased version.
+  fs.writeFileSync(docPath, "four\n");
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.contentChanges[0].text === "four\n"), { timeout: 6000 });
+  const next = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "four\n");
+  assert(next.params.textDocument.version === 4,
+    `expected injected v4 after rebase, got v${next.params.textDocument.version}`);
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
 // Warmup-opened documents enroll in disk-sync: edit a warmup-opened file on
 // disk and the proxy must inject for it, even though the client never sent
 // didOpen.
@@ -705,6 +790,64 @@ async function syncTracksWarmupOpens(setProxy) {
   fs.writeFileSync(docPath, "changed\n");
   await waitFor(() => injectedChanges(dir, uri)
     .some((m) => m.params.contentChanges[0].text === "changed\n"), { timeout: 6000 });
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+// Normal shutdown (client closes stdin) SIGTERMs a server that dies BY the
+// signal (exit code null); the proxy must report that as success, not 1.
+async function stdinEofExitCodeZero(setProxy) {
+  const proxy = spawnProxy({
+    proxyJs: ANSIBLE_PROXY,
+    // Inert server with no signal handler — dies by SIGTERM with code=null.
+    config: { server: ["node", "-e", "setInterval(() => {}, 1000)"], blocked: [] },
+  });
+  setProxy(proxy);
+  await sleep(300); // let the child spawn
+  proxy.child.stdin.end();
+  const result = await proxy.exited;
+  assert(result.code === 0,
+    `expected exit 0 on clean stdin-EOF shutdown, got code=${result.code} signal=${result.signal}`);
+}
+
+// Warmup must not re-open a document the client already opened (open-after-
+// open is spec-undefined; Regal drops diagnostics on it).
+async function warmupSkipsClientOpenedDocs(setProxy) {
+  const dir = wd("warmup-dedup");
+  const mine = path.join(dir, "mine.py");
+  const other = path.join(dir, "other.py");
+  fs.writeFileSync(mine, "mine\n");
+  fs.writeFileSync(other, "other\n");
+  const mineUri = pathToFileURL(mine).href;
+  const otherUri = pathToFileURL(other).href;
+  const proxy = spawnProxy({
+    proxyJs: PYRIGHT_PROXY,
+    config: proxyConfig({ warmup: { extensions: [".py"], exclude: [] }, sync: { pollMs: 60 } }),
+    stubEnv: { STUB_LOG_DIR: dir, STUB_AUTO_INIT: "1" },
+  });
+  setProxy(proxy);
+
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0", id: 1, method: "initialize",
+    params: { rootUri: pathToFileURL(dir).href },
+  }));
+  await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 1));
+  // initialized + the client's own didOpen in one write: the didOpen frame is
+  // processed synchronously before the setImmediate-deferred warmup runs.
+  proxy.child.stdin.write(Buffer.concat([
+    frameOf({ jsonrpc: "2.0", method: "initialized", params: {} }),
+    didOpenFrame(mineUri, "mine\n"),
+  ]));
+  await waitFor(() => /warmup: sent \d+ didOpen/.test(proxy.stderr()));
+
+  const opens = stubMsgs(dir).filter((m) => m.method === "textDocument/didOpen");
+  assert(opens.filter((m) => m.params.textDocument.uri === mineUri).length === 1,
+    "warmup re-opened a client-opened document");
+  assert(opens.some((m) => m.params.textDocument.uri === otherUri),
+    "warmup skipped a file the client had NOT opened");
+  assert(/warmup: sent 1 didOpen/.test(proxy.stderr()),
+    "warmup sent-count should reflect the dedup skip");
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -739,6 +882,10 @@ const SCENARIOS = {
   "sync-noop-and-didclose": syncNoopAndDidClose,
   "sync-disabled-by-config": syncDisabledByConfig,
   "sync-tracks-warmup-opens": syncTracksWarmupOpens,
+  "sync-delete-and-reappear": syncDeleteAndReappear,
+  "sync-version-rebase": syncVersionRebase,
+  "stdin-eof-exit-code": stdinEofExitCodeZero,
+  "warmup-skips-client-opened": warmupSkipsClientOpenedDocs,
 };
 
 dispatch(SCENARIOS, process.argv[2]);
