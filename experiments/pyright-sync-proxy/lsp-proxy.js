@@ -9,19 +9,33 @@
 // would NOT help: for an open document the server authoritatively uses the
 // client's in-memory buffer, not disk. The only refresh lever is didChange.
 //
+// VALIDATED against real Claude Code v2.1.207 (see ../lsp-wiretap/FINDINGS.md):
+// the client DOES send didChange+didSave for its own Edit-tool edits, but sends
+// NOTHING for out-of-band disk changes (Bash sed/git/formatters/other
+// sessions) — those are the stale window this proxy closes.
+//
 // What this proxy does: it sits between Claude Code and pyright, forwarding all
 // traffic transparently (NO method-blocking, NO server→client auto-ack — pyright
 // works direct today, so we preserve that exactly), and adds ONE behavior:
 //   - it records every document the client opens (textDocument/didOpen),
 //   - polls those files on disk, and
-//   - when an open file's content changes on disk, injects a synthetic
-//     textDocument/didChange (full-text, version-incremented) to pyright so it
+//   - when an open file's content diverges from the last known buffer content,
+//     injects a synthetic textDocument/didChange (full-text) so pyright
 //     re-analyzes and re-publishes.
 //
-// Client priority: if the client EVER sends its own didChange for a URI (a real
-// editor managing a buffer), the proxy backs off for that document and never
-// injects — the client is authoritative. So this is inert for buffer-driven
-// clients and only activates for disk-edit clients like Claude Code.
+// Version/buffer reconciliation (NOT back-off): the real client is a hybrid —
+// it didChanges its own edits but never syncs out-of-band ones — so the proxy
+// keeps tracking through client didChanges rather than deferring permanently.
+// It mirrors the client's full-text didChange into its own text/version state
+// (client remains authoritative for its own edits) and keeps watching disk.
+// Injected versions continue from max(client version, injected version);
+// pyright applies didChange content regardless of version ordering (verified
+// empirically — regressed/repeated versions still re-publish), so a client
+// version arriving "behind" an injected one is harmless.
+//
+// If a client ever sends an INCREMENTAL didChange (range-based), the proxy can
+// no longer reconstruct the buffer and permanently disables disk-sync for that
+// document (logged once). Claude Code sends full-text changes only.
 //
 // Usage: node lsp-proxy.js --config <path-to-proxy.json>
 // proxy.json: { "server": ["pyright-langserver","--stdio"], "sync": { "pollMs": 300 } }
@@ -73,10 +87,12 @@ function writeMessage(stream, obj) {
 
 // -- Open-document tracking --------------------------------------------------
 
-// uri -> { version, text, path, stat: {mtimeMs,size}|null, pending: bool }
+// uri -> { version, text, path, stat: {mtimeMs,size}|null, pending: bool,
+//          unsyncable: bool }
+// `text` mirrors the last known BUFFER content (didOpen text, then client
+// full-text didChanges, then our injected texts). `unsyncable` is set when an
+// incremental didChange makes the buffer unreconstructable.
 const open = new Map();
-// URIs where the client sent its own didChange — the proxy defers to it.
-const clientDriven = new Set();
 
 function toPath(uri) {
   try {
@@ -169,23 +185,38 @@ function observe(msg) {
         path: p,
         stat: p ? statOf(p) : null,
         pending: false,
+        unsyncable: false,
       });
       break;
     }
     case "textDocument/didChange": {
-      // The client manages this buffer itself — stop injecting for it.
-      if (td && td.uri) {
-        clientDriven.add(td.uri);
-        const st = open.get(td.uri);
-        if (st && typeof td.version === "number") st.version = td.version;
+      // Mirror the client's edit into our buffer model and keep watching disk.
+      // (Claude Code didChanges its own Edit-tool writes but never syncs
+      // out-of-band disk edits, so permanent deferral would reopen the stale
+      // window on any document the client ever edited.)
+      if (!td || !td.uri) return;
+      const st = open.get(td.uri);
+      if (!st) return;
+      if (typeof td.version === "number" && td.version > st.version) {
+        st.version = td.version;
+      }
+      const changes = msg.params.contentChanges;
+      if (!Array.isArray(changes)) return;
+      for (const c of changes) {
+        if (c && c.range === undefined && typeof c.text === "string") {
+          st.text = c.text; // full-document replacement
+        } else if (!st.unsyncable) {
+          // Incremental edit — buffer no longer reconstructable from taps.
+          st.unsyncable = true;
+          process.stderr.write(
+            `[pyright-sync] incremental didChange for ${td.uri}; disk-sync disabled for it\n`
+          );
+        }
       }
       break;
     }
     case "textDocument/didClose": {
-      if (td && td.uri) {
-        open.delete(td.uri);
-        clientDriven.delete(td.uri);
-      }
+      if (td && td.uri) open.delete(td.uri);
       break;
     }
     default:
@@ -204,7 +235,7 @@ if (pollTimer.unref) pollTimer.unref();
 
 function pollOpenFiles() {
   for (const [uri, st] of open) {
-    if (clientDriven.has(uri) || !st.path) continue;
+    if (st.unsyncable || !st.path) continue;
     const cur = statOf(st.path);
     if (!cur) { st.pending = false; continue; }
 
