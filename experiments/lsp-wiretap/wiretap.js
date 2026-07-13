@@ -139,7 +139,15 @@ child.stdout.on("data", (chunk) => {
   process.stdout.write(chunk);
 });
 
-process.stdin.on("end", () => child.kill("SIGTERM"));
+// Expected-shutdown tracking (mirrors the production proxy): stdin EOF
+// SIGTERMs the child, which usually dies BY the signal (code null) — that
+// normal path must not read as exit status 1.
+let shuttingDown = false;
+
+process.stdin.on("end", () => {
+  shuttingDown = true;
+  child.kill("SIGTERM");
+});
 child.stdin.on("error", () => {});
 child.on("error", (err) => {
   logRecord({ dir: "meta", event: "child-error", message: err.message });
@@ -147,9 +155,12 @@ child.on("error", (err) => {
 });
 child.on("exit", (code, signal) => {
   logRecord({ dir: "meta", event: "exit", code, signal });
-  logStream.end(() => process.exit(code ?? 1));
+  logStream.end(() => process.exit(code ?? (shuttingDown ? 0 : 1)));
 });
 
 for (const sig of ["SIGTERM", "SIGINT"]) {
-  process.on(sig, () => child.kill(sig));
+  process.on(sig, () => {
+    shuttingDown = true;
+    child.kill(sig);
+  });
 }

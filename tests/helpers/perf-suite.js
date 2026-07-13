@@ -97,11 +97,16 @@ async function measureOnce(t, iter) {
   await client.start();
   const out = { ready: null, firstDiag: null, refresh: null };
   try {
+    // viaWarmup targets start opening files at the `initialized` notification
+    // sent INSIDE initialize(), so their first-diag baseline must predate it —
+    // a post-initialize baseline can trail the first publish and report
+    // negative latency. (Their first-diag therefore includes the handshake.)
+    const warmupBaseline = Date.now();
     await client.initialize({ rootUri });
     out.ready = Date.now() - spawnAt;
 
     if (t.publishes) {
-      const openAt = Date.now();
+      const openAt = t.viaWarmup ? warmupBaseline : Date.now();
       if (!t.viaWarmup) {
         const text = fs.readFileSync(path.join(dir, t.file), "utf8");
         client.didOpen({ uri: fileUri, languageId: wireLanguageIdFor(parsed, t.file), text });
