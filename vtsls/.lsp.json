@@ -1,7 +1,11 @@
 {
   "typescript": {
-    "command": "vtsls",
-    "args": ["--stdio"],
+    "command": "node",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/lsp-proxy.js",
+      "--config",
+      "${CLAUDE_PLUGIN_ROOT}/proxy.json"
+    ],
     "extensionToLanguage": {
       ".ts": "typescript",
       ".tsx": "typescriptreact",

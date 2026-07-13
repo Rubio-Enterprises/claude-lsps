@@ -86,26 +86,10 @@ _check_proxy_plugin() {
   return $rc
 }
 
-_check_direct_plugin() {
-  local p="$1" lsp="$2" proxy_json="$3" installed_bin="$4"
-  local rc=0 mismatches
-  mismatches=$(jq -r --arg bin "$installed_bin" '
-    to_entries[]
-    | select(.value.command != $bin)
-    | "  \(.key): command=\(.value.command)"
-  ' "$lsp")
-  if [[ -n "$mismatches" ]]; then
-    echo "$p: .lsp.json entries do not all invoke installer BINARY='$installed_bin':"
-    echo "$mismatches"
-    rc=1
-  fi
-  [[ ! -f "$proxy_json" ]] || {
-    echo "$p: has proxy.json but no lsp-proxy.js"
-    rc=1
-  }
-  return $rc
-}
-
+# The unified proxy is the STANDARD WRAPPER: every plugin ships lsp-proxy.js
+# and routes its server through it (disk-sync applies fleet-wide; blocked
+# methods and warmup are per-plugin proxy.json config). A plugin without the
+# proxy is a structural error, not a variant.
 tc_proxy_consistency() {
   local rc=0 p
   for p in "${PLUGINS[@]}"; do
@@ -119,10 +103,38 @@ tc_proxy_consistency() {
       rc=1
       continue
     fi
-    if [[ -f "$proxy_js" ]]; then
-      _check_proxy_plugin "$p" "$lsp" "$proxy_json" "$installed_bin" || rc=1
-    else
-      _check_direct_plugin "$p" "$lsp" "$proxy_json" "$installed_bin" || rc=1
+    if [[ ! -f "$proxy_js" ]]; then
+      echo "$p: missing lsp-proxy.js (the unified proxy is mandatory for every plugin)"
+      rc=1
+      continue
+    fi
+    _check_proxy_plugin "$p" "$lsp" "$proxy_json" "$installed_bin" || rc=1
+  done
+  return $rc
+}
+
+# Plugin installs copy each plugin directory verbatim, so the unified proxy
+# must be deployed as a real file into every plugin (no shared path, no
+# symlinks). This test is what makes the copies safe: an edit that doesn't
+# reach all of them fails here. To sync after editing one copy:
+#   for p in */lsp-proxy.js; do cp <edited-copy> "$p"; done
+tc_proxy_copies_identical() {
+  local rc=0 p ref="" ref_p=""
+  for p in "${PLUGINS[@]}"; do
+    local f="$ROOT_DIR/$p/lsp-proxy.js"
+    if [[ ! -f "$f" ]]; then
+      echo "$p: missing lsp-proxy.js"
+      rc=1
+      continue
+    fi
+    if [[ -z "$ref" ]]; then
+      ref="$f"
+      ref_p="$p"
+      continue
+    fi
+    if ! cmp -s "$ref" "$f"; then
+      echo "$p/lsp-proxy.js differs from $ref_p/lsp-proxy.js — unified proxy copies must be byte-identical"
+      rc=1
     fi
   done
   return $rc
@@ -166,4 +178,5 @@ tc_hooks_commands_point_to_existing_scripts() {
 
 register_test "consistency/lsp-paths" tc_lsp_paths_are_safe
 register_test "consistency/proxy-installer-match" tc_proxy_consistency
+register_test "consistency/proxy-copies-identical" tc_proxy_copies_identical
 register_test "consistency/hooks-commands-resolve" tc_hooks_commands_point_to_existing_scripts

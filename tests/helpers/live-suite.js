@@ -224,6 +224,71 @@ const scenarios = {
     }
   },
 
+  // pyright-disksync: the unified proxy's disk-sync feature, live. Open the
+  // broken file (error appears), then fix it ON DISK ONLY — no didChange from
+  // the client, exactly what a Bash/git/formatter edit looks like. The proxy
+  // must notice the disk change and inject a didChange so pyright re-publishes
+  // an empty set. Without the proxy this stays stale forever (proven by
+  // experiments/lsp-wiretap/FINDINGS.md).
+  "pyright-disksync": async (setProxy) => {
+    const dir = prepWorkdir(
+      "pyright-disksync",
+      path.join(FIXTURES, "pyright"),
+      ["broken.py", "pyrightconfig.json"]
+    );
+    const filePath = path.join(dir, "broken.py");
+    const fileUri = pathToFileURL(filePath).href;
+    const rootUri = pathToFileURL(dir).href;
+
+    const pluginDir = path.join(ROOT_DIR, "pyright");
+    const parsed = parseLspJson(pluginDir);
+    const client = new LspClient({ command: parsed.command, args: parsed.args, cwd: dir });
+    await client.start();
+    setProxy(client);
+
+    try {
+      await client.initialize({ rootUri });
+      client.didOpen({
+        uri: fileUri,
+        languageId: wireLanguageIdFor(parsed, "broken.py"),
+        text: fs.readFileSync(filePath, "utf8"),
+      });
+      const errDiags = await client.waitForDiagnostics({
+        uri: fileUri, mode: "push", timeout: 15000,
+      });
+      if (errDiags.length === 0) {
+        throw new Error(
+          "expected a type error on open, got 0 diagnostics" +
+          `\n--- stderr ---\n${client.stderr().slice(-1500)}`
+        );
+      }
+
+      // The fix lands on disk only. No didChange from this client.
+      const baseSeq = client.publishSeq(fileUri);
+      const fixAt = Date.now();
+      fs.writeFileSync(filePath, "x: int = 5\nprint(x)\n");
+
+      const refreshed = await client.waitForPublish({
+        uri: fileUri, afterSeq: baseSeq, timeout: 15000,
+      });
+      if (!refreshed) {
+        throw new Error(
+          "no re-publish after disk-only fix — disk-sync did not inject" +
+          `\n--- stderr ---\n${client.stderr().slice(-1500)}`
+        );
+      }
+      if (refreshed.diagnostics.length !== 0) {
+        throw new Error(
+          `expected diagnostics to clear after disk-only fix, got ${refreshed.diagnostics.length}:\n` +
+          refreshed.diagnostics.slice(0, 5).map((d) => `  - ${d.message}`).join("\n")
+        );
+      }
+      console.log(`[perf] pyright disk-fix→refresh=${refreshed.at - fixAt}ms`);
+    } finally {
+      try { await client.shutdown(); } catch {}
+    }
+  },
+
   // vtsls (tsserver) does NOT advertise diagnosticProvider and, unlike pyright,
   // does NOT publish an empty diagnostic set for clean .ts files — it only
   // publishes when a file has diagnostics. So vtsls-clean uses

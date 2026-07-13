@@ -11,8 +11,12 @@ const {
 } = require("./lsp-test-utils.js");
 
 const { ROOT_DIR, TMP_DIR, TESTS_DIR } = requireEnv();
+// All plugins carry byte-identical copies of the unified proxy (enforced by
+// consistency/proxy-copies-identical); scenarios spread across three copies so
+// the by-hash-merged coverage gate sees the union of all exercised paths.
 const ANSIBLE_PROXY = path.join(ROOT_DIR, "ansible-language-server", "lsp-proxy.js");
 const REGAL_PROXY = path.join(ROOT_DIR, "regal-lsp", "lsp-proxy.js");
+const PYRIGHT_PROXY = path.join(ROOT_DIR, "pyright", "lsp-proxy.js");
 const STUB = path.join(TESTS_DIR, "helpers", "stub-server.js");
 
 const wd = (tag) => newWorkdir(TMP_DIR, tag);
@@ -150,7 +154,17 @@ async function blockedNotification(setProxy) {
 
 async function autoAckMethod(method, setProxy) {
   const dir = wd(`auto-ack-${method.replace(/\//g, "-")}`);
-  const serverReq = { jsonrpc: "2.0", id: 99, method, params: {} };
+  // workspace/configuration's spec-correct ack is one null per params.items
+  // entry (servers index into the array — pyright/vtsls break on a bare null);
+  // every other auto-acked method gets result:null.
+  const isConfig = method === "workspace/configuration";
+  const serverReq = {
+    jsonrpc: "2.0", id: 99, method,
+    params: isConfig ? { items: [{ section: "a" }, { section: "b" }] } : {},
+  };
+  const ackMatches = (m) => (isConfig
+    ? Array.isArray(m.result) && m.result.length === 2 && m.result.every((x) => x === null)
+    : m.result === null);
   const proxy = spawnProxy({
     proxyJs: ANSIBLE_PROXY,
     config: proxyConfig(),
@@ -158,11 +172,11 @@ async function autoAckMethod(method, setProxy) {
   });
   setProxy(proxy);
 
-  // Wait for the proxy's auto-ack to land at the stub: id matches, result is
-  // null, *and* method is absent (so we're not matching the stub's outbound
-  // request being mistakenly logged as inbound).
+  // Wait for the proxy's auto-ack to land at the stub: id matches, result has
+  // the expected shape, *and* method is absent (so we're not matching the
+  // stub's outbound request being mistakenly logged as inbound).
   await waitFor(() => readJsonLines(path.join(dir, "recv.jsonl"))
-    .some((m) => m.id === 99 && m.result === null && m.method === undefined && m.jsonrpc === "2.0"));
+    .some((m) => m.id === 99 && m.method === undefined && m.jsonrpc === "2.0" && ackMatches(m)));
 
   // Drive a sentinel notification through the proxy and wait for the stub to
   // see it. Once it has, any client-bound frame the proxy was going to emit
@@ -488,6 +502,214 @@ async function childSpawnError() {
     `expected child-error message in stderr; got: ${stderr}`);
 }
 
+// ---------------------------------------------------------------------------
+// Disk-sync scenarios (unified proxy "sync" feature). Fast poll (60ms) keeps
+// the two-tick stability gate quick. Targets the pyright copy so coverage
+// spreads across copies (merged by hash in the gate).
+// ---------------------------------------------------------------------------
+
+const { pathToFileURL } = require("url");
+
+function syncSetup(tag, { config = {}, text = "one\n" } = {}) {
+  const dir = wd(tag);
+  const docPath = path.join(dir, "doc.py");
+  fs.writeFileSync(docPath, text);
+  const uri = pathToFileURL(docPath).href;
+  const proxy = spawnProxy({
+    proxyJs: PYRIGHT_PROXY,
+    config: proxyConfig({ sync: { pollMs: 60 }, ...config }),
+    stubEnv: { STUB_LOG_DIR: dir, ...(config.warmup ? { STUB_AUTO_INIT: "1" } : {}) },
+  });
+  return { dir, docPath, uri, proxy };
+}
+
+function didOpenFrame(uri, text, version = 1) {
+  return frameOf({
+    jsonrpc: "2.0",
+    method: "textDocument/didOpen",
+    params: { textDocument: { uri, languageId: "python", version, text } },
+  });
+}
+
+const stubMsgs = (dir) => readJsonLines(path.join(dir, "recv.jsonl"));
+const injectedChanges = (dir, uri) => stubMsgs(dir).filter((m) =>
+  m.method === "textDocument/didChange" && m.params.textDocument.uri === uri);
+
+// Disk-only edit to an open document → proxy injects didChange + didSave.
+async function syncInjectsOnDiskEdit(setProxy) {
+  const { dir, docPath, uri, proxy } = syncSetup("sync-inject");
+  setProxy(proxy);
+
+  proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
+  await waitFor(() => stubMsgs(dir).some((m) => m.method === "textDocument/didOpen"));
+
+  fs.writeFileSync(docPath, "two\n");
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.contentChanges[0].text === "two\n"), { timeout: 6000 });
+
+  const change = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "two\n");
+  assert(change.params.textDocument.version === 2,
+    `expected injected version 2, got ${change.params.textDocument.version}`);
+  assert(change.params.contentChanges[0].range === undefined,
+    "injected didChange must be a full-document change (no range)");
+
+  // didSave follows the didChange for save-triggered linters.
+  await waitFor(() => stubMsgs(dir).some((m) =>
+    m.method === "textDocument/didSave" && m.params.textDocument.uri === uri));
+  const msgs = stubMsgs(dir);
+  const iChange = msgs.findIndex((m) => m.method === "textDocument/didChange");
+  const iSave = msgs.findIndex((m) => m.method === "textDocument/didSave");
+  assert(iChange < iSave, "didChange must precede didSave");
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+// Client didChange reconciles (buffer + version), then a later disk-only edit
+// STILL syncs — the regression the wire-tap findings forced (no back-off).
+async function syncReconcilesClientDidChange(setProxy) {
+  const { dir, docPath, uri, proxy } = syncSetup("sync-reconcile");
+  setProxy(proxy);
+
+  proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
+  // Client's own edit, Edit-tool style: disk write + full-text didChange v5.
+  fs.writeFileSync(docPath, "five\n");
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    method: "textDocument/didChange",
+    params: { textDocument: { uri, version: 5 }, contentChanges: [{ text: "five\n" }] },
+  }));
+  await waitFor(() => stubMsgs(dir).some((m) =>
+    m.method === "textDocument/didChange" && m.params.textDocument.version === 5));
+
+  // Give the poll a couple ticks to see the client-written disk state; it must
+  // NOT inject for it (disk == buffer after reconciliation).
+  await sleep(200);
+  assert(injectedChanges(dir, uri).length === 1,
+    "proxy injected for the client's own write (reconciliation failed)");
+
+  // Now the out-of-band edit — the injected version must continue past 5.
+  fs.writeFileSync(docPath, "six\n");
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.contentChanges[0].text === "six\n"), { timeout: 6000 });
+  const injected = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "six\n");
+  assert(injected.params.textDocument.version === 6,
+    `expected injected version 6 (max(client 5)+1), got ${injected.params.textDocument.version}`);
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+// An incremental (range-based) client didChange makes the buffer
+// unreconstructable — disk-sync must go quiet for that document.
+async function syncIncrementalDisables(setProxy) {
+  const { dir, docPath, uri, proxy } = syncSetup("sync-incremental");
+  setProxy(proxy);
+
+  proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    method: "textDocument/didChange",
+    params: {
+      textDocument: { uri, version: 2 },
+      contentChanges: [{
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        text: "two",
+      }],
+    },
+  }));
+  await waitFor(() => /disk-sync disabled/.test(proxy.stderr()));
+
+  fs.writeFileSync(docPath, "three\n");
+  await sleep(300); // several poll ticks
+  assert(!injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "three\n"),
+    "proxy injected for a document with an unreconstructable buffer");
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+// mtime churn with identical content (touch, atomic same-content rewrite)
+// must not inject; didClose must stop tracking entirely.
+async function syncNoopAndDidClose(setProxy) {
+  const { dir, docPath, uri, proxy } = syncSetup("sync-noop-close");
+  setProxy(proxy);
+
+  proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
+  await waitFor(() => stubMsgs(dir).some((m) => m.method === "textDocument/didOpen"));
+
+  fs.writeFileSync(docPath, "one\n"); // same content, new mtime
+  await sleep(300);
+  assert(injectedChanges(dir, uri).length === 0,
+    "proxy injected for a content-identical rewrite");
+
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    method: "textDocument/didClose",
+    params: { textDocument: { uri } },
+  }));
+  await waitFor(() => stubMsgs(dir).some((m) => m.method === "textDocument/didClose"));
+  fs.writeFileSync(docPath, "two\n");
+  await sleep(300);
+  assert(injectedChanges(dir, uri).length === 0,
+    "proxy injected for a closed document");
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+// sync: false disables the feature wholesale.
+async function syncDisabledByConfig(setProxy) {
+  const dir = wd("sync-disabled");
+  const docPath = path.join(dir, "doc.py");
+  fs.writeFileSync(docPath, "one\n");
+  const uri = pathToFileURL(docPath).href;
+  const proxy = spawnProxy({
+    proxyJs: PYRIGHT_PROXY,
+    config: proxyConfig({ sync: false }),
+    stubEnv: { STUB_LOG_DIR: dir },
+  });
+  setProxy(proxy);
+
+  proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
+  await waitFor(() => stubMsgs(dir).some((m) => m.method === "textDocument/didOpen"));
+  fs.writeFileSync(docPath, "two\n");
+  await sleep(300);
+  assert(injectedChanges(dir, uri).length === 0, "sync:false still injected");
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
+// Warmup-opened documents enroll in disk-sync: edit a warmup-opened file on
+// disk and the proxy must inject for it, even though the client never sent
+// didOpen.
+async function syncTracksWarmupOpens(setProxy) {
+  const { dir, docPath, uri, proxy } = syncSetup("sync-warmup", {
+    config: { warmup: { extensions: [".py"], exclude: [] } },
+  });
+  setProxy(proxy);
+
+  // Drive initialize (stub AUTO_INIT answers) then initialized to trigger warmup.
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0", id: 1, method: "initialize",
+    params: { rootUri: pathToFileURL(dir).href },
+  }));
+  await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 1));
+  proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "initialized", params: {} }));
+  await waitFor(() => /warmup: sent \d+ didOpen/.test(proxy.stderr()));
+  assert(stubMsgs(dir).some((m) =>
+    m.method === "textDocument/didOpen" && m.params.textDocument.uri === uri),
+  "warmup did not open the fixture file");
+
+  fs.writeFileSync(docPath, "changed\n");
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.contentChanges[0].text === "changed\n"), { timeout: 6000 });
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
 const SCENARIOS = {
   "passthrough": passthrough,
   "passthrough-server-to-client": serverToClientByteIdentical,
@@ -511,6 +733,12 @@ const SCENARIOS = {
   "child-spawn-error": childSpawnError,
   "regal-passthrough": regalPassthroughParity,
   "regal-blocked-request": regalBlockedRequestParity,
+  "sync-injects-on-disk-edit": syncInjectsOnDiskEdit,
+  "sync-reconciles-client-didchange": syncReconcilesClientDidChange,
+  "sync-incremental-disables": syncIncrementalDisables,
+  "sync-noop-and-didclose": syncNoopAndDidClose,
+  "sync-disabled-by-config": syncDisabledByConfig,
+  "sync-tracks-warmup-opens": syncTracksWarmupOpens,
 };
 
 dispatch(SCENARIOS, process.argv[2]);

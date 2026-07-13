@@ -1,5 +1,12 @@
 # pyright sync proxy (prototype)
 
+> **Status: PRODUCTIZED.** Disk-sync shipped as part of the unified proxy that
+> every plugin in this marketplace now runs (`<plugin>/lsp-proxy.js`, the
+> `"sync"` key in `proxy.json`) — with the reconciliation design this prototype
+> converged on. This directory remains as design history plus a standalone A/B
+> demo against direct pyright; the adoption-path notes below describe the step
+> that has since been taken (generalized to all plugins, not just pyright/).
+
 An **experimental** LSP proxy that fixes pyright's "stale errors after a fix"
 behavior. Not wired into the shipped `pyright` plugin — this directory is a
 prototype you run by hand or adopt deliberately (see *Adoption path* below).

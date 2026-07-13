@@ -26,6 +26,12 @@ tc_proxy_config_empty_server() { _proxy_run config-empty-server; }
 tc_proxy_child_spawn_error() { _proxy_run child-spawn-error; }
 tc_proxy_regal_passthrough() { _proxy_run regal-passthrough; }
 tc_proxy_regal_blocked() { _proxy_run regal-blocked-request; }
+tc_proxy_sync_inject() { _proxy_run sync-injects-on-disk-edit; }
+tc_proxy_sync_reconcile() { _proxy_run sync-reconciles-client-didchange; }
+tc_proxy_sync_incremental() { _proxy_run sync-incremental-disables; }
+tc_proxy_sync_noop_close() { _proxy_run sync-noop-and-didclose; }
+tc_proxy_sync_disabled() { _proxy_run sync-disabled-by-config; }
+tc_proxy_sync_warmup() { _proxy_run sync-tracks-warmup-opens; }
 
 register_test "proxy/passthrough" tc_proxy_passthrough
 register_test "proxy/passthrough-server-to-client" tc_proxy_passthrough_s2c
@@ -49,3 +55,9 @@ register_test "proxy/config-empty-server" tc_proxy_config_empty_server
 register_test "proxy/child-spawn-error" tc_proxy_child_spawn_error
 register_test "proxy/regal-passthrough" tc_proxy_regal_passthrough
 register_test "proxy/regal-blocked-request" tc_proxy_regal_blocked
+register_test "proxy/sync-injects-on-disk-edit" tc_proxy_sync_inject
+register_test "proxy/sync-reconciles-client-didchange" tc_proxy_sync_reconcile
+register_test "proxy/sync-incremental-disables" tc_proxy_sync_incremental
+register_test "proxy/sync-noop-and-didclose" tc_proxy_sync_noop_close
+register_test "proxy/sync-disabled-by-config" tc_proxy_sync_disabled
+register_test "proxy/sync-tracks-warmup-opens" tc_proxy_sync_warmup

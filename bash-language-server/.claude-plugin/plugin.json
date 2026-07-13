@@ -1,7 +1,7 @@
 {
   "name": "bash-language-server",
   "description": "Bash language server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "strubio-ray"
   },

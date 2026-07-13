@@ -23,9 +23,11 @@ _register_if_present bash-language-server "live/bash-broken" tc_live_bash_broken
 tc_live_pyright_clean() { _live_run pyright-clean; }
 tc_live_pyright_broken() { _live_run pyright-broken; }
 tc_live_pyright_refresh() { _live_run pyright-refresh; }
+tc_live_pyright_disksync() { _live_run pyright-disksync; }
 _register_if_present pyright-langserver "live/pyright-clean" tc_live_pyright_clean
 _register_if_present pyright-langserver "live/pyright-broken" tc_live_pyright_broken
 _register_if_present pyright-langserver "live/pyright-refresh" tc_live_pyright_refresh
+_register_if_present pyright-langserver "live/pyright-disksync" tc_live_pyright_disksync
 
 tc_live_vtsls_clean() { _live_run vtsls-clean; }
 tc_live_vtsls_broken() { _live_run vtsls-broken; }

@@ -4,9 +4,13 @@ LSP plugins for [Claude Code](https://claude.ai/code).
 
 ## Plugins
 
+Every plugin launches its language server through a shared proxy (see
+[LSP Proxy](#lsp-proxy) below) that keeps diagnostics fresh and papers over
+protocol gaps.
+
 | Plugin | LSP Server | Description |
 |--------|-----------|-------------|
-| `ansible-language-server` | `node lib/lsp-proxy.js` | Ansible language server (with LSP method compatibility proxy) |
+| `ansible-language-server` | `ansible-language-server --stdio` | Ansible language server |
 | `bash-language-server` | `bash-language-server start` | Bash/Shell language server |
 | `cue-lsp` | `cue lsp serve` | CUE language server (built into CUE CLI) |
 | `pyright` | `pyright-langserver --stdio` | Python type checker and language server |
@@ -54,7 +58,28 @@ project:
 
 ## LSP Proxy
 
-The `ansible-language-server` plugin uses an LSP proxy (`lsp-proxy.js`) that intercepts requests for unsupported methods. This prevents Claude Code's LSP client from entering a broken state when a server returns a JSON-RPC `-32601` error. The plugin defines its blocked methods in a `proxy.json` file. The proxy is launched directly via `node` using `${CLAUDE_PLUGIN_ROOT}` path expansion in `.lsp.json` — no generated wrappers or PATH dependencies required.
+Every plugin runs its language server behind a shared proxy (`lsp-proxy.js`,
+launched via `node` with `${CLAUDE_PLUGIN_ROOT}` path expansion — no generated
+wrappers or PATH dependencies). Each plugin configures it through `proxy.json`.
+It provides:
+
+- **Fresh diagnostics on out-of-band edits (all plugins).** Claude Code tells
+  the server about its own Edit-tool changes, but edits that land on disk any
+  other way — Bash commands (`sed`, `git checkout`, formatters), lint
+  auto-fixes, another session or editor — are never reported, so the server
+  keeps serving stale diagnostics from the last state it saw. The proxy watches
+  open files on disk and injects the missing `didChange`/`didSave` so
+  diagnostics refresh within a few hundred milliseconds. Disable per plugin
+  with `"sync": false` in `proxy.json`.
+- **Blocked-method interception (ansible, regal).** Prevents Claude Code's LSP
+  client from entering a broken state when a server returns JSON-RPC `-32601`
+  for methods it doesn't implement; the proxy answers `null` instead.
+- **Server unblocking (all plugins).** Auto-answers server-initiated requests
+  Claude Code's client doesn't handle (capability registration, configuration
+  fetches, progress tokens) so servers don't deadlock waiting.
+- **Warmup (regal).** Opens matching workspace files right after
+  initialization so servers that defer indexing until first-open start
+  immediately.
 
 ## License
 
