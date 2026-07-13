@@ -191,26 +191,42 @@ function reconcileClientChange(msg, rawMessage) {
   const st = openDocs.get(td.uri);
   if (!st) return rawMessage;
 
+  // Order-aware batch scan: contentChanges apply in sequence, so the buffer
+  // is reconstructable iff the LAST effective change is a full-document
+  // replacement — [incremental, fulltext] restores syncability, while
+  // [fulltext, incremental] leaves the buffer unknown.
   const changes = msg.params.contentChanges;
-  let fullText = null;
+  let knownText = null;
+  let sawIncremental = false;
   if (Array.isArray(changes)) {
     for (const c of changes) {
       if (c && c.range === undefined && typeof c.text === "string") {
-        fullText = c.text; // full-document replacement
-      } else if (!st.unsyncable) {
-        st.unsyncable = true;
-        process.stderr.write(
-          `${LOG_PREFIX} incremental didChange for ${td.uri}; disk-sync disabled for it\n`
-        );
+        knownText = c.text; // full replacement: buffer known from here on
+      } else {
+        knownText = null; // incremental on top: buffer unknown again
+        sawIncremental = true;
       }
     }
   }
-  if (fullText !== null) st.text = fullText;
+  if (knownText !== null) {
+    st.text = knownText;
+    if (st.unsyncable) {
+      st.unsyncable = false;
+      process.stderr.write(
+        `${LOG_PREFIX} disk-sync re-enabled for ${td.uri} (full-text didChange)\n`
+      );
+    }
+  } else if (sawIncremental && !st.unsyncable) {
+    st.unsyncable = true;
+    process.stderr.write(
+      `${LOG_PREFIX} incremental didChange for ${td.uri}; disk-sync disabled for it\n`
+    );
+  }
 
   // The proxy closed this document server-side (file deleted out-of-band) but
   // the client still edits it: reopen with the client's full content instead
   // of forwarding a didChange for a document the server considers closed.
-  if (st.closed && fullText !== null) {
+  if (st.closed && knownText !== null) {
     st.closed = false;
     st.missing = false;
     st.pending = false;
@@ -221,7 +237,7 @@ function reconcileClientChange(msg, rawMessage) {
       method: "textDocument/didOpen",
       params: {
         textDocument: {
-          uri: td.uri, languageId: st.languageId, version: st.version, text: fullText,
+          uri: td.uri, languageId: st.languageId, version: st.version, text: knownText,
         },
       },
     }));

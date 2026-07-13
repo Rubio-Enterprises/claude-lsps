@@ -629,6 +629,45 @@ async function syncIncrementalDisables(setProxy) {
   await proxy.exited;
 }
 
+// A later full-text didChange re-establishes the buffer after an incremental
+// one disabled sync — disk-sync must resume ([incremental, fulltext] order).
+async function syncResyncAfterFulltext(setProxy) {
+  const { dir, docPath, uri, proxy } = syncSetup("sync-resync");
+  setProxy(proxy);
+
+  proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    method: "textDocument/didChange",
+    params: {
+      textDocument: { uri, version: 2 },
+      contentChanges: [{
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        text: "two",
+      }],
+    },
+  }));
+  await waitFor(() => /disk-sync disabled/.test(proxy.stderr()));
+
+  // Full-document replacement restores syncability.
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0",
+    method: "textDocument/didChange",
+    params: { textDocument: { uri, version: 3 }, contentChanges: [{ text: "three\n" }] },
+  }));
+  await waitFor(() => /disk-sync re-enabled/.test(proxy.stderr()));
+
+  fs.writeFileSync(docPath, "four\n");
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.contentChanges[0].text === "four\n"), { timeout: 6000 });
+  const injected = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "four\n");
+  assert(injected.params.textDocument.version === 4,
+    `expected injected v4 after resync, got v${injected.params.textDocument.version}`);
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
 // mtime churn with identical content (touch, atomic same-content rewrite)
 // must not inject; didClose must stop tracking entirely.
 async function syncNoopAndDidClose(setProxy) {
@@ -923,6 +962,7 @@ const SCENARIOS = {
   "sync-injects-on-disk-edit": syncInjectsOnDiskEdit,
   "sync-reconciles-client-didchange": syncReconcilesClientDidChange,
   "sync-incremental-disables": syncIncrementalDisables,
+  "sync-resync-after-fulltext": syncResyncAfterFulltext,
   "sync-noop-and-didclose": syncNoopAndDidClose,
   "sync-disabled-by-config": syncDisabledByConfig,
   "sync-tracks-warmup-opens": syncTracksWarmupOpens,

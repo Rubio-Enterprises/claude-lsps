@@ -29,6 +29,7 @@ tc_proxy_regal_blocked() { _proxy_run regal-blocked-request; }
 tc_proxy_sync_inject() { _proxy_run sync-injects-on-disk-edit; }
 tc_proxy_sync_reconcile() { _proxy_run sync-reconciles-client-didchange; }
 tc_proxy_sync_incremental() { _proxy_run sync-incremental-disables; }
+tc_proxy_sync_resync() { _proxy_run sync-resync-after-fulltext; }
 tc_proxy_sync_noop_close() { _proxy_run sync-noop-and-didclose; }
 tc_proxy_sync_disabled() { _proxy_run sync-disabled-by-config; }
 tc_proxy_sync_warmup() { _proxy_run sync-tracks-warmup-opens; }
@@ -63,6 +64,7 @@ register_test "proxy/regal-blocked-request" tc_proxy_regal_blocked
 register_test "proxy/sync-injects-on-disk-edit" tc_proxy_sync_inject
 register_test "proxy/sync-reconciles-client-didchange" tc_proxy_sync_reconcile
 register_test "proxy/sync-incremental-disables" tc_proxy_sync_incremental
+register_test "proxy/sync-resync-after-fulltext" tc_proxy_sync_resync
 register_test "proxy/sync-noop-and-didclose" tc_proxy_sync_noop_close
 register_test "proxy/sync-disabled-by-config" tc_proxy_sync_disabled
 register_test "proxy/sync-tracks-warmup-opens" tc_proxy_sync_warmup
