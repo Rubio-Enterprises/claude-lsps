@@ -1,0 +1,4 @@
+{
+  "server": ["cue", "lsp", "serve"],
+  "blocked": []
+}

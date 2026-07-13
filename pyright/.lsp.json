@@ -1,7 +1,11 @@
 {
   "python": {
-    "command": "pyright-langserver",
-    "args": ["--stdio"],
+    "command": "node",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/lsp-proxy.js",
+      "--config",
+      "${CLAUDE_PLUGIN_ROOT}/proxy.json"
+    ],
     "extensionToLanguage": {
       ".py": "python",
       ".pyi": "python"

@@ -138,7 +138,10 @@ _REAL_TOOL_PATHS=()
 _resolve_real_tools_once() {
   if ((${#_REAL_TOOL_PATHS[@]} > 0)); then return; fi
   local t real
-  for t in bash flock mkdir rmdir sleep uname tr mktemp mv chmod rm cat grep sed awk; do
+  # node is curated in: every installer now guards on its presence (the
+  # unified proxy runs on node). The node-missing negative path is tested by
+  # removing the symlink from a sandbox (tc_install_node_missing).
+  for t in bash flock mkdir rmdir sleep uname tr mktemp mv chmod rm cat grep sed awk node; do
     real=$(command -v "$t" 2>/dev/null) || continue
     _REAL_TOOL_PATHS+=("$t=$real")
   done

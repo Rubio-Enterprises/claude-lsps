@@ -36,30 +36,50 @@ Every plugin directory follows the same shape:
 ```
 <plugin>/
   .claude-plugin/plugin.json   # name, version, description, license, author
-  .lsp.json                    # how Claude Code launches the LSP
+  .lsp.json                    # launches the unified proxy (node lsp-proxy.js --config proxy.json)
   hooks/hooks.json             # SessionStart hook entry
   hooks/check-<binary>.sh      # idempotent installer (Homebrew → npm/binary fallback)
-  lsp-proxy.js                 # ONLY for proxy plugins (ansible, regal)
-  proxy.json                   # ONLY for proxy plugins
+  lsp-proxy.js                 # unified proxy — byte-identical copy in EVERY plugin
+  proxy.json                   # per-plugin proxy config (server cmd, blocked, warmup, sync)
 ```
 
 `.lsp.json` paths to in-repo files MUST use `${CLAUDE_PLUGIN_ROOT}/...` — `tests/cases/02-consistency.sh::tc_lsp_paths_are_safe` rejects absolute paths and any other variable. Same constraint applies to `hooks/hooks.json` command strings.
 
-### Two plugin variants
+### The unified proxy (standard wrapper)
 
-There are exactly two shapes a plugin can have, and the test suite enforces the dichotomy (`tc_proxy_consistency`):
+Every plugin routes its server through the same `lsp-proxy.js`; there are no
+"direct" plugins (`tc_proxy_consistency` fails a plugin without the proxy).
+Behavior is driven per-plugin by `proxy.json`:
 
-1. **Direct** (`bash-language-server`, `cue-lsp`, `pyright`, `vtsls`): `.lsp.json` invokes the LSP binary directly. No `lsp-proxy.js`, no `proxy.json`.
-2. **Proxied** (`ansible-language-server`, `regal-lsp`): `.lsp.json` invokes `node ${CLAUDE_PLUGIN_ROOT}/lsp-proxy.js --config ${CLAUDE_PLUGIN_ROOT}/proxy.json`. `proxy.json` lists the real server command and blocked LSP methods.
+- **`blocked`** — client→server requests the server would answer with JSON-RPC
+  `-32601`, which puts Claude Code's LSP client into an unrecoverable broken
+  state. The proxy synthesizes `{result: null}` instead. (ansible, regal)
+- **auto-ack** (always on) — answers server→client requests Claude Code's
+  client can't handle (`client/registerCapability`, `client/unregisterCapability`,
+  `workspace/configuration`, `window/workDoneProgress/create`) so the server
+  doesn't deadlock. `workspace/configuration` gets the spec-correct per-item
+  null array, not a bare null — pyright/vtsls index into it.
+- **`warmup`** — after the client's `initialized`, walks `rootUri` for matching
+  files and sends synthetic `textDocument/didOpen` so servers that defer
+  indexing until first-open (Regal) start immediately. (regal)
+- **`sync`** (default ON; `"sync": false` to disable) — **disk-sync**: Claude
+  Code sends `didChange`+`didSave` for its own Edit-tool writes but NOTHING for
+  out-of-band disk edits (Bash `sed`/git/formatters/other sessions) — validated
+  by wire-tapping real sessions, `experiments/lsp-wiretap/FINDINGS.md`. The
+  proxy tracks open documents (client didOpens AND warmup opens), polls disk
+  (stat tuple mtime+ctime+size+ino) with a one-tick stability gate, and
+  injects full-text `didChange`+`didSave` when disk diverges from the last
+  known buffer. Client didChanges are reconciled (mirrored into buffer/version
+  state), never backed off from; a client didChange whose version lags the
+  proxy's injections is rebased to tracked+1 (version monotonicity); an
+  incremental (range-based) client didChange disables sync for that document.
+  A deleted tracked file gets a synthetic `didClose` (clears diagnostics) and
+  is reopened if it reappears (e.g. git branch switches).
 
-The **why** for proxy plugins: when an LSP server returns JSON-RPC `-32601` (method not found) for things like `textDocument/documentSymbol`, Claude Code's LSP client enters an unrecoverable broken state. The proxy intercepts those client→server requests and synthesizes a `null` result. It **also** auto-acks server→client requests the client can't handle (`client/registerCapability`, `client/unregisterCapability`, `workspace/configuration`, `window/workDoneProgress/create`) so the server doesn't deadlock waiting for a response.
-
-### Two proxies, two responsibilities
-
-- `ansible-language-server/lsp-proxy.js` — bare proxy. Blocks listed methods, auto-acks server-initiated requests, forwards everything else byte-for-byte.
-- `regal-lsp/lsp-proxy.js` — superset. Adds a **warmup** phase: after the client's `initialized` notification, recursively walks `rootUri` for files matching `proxy.warmup.extensions`, skips `proxy.warmup.exclude` directory names, and sends synthetic `textDocument/didOpen` notifications so servers that defer indexing until first-open (like Regal) start indexing immediately.
-
-If you change one proxy's wire-handling logic (framing, auto-ack list, blocked-method response shape), strongly consider mirroring the change to the other — they diverged only because warmup needed extra state.
+**Editing the proxy:** all six copies must stay byte-identical
+(`consistency/proxy-copies-identical` enforces it — plugin installs copy each
+plugin dir verbatim, so a shared file or symlink can't work). Edit one copy,
+then fan out: `for p in */lsp-proxy.js; do cp <edited-copy> "$p"; done`.
 
 ### Installer scripts (`hooks/check-*.sh`)
 
@@ -78,7 +98,7 @@ When editing an installer: keep the `BINARY=` line as a `KEY="value"` assignment
 
 ## Test suite structure
 
-Eight case files under `tests/cases/`, run in lexical order:
+Nine case files under `tests/cases/`, run in lexical order:
 
 | File | What it guards |
 |---|---|
@@ -87,9 +107,10 @@ Eight case files under `tests/cases/`, run in lexical order:
 | `03-installer-lint.sh` | `bash -n` + `shellcheck --severity=warning` on every `check-*.sh` |
 | `04-installer-behavior.sh` | Per-plugin: noop when binary present, brew path, npm path, binary path, failure propagation, post-install missing-binary check. Uses sandboxed `PATH` with mocked `brew`/`npm`/`curl`/`tar`/`uname` from `tests/helpers/mock-bin.sh` |
 | `05-installer-concurrency.sh` | Two parallel invocations → exactly one install call (flock branch AND mkdir-fallback branch) |
-| `06-proxy.sh` | Wire-level proxy behavior via `tests/helpers/proxy-suite.js` + `stub-server.js` |
+| `06-proxy.sh` | Wire-level proxy behavior via `tests/helpers/proxy-suite.js` + `stub-server.js`: passthrough, blocked methods, auto-ack, disk-sync (inject / reconcile / incremental-disable / didClose / sync:false / warmup-tracked) |
 | `07-warmup.sh` | Regal warmup: files opened, empty tree, no warmup section, multi-extension |
-| `99-coverage.sh` | V8 coverage gate: ≥80% on every `*/lsp-proxy.js`. Collected via `NODE_V8_COVERAGE` exported by `run.sh` |
+| `08-live.sh` | Real-server end-to-end scenarios (skipped per-binary when not installed), incl. `pyright-refresh` (didChange refresh) and `pyright-disksync` (disk-only edit refresh through the proxy) |
+| `99-coverage.sh` | V8 coverage gate: ≥80% on `*/lsp-proxy.js`, with byte-identical copies grouped by content hash and gated on their coverage union (the wire suite spreads scenarios across copies) |
 
 The harness **sources** case files into `run.sh` (doesn't exec them), so a syntax error in any case body would silently skip later assertions if `set -euo pipefail` weren't in `run.sh`. Don't remove it.
 
@@ -100,12 +121,14 @@ The harness **sources** case files into `run.sh` (doesn't exec them), so a synta
 ## Adding a new plugin
 
 1. Create `<plugin>/.claude-plugin/plugin.json`, `.lsp.json`, `hooks/hooks.json`, `hooks/check-<binary>.sh` matching the patterns above.
-2. If the LSP returns `-32601` for any method Claude Code requests, also add `lsp-proxy.js` + `proxy.json` (copy from `ansible-language-server/` or `regal-lsp/`).
+2. Copy the unified proxy from any existing plugin (`cp pyright/lsp-proxy.js <plugin>/lsp-proxy.js` — the identity test rejects anything else) and write a `proxy.json`: `server` = the real server command, `blocked` = methods the server `-32601`s (empty array if none), plus `warmup` if the server defers indexing until first-open. `.lsp.json` invokes `node ${CLAUDE_PLUGIN_ROOT}/lsp-proxy.js --config ${CLAUDE_PLUGIN_ROOT}/proxy.json`.
 3. Add an entry to `.claude-plugin/marketplace.json` (`source: "./<plugin>"`, `name`, `version`, `description`, `category`, `tags`, `author.name`).
 4. Run `bash tests/run.sh` — every cross-file invariant test self-extends to the new plugin, but per-plugin behavior tests in `04-installer-behavior.sh` and `05-installer-concurrency.sh` are explicitly registered. Add new `tc_install_*` cases there matching the install strategy (brew / npm / binary).
 
 ## Conventions worth knowing
 
 - README plugin notes (`pyright` venv discovery, `regal` `project.roots`) document **end-user-visible quirks**, not repo internals — keep that distinction when adding documentation.
-- The `lsp-proxy.js` files are the only non-trivial executable code. They are deliberately dependency-free (Node stdlib only) and use stdio framing by hand. Don't introduce `npm install` — there is no `package.json` and the install hooks don't run one.
+- The unified `lsp-proxy.js` is the only non-trivial executable code. It is deliberately dependency-free (Node stdlib only) and uses stdio framing by hand. Don't introduce `npm install` — there is no `package.json` and the install hooks don't run one.
+- `experiments/` holds the design history: `lsp-wiretap/` (transparent tap + `FINDINGS.md`, the wire-level evidence behind disk-sync) and `pyright-sync-proxy/` (the prototype that became the unified proxy's sync feature, with a standalone A/B demo). Not shipped, not under the coverage gate; re-tap after major Claude Code releases to revalidate the edit-sync behavior model.
+- There is a perf harness separate from the pass/fail suite: `bash tests/perf.sh` prints per-LSP spawn→ready / first-diagnostic latency medians (`PERF_ITERS` to change sampling).
 - Trailing-comment notes inside test cases (e.g. "cue's pipefail bug is a known issue, separate from this test PR") are real TODOs — read them before "fixing" what looks like an oversight.

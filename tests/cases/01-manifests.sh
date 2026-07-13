@@ -124,6 +124,10 @@ tc_proxy_json_structure() {
         (.warmup.extensions | all(type == "string")) and
         (.warmup.exclude | type == "array") and
         (.warmup.exclude | all(type == "string"))
+       else true end) and
+      (if has("sync") and (.sync != null) then
+        (.sync == false) or
+        ((.sync | type == "object") and ((.sync.pollMs // 300) | type == "number"))
        else true end)
     ' "$f")
     if [[ "$check" != "true" ]]; then

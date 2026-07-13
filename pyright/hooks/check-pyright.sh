@@ -5,6 +5,14 @@ BINARY="pyright-langserver"
 FORMULA="pyright"
 NPM_PACKAGE="pyright"
 
+# Every plugin launches its server through the Node proxy (lsp-proxy.js), so a
+# usable session needs node on PATH even when the server binary is present.
+if ! command -v node &>/dev/null; then
+  echo "[$BINARY] node is required to run this plugin's LSP proxy but is not on PATH." >&2
+  echo "[$BINARY] Install Node.js (e.g. brew install node), then restart the session." >&2
+  exit 1
+fi
+
 if command -v "$BINARY" &>/dev/null; then
   exit 0
 fi

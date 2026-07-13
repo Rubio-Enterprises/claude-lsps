@@ -2,6 +2,7 @@
 // Usage: node coverage-check.js [--threshold=80]
 "use strict";
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { fileURLToPath } = require("url");
@@ -138,19 +139,36 @@ function main() {
     }
   }
 
+  // The unified proxy ships as byte-identical copies in every plugin dir
+  // (enforced by consistency/proxy-copies-identical). Coverage is a property
+  // of the CODE, not the deploy path, so group targets by content hash and
+  // gate each group on the union of its copies' coverage — the wire suite
+  // spreads scenarios across copies instead of repeating every scenario six
+  // times. A copy that drifts breaks the identity test before it could dodge
+  // the gate here.
+  const groups = new Map(); // hash -> [target, ...]
+  for (const target of TARGETS) {
+    const h = crypto.createHash("sha256").update(fs.readFileSync(target)).digest("hex");
+    if (!groups.has(h)) groups.set(h, []);
+    groups.get(h).push(target);
+  }
+
   let pass = true;
   const lines = [];
-  for (const target of TARGETS) {
-    const entries = byFile.get(target) || [];
+  for (const members of groups.values()) {
+    const entries = members.flatMap((t) => byFile.get(t) || []);
+    const label = members.length === 1
+      ? path.relative(ROOT_DIR, members[0])
+      : `${members.length} identical copies (${members.map((t) => path.relative(ROOT_DIR, t)).join(", ")})`;
     if (entries.length === 0) {
-      lines.push(`  ${path.relative(ROOT_DIR, target)}: NO DATA`);
+      lines.push(`  ${label}: NO DATA`);
       pass = false;
       continue;
     }
-    const { coveredLines, uncoveredLines, percent, uncoveredLineNums } = computeCoverage(target, entries);
+    const { coveredLines, uncoveredLines, percent, uncoveredLineNums } = computeCoverage(members[0], entries);
     const status = percent >= threshold ? "ok" : "FAIL";
     lines.push(
-      `  ${path.relative(ROOT_DIR, target)}: ${percent.toFixed(1)}% ` +
+      `  ${label}: ${percent.toFixed(1)}% ` +
       `(${coveredLines} covered / ${coveredLines + uncoveredLines} executable) [${status}]`
     );
     if (percent < threshold) {

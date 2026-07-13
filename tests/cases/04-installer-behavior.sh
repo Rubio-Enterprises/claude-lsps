@@ -266,6 +266,34 @@ _test_all_absent_fails() {
   fi
 }
 
+# Every plugin launches through the Node proxy, so the installers guard on
+# node's presence BEFORE the server-binary noop exit — a host with the server
+# but no node must fail the hook loudly instead of silently shipping a broken
+# LSP launch. Exercised with cue-lsp, whose Go server binary is exactly the
+# case where node's absence would otherwise go unnoticed.
+_test_node_missing_fails() {
+  local plugin="$1"
+  local binary
+  binary=$(_meta_binary "$plugin")
+  local sbx
+  sbx=$(new_sandbox "node-missing-$plugin")
+  rm -f "$sbx/bin/node"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$sbx/bin/$binary"
+  chmod +x "$sbx/bin/$binary"
+  if _run_installer "$sbx" "$plugin" >"$sbx/out.log" 2>&1; then
+    echo "expected non-zero exit with node missing; got 0:"
+    cat "$sbx/out.log"
+    return 1
+  fi
+  if ! grep -F 'node is required' "$sbx/out.log" >/dev/null; then
+    echo "expected 'node is required' message; got:"
+    cat "$sbx/out.log"
+    return 1
+  fi
+}
+
+tc_install_node_missing_cue() { _test_node_missing_fails cue-lsp; }
+
 tc_install_noop_ansible() { _test_binary_present_noop ansible-language-server; }
 tc_install_noop_bash() { _test_binary_present_noop bash-language-server; }
 tc_install_noop_cue() { _test_binary_present_noop cue-lsp; }
@@ -407,6 +435,7 @@ tc_install_post_check_missing_binary() {
   fi
 }
 
+register_test "installer/node-missing-cue" tc_install_node_missing_cue
 register_test "installer/noop-ansible" tc_install_noop_ansible
 register_test "installer/noop-bash" tc_install_noop_bash
 register_test "installer/noop-cue" tc_install_noop_cue

@@ -1,0 +1,4 @@
+{
+  "server": ["bash-language-server", "start"],
+  "blocked": []
+}

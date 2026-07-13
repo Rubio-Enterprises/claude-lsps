@@ -14,7 +14,7 @@
   "plugins": [
     {
       "name": "ansible-language-server",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "source": "./ansible-language-server",
       "description": "Ansible language server",
       "category": "development",
@@ -25,7 +25,7 @@
     },
     {
       "name": "bash-language-server",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./bash-language-server",
       "description": "Bash language server",
       "category": "development",
@@ -36,7 +36,7 @@
     },
     {
       "name": "cue-lsp",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./cue-lsp",
       "description": "CUE language server",
       "category": "development",
@@ -47,7 +47,7 @@
     },
     {
       "name": "pyright",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./pyright",
       "description": "Python language server",
       "category": "development",
@@ -58,7 +58,7 @@
     },
     {
       "name": "regal-lsp",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "source": "./regal-lsp",
       "description": "Rego linter and language server",
       "category": "development",
@@ -69,7 +69,7 @@
     },
     {
       "name": "vtsls",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "./vtsls",
       "description": "TypeScript/JavaScript language server",
       "category": "development",
