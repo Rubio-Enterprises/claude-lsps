@@ -1,0 +1,6 @@
+{
+  "server": ["pyright-langserver", "--stdio"],
+  "sync": {
+    "pollMs": 150
+  }
+}
