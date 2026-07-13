@@ -853,6 +853,50 @@ async function warmupSkipsClientOpenedDocs(setProxy) {
   await proxy.exited;
 }
 
+// The reverse warmup race: warmup opened a file, the client opens it later.
+// The proxy must translate the client's didOpen into a full-text didChange
+// (never a second didOpen), and disk-sync must keep working afterwards.
+async function warmupThenClientOpenTranslated(setProxy) {
+  const dir = wd("warmup-open-translate");
+  const docPath = path.join(dir, "doc.py");
+  fs.writeFileSync(docPath, "from-disk\n");
+  const uri = pathToFileURL(docPath).href;
+  const proxy = spawnProxy({
+    proxyJs: PYRIGHT_PROXY,
+    config: proxyConfig({ warmup: { extensions: [".py"], exclude: [] }, sync: { pollMs: 60 } }),
+    stubEnv: { STUB_LOG_DIR: dir, STUB_AUTO_INIT: "1" },
+  });
+  setProxy(proxy);
+
+  proxy.child.stdin.write(frameOf({
+    jsonrpc: "2.0", id: 1, method: "initialize",
+    params: { rootUri: pathToFileURL(dir).href },
+  }));
+  await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 1));
+  proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "initialized", params: {} }));
+  await waitFor(() => /warmup: sent 1 didOpen/.test(proxy.stderr()));
+
+  // Client now opens the warmup-opened file with its own buffer content.
+  proxy.child.stdin.write(didOpenFrame(uri, "client-buffer\n"));
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.contentChanges[0].text === "client-buffer\n"), { timeout: 6000 });
+
+  const opens = stubMsgs(dir).filter((m) =>
+    m.method === "textDocument/didOpen" && m.params.textDocument.uri === uri);
+  assert(opens.length === 1, `expected exactly 1 didOpen on the wire, got ${opens.length}`);
+  const translated = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "client-buffer\n");
+  assert(translated.params.textDocument.version > opens[0].params.textDocument.version,
+    "translated didChange version must exceed the warmup open's version");
+
+  // Disk-sync must keep working with the reconciled buffer.
+  fs.writeFileSync(docPath, "after\n");
+  await waitFor(() => injectedChanges(dir, uri)
+    .some((m) => m.params.contentChanges[0].text === "after\n"), { timeout: 6000 });
+
+  proxy.child.stdin.end();
+  await proxy.exited;
+}
+
 const SCENARIOS = {
   "passthrough": passthrough,
   "passthrough-server-to-client": serverToClientByteIdentical,
@@ -886,6 +930,7 @@ const SCENARIOS = {
   "sync-version-rebase": syncVersionRebase,
   "stdin-eof-exit-code": stdinEofExitCodeZero,
   "warmup-skips-client-opened": warmupSkipsClientOpenedDocs,
+  "warmup-then-client-open-translated": warmupThenClientOpenTranslated,
 };
 
 dispatch(SCENARIOS, process.argv[2]);

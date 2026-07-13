@@ -36,6 +36,7 @@ tc_proxy_sync_delete() { _proxy_run sync-delete-and-reappear; }
 tc_proxy_sync_rebase() { _proxy_run sync-version-rebase; }
 tc_proxy_stdin_eof_exit() { _proxy_run stdin-eof-exit-code; }
 tc_proxy_warmup_dedup() { _proxy_run warmup-skips-client-opened; }
+tc_proxy_warmup_translate() { _proxy_run warmup-then-client-open-translated; }
 
 register_test "proxy/passthrough" tc_proxy_passthrough
 register_test "proxy/passthrough-server-to-client" tc_proxy_passthrough_s2c
@@ -69,3 +70,4 @@ register_test "proxy/sync-delete-and-reappear" tc_proxy_sync_delete
 register_test "proxy/sync-version-rebase" tc_proxy_sync_rebase
 register_test "proxy/stdin-eof-exit-code" tc_proxy_stdin_eof_exit
 register_test "proxy/warmup-skips-client-opened" tc_proxy_warmup_dedup
+register_test "proxy/warmup-then-client-open-translated" tc_proxy_warmup_translate

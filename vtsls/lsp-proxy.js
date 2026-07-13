@@ -614,7 +614,37 @@ function drainBuffer() {
     const td = msg.params && msg.params.textDocument;
     let outFrame = rawMessage;
     if (msg.method === "textDocument/didOpen" && td && td.uri) {
-      trackOpen(td.uri, td.text, td.version, td.languageId);
+      const st = openDocs.get(td.uri);
+      if (st && !st.closed) {
+        // The server already has this document open (warmup got there first,
+        // or an earlier client open). Forwarding another didOpen is
+        // spec-undefined — Regal drops the URI's diagnostics — so translate
+        // the client's open into a full-text didChange: the client's buffer
+        // becomes authoritative without a double open. (A proxy-CLOSED entry
+        // falls through to the normal open below — the server really does
+        // consider it closed.)
+        st.text = td.text != null ? td.text : "";
+        st.languageId = td.languageId || st.languageId;
+        st.version = Math.max(typeof td.version === "number" ? td.version : 0, st.version + 1);
+        st.stat = st.path ? statOf(st.path) : null;
+        st.pending = false;
+        st.missing = false;
+        st.unsyncable = false; // full text known again — buffer reconstructable
+        writeMessage(child.stdin, JSON.stringify({
+          jsonrpc: "2.0",
+          method: "textDocument/didChange",
+          params: {
+            textDocument: { uri: td.uri, version: st.version },
+            contentChanges: [{ text: st.text }],
+          },
+        }));
+        process.stderr.write(
+          `${LOG_PREFIX} translated client didOpen -> didChange for already-open ${td.uri} v${st.version}\n`
+        );
+        outFrame = null;
+      } else {
+        trackOpen(td.uri, td.text, td.version, td.languageId);
+      }
     } else if (msg.method === "textDocument/didChange" && td && td.uri && SYNC) {
       outFrame = reconcileClientChange(msg, rawMessage);
     } else if (msg.method === "textDocument/didClose" && td && td.uri) {
