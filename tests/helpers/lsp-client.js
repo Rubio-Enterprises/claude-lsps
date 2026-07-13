@@ -85,6 +85,13 @@ class LspClient {
     this._nextId = 1;
     this._diagsByUri = new Map();
     this._lastPublishAt = new Map();
+    // Monotonic publish counter so callers can wait for a publish *newer* than
+    // a captured baseline (e.g. the refresh after a didChange), instead of
+    // matching on the stale diagnostics already cached for the URI.
+    this._publishSeq = 0;
+    this._lastPublishSeq = new Map();
+    // Track the last document version per URI so didChange can auto-increment.
+    this._docVersions = new Map();
     this._diagListeners = [];
     this._stderrChunks = [];
     this._serverCaps = null;
@@ -201,6 +208,8 @@ class LspClient {
         if (!uri) return;
         this._diagsByUri.set(uri, (msg.params && msg.params.diagnostics) || []);
         this._lastPublishAt.set(uri, Date.now());
+        this._publishSeq += 1;
+        this._lastPublishSeq.set(uri, this._publishSeq);
         for (const cb of this._diagListeners) cb(uri);
       }
     } catch (err) {
@@ -269,9 +278,34 @@ class LspClient {
   }
 
   didOpen({ uri, languageId, text, version = 1 }) {
+    this._docVersions.set(uri, version);
     this.notify("textDocument/didOpen", {
       textDocument: { uri, languageId, version, text },
     });
+  }
+
+  // Full-document change: contentChanges with a lone `text` and no `range` is
+  // the whole-buffer replacement form, accepted regardless of whether the
+  // server negotiated full (1) or incremental (2) textDocumentSync. Version
+  // auto-increments from the last didOpen/didChange unless one is passed.
+  // Returns the version used. This is the notification a push-only server like
+  // pyright needs in order to re-analyze an open document — without it, the
+  // last-published diagnostics stay stale no matter what changes on disk.
+  didChange({ uri, text, version }) {
+    const v = version ?? ((this._docVersions.get(uri) || 1) + 1);
+    this._docVersions.set(uri, v);
+    this.notify("textDocument/didChange", {
+      textDocument: { uri, version: v },
+      contentChanges: [{ text }],
+    });
+    return v;
+  }
+
+  // Highest publish sequence seen for a URI (0 if none). Capture before a
+  // didChange, then pass as `afterSeq` to waitForDiagnostics to block on the
+  // *next* publish rather than the diagnostics already cached.
+  publishSeq(uri) {
+    return this._lastPublishSeq.get(uri) ?? 0;
   }
 
   // mode: "auto" | "pull" | "push"
@@ -280,7 +314,11 @@ class LspClient {
   //   from "server published 0 diagnostics". Set false only for servers known
   //   not to publish (e.g. cue lsp v0.16, which exposes the LSP transport but
   //   no diagnostic provider yet).
-  async waitForDiagnostics({ uri, mode = "auto", quietMs, timeout, requirePublish = true } = {}) {
+  // afterSeq: only publishes with a sequence strictly greater than this count
+  //   as "updates". Defaults to 0, so any publish for the URI counts (the
+  //   original behavior). Pass publishSeq(uri) captured before a didChange to
+  //   wait for the refresh instead of returning the stale cached diagnostics.
+  async waitForDiagnostics({ uri, mode = "auto", quietMs, timeout, requirePublish = true, afterSeq = null } = {}) {
     const resolved = mode === "auto"
       ? (this.hasPullDiagnostics() ? "pull" : "push")
       : mode;
@@ -301,13 +339,20 @@ class LspClient {
     const t = timeout ?? PUSH_TIMEOUT_MS;
     const q = quietMs ?? PUSH_QUIET_MS;
     const start = Date.now();
-    // Initialize lastUpdate from the actual publish timestamp if a publish
-    // already arrived (e.g. during initialize). Otherwise -Infinity so the
-    // quiet-period check can't fire until a real publish lands.
-    let lastUpdate = this._lastPublishAt.get(uri) ?? -Infinity;
-    let updated = this._lastPublishAt.has(uri);
+    const baseSeq = afterSeq ?? 0;
+    // Seed from any qualifying publish that already landed — one whose sequence
+    // is strictly newer than the caller's baseline. With the default baseSeq=0
+    // any pre-existing publish still counts, preserving the original behavior
+    // for callers that don't pass afterSeq.
+    let lastUpdate = -Infinity;
+    let updated = false;
+    if ((this._lastPublishSeq.get(uri) ?? 0) > baseSeq) {
+      lastUpdate = this._lastPublishAt.get(uri);
+      updated = true;
+    }
     const listener = (u) => {
       if (u !== uri) return;
+      if ((this._lastPublishSeq.get(uri) ?? 0) <= baseSeq) return;
       lastUpdate = Date.now();
       updated = true;
     };
@@ -331,6 +376,22 @@ class LspClient {
     } finally {
       const idx = this._diagListeners.indexOf(listener);
       if (idx >= 0) this._diagListeners.splice(idx, 1);
+    }
+  }
+
+  // Resolve at the first publishDiagnostics newer than `afterSeq` (default: the
+  // very next one), with NO quiet-period debounce — so the caller measures true
+  // time-to-first-diagnostic, not time-to-settle. Returns { diagnostics, at }
+  // (at = publish timestamp), or null on timeout. Used by the perf harness.
+  async waitForPublish({ uri, afterSeq = null, timeout = PUSH_TIMEOUT_MS } = {}) {
+    const baseSeq = afterSeq ?? 0;
+    const start = Date.now();
+    while (true) {
+      if ((this._lastPublishSeq.get(uri) ?? 0) > baseSeq) {
+        return { diagnostics: this._diagsByUri.get(uri) || [], at: this._lastPublishAt.get(uri) };
+      }
+      if (Date.now() - start >= timeout) return null;
+      await sleep(20);
     }
   }
 

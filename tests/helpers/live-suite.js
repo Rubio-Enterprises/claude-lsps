@@ -151,6 +151,79 @@ const scenarios = {
     diagTimeoutMs: 15000,
   }, sp),
 
+  // pyright-refresh: the stale-diagnostics reproduction. pyright is push-only
+  // (no diagnosticProvider), so the ONLY way it re-analyzes an open document is
+  // a textDocument/didChange. Open the broken file, confirm the type error,
+  // then send a didChange that fixes the code and assert pyright re-publishes
+  // an EMPTY set. This proves diagnostics are version-driven: in real usage,
+  // "stale errors after a fix" is the client failing to send didChange, not a
+  // pyright bug. Also prints [perf] latencies for open→diag and change→refresh.
+  "pyright-refresh": async (setProxy) => {
+    const dir = prepWorkdir(
+      "pyright-refresh",
+      path.join(FIXTURES, "pyright"),
+      ["broken.py", "pyrightconfig.json"]
+    );
+    const fileUri = pathToFileURL(path.join(dir, "broken.py")).href;
+    const rootUri = pathToFileURL(dir).href;
+
+    const pluginDir = path.join(ROOT_DIR, "pyright");
+    const parsed = parseLspJson(pluginDir);
+    const client = new LspClient({ command: parsed.command, args: parsed.args, cwd: dir });
+    await client.start();
+    setProxy(client);
+
+    try {
+      await client.initialize({ rootUri });
+      const brokenText = fs.readFileSync(path.join(dir, "broken.py"), "utf8");
+
+      // Phase 1 — open the broken file; expect the assignment type error.
+      const openAt = Date.now();
+      client.didOpen({
+        uri: fileUri,
+        languageId: wireLanguageIdFor(parsed, "broken.py"),
+        text: brokenText,
+      });
+      const errDiags = await client.waitForDiagnostics({
+        uri: fileUri, mode: "push", timeout: 15000,
+      });
+      const openLatency = Date.now() - openAt;
+      if (errDiags.length === 0) {
+        throw new Error(
+          "expected a type error on open, got 0 diagnostics" +
+          `\n--- server stderr ---\n${client.stderr().slice(-1500)}`
+        );
+      }
+      if (!/not assignable|incompatible|assignment/i.test(errDiags.map((d) => d.message).join(" | "))) {
+        throw new Error(
+          "diagnostics on open did not match the expected type error:\n" +
+          errDiags.slice(0, 5).map((d) => `  - ${d.message}`).join("\n")
+        );
+      }
+
+      // Phase 2 — fix the code via didChange; expect the error to clear.
+      // Capture the publish sequence first so the wait blocks on the *refresh*,
+      // not the stale error diagnostics already cached for this URI.
+      const baseSeq = client.publishSeq(fileUri);
+      const changeAt = Date.now();
+      client.didChange({ uri: fileUri, text: "x: int = 5\nprint(x)\n" });
+      const fixedDiags = await client.waitForDiagnostics({
+        uri: fileUri, mode: "push", timeout: 15000, afterSeq: baseSeq,
+      });
+      const refreshLatency = Date.now() - changeAt;
+      if (fixedDiags.length !== 0) {
+        throw new Error(
+          `expected diagnostics to clear after the fix, still got ${fixedDiags.length}:\n` +
+          fixedDiags.slice(0, 5).map((d) => `  - ${d.message}`).join("\n")
+        );
+      }
+
+      console.log(`[perf] pyright open→diag=${openLatency}ms change→refresh=${refreshLatency}ms`);
+    } finally {
+      try { await client.shutdown(); } catch {}
+    }
+  },
+
   // vtsls (tsserver) does NOT advertise diagnosticProvider and, unlike pyright,
   // does NOT publish an empty diagnostic set for clean .ts files — it only
   // publishes when a file has diagnostics. So vtsls-clean uses
