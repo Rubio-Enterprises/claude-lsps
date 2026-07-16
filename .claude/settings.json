@@ -12,6 +12,12 @@
         "repo": "anthropics/claude-plugins-official"
       }
     },
+    "claude-workflows": {
+      "source": {
+        "source": "github",
+        "repo": "Rubio-Enterprises/claude-workflows"
+      }
+    },
     "devenv-skills": {
       "source": {
         "source": "github",
@@ -54,6 +60,7 @@
     "bash-language-server@claude-lsps": true,
     "claude-code-setup@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
+    "claude-workflows@claude-workflows": true,
     "code-modernization@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
     "cue-lsp@claude-lsps": true,
