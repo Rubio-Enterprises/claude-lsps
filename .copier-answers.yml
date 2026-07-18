@@ -1,6 +1,6 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.55.16
-_rubio_template_version: template/v1.55.16
+_commit: template/v1.55.17
+_rubio_template_version: template/v1.55.17
 _src_path: https://github.com/Rubio-Enterprises/standards.git
 archetype: bare
 default_branch: main
@@ -13,7 +13,9 @@ has_rust: false
 has_swift: false
 has_test: false
 has_typescript: false
+is_claude_carrier: false
 is_fork: false
+is_marketplace: false
 is_public: true
 node_version: 22.12.0
 project_name: claude-lsps
