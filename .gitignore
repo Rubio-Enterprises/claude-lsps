@@ -4,6 +4,15 @@
 # `scripts/merge-gitignore.sh` rewrites this block on every `copier copy/update`.
 .DS_Store
 .envrc.local
+# Machine-local mise overrides (issue #296): the template's sentinel tasks tell
+# consumers to override scheme/destination-style config in .mise.local.toml,
+# whose recommended header says "gitignored, never committed". Both spellings —
+# mise honors mise.local.toml and .mise.local.toml. NOTE: gitignore never
+# untracks an already-committed file, so the nested-python convention of a
+# COMMITTED .mise.local.toml (dotfiles) keeps working; a NEW repo following
+# that convention needs a one-time `git add -f`.
+.mise.local.toml
+mise.local.toml
 *.log
 node_modules/
 dist/
