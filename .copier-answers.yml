@@ -1,11 +1,19 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.55.20
-_rubio_template_version: template/v1.55.20
+_commit: template/v1.55.21
+_rubio_template_version: template/v1.55.21
 _src_path: https://github.com/Rubio-Enterprises/standards.git
-archetype: bare
 default_branch: main
+enforce_audit: true
+enforce_e2e: false
+enforce_lint_format: true
+enforce_lint_hooks: true
+enforce_tests: false
+enforce_typecheck: true
+enforcement_tier: internal
+has_ansible: false
 has_codex_plugin: false
 has_go: false
+has_homebrew_formulae: false
 has_javascript: false
 has_lint_hooks: true
 has_python: false
@@ -20,4 +28,6 @@ is_public: true
 node_version: 22.12.0
 project_name: claude-lsps
 tier: internal
+upstream_branch: ''
+upstream_url: ''
 uses_release_please: false
