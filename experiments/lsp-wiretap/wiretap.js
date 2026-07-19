@@ -18,11 +18,9 @@
 //
 // Node stdlib only, per repo convention.
 
-"use strict";
-
-const { spawn } = require("child_process");
-const fs = require("fs");
-const { resolve } = require("path");
+const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const { resolve } = require("node:path");
 
 // -- CLI ----------------------------------------------------------------------
 
@@ -81,7 +79,9 @@ function makeScanner(onMessage) {
       const body = buf.subarray(di + HEADER_DELIM.length, end);
       buf = buf.subarray(end);
       let msg = null;
-      try { msg = JSON.parse(body.toString("utf8")); } catch {}
+      try {
+        msg = JSON.parse(body.toString("utf8"));
+      } catch {}
       onMessage(msg, body.length);
     }
   };

@@ -16,10 +16,10 @@
 // Exit code 0 = every assertion passed. Non-zero = something is wrong.
 
 import { spawn } from "node:child_process";
-import { readFileSync, writeFileSync, mkdtempSync, readdirSync } from "node:fs";
-import { resolve, join, dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..", ".."); // .claude/skills/run-lsp-proxy -> repo root
@@ -56,13 +56,20 @@ function makeParser(onMessage) {
       const di = buf.indexOf(DELIM);
       if (di === -1) return;
       const m = CL_RE.exec(buf.subarray(0, di).toString("ascii"));
-      if (!m) { buf = Buffer.alloc(0); return; }
+      if (!m) {
+        buf = Buffer.alloc(0);
+        return;
+      }
       const start = di + DELIM.length;
       const end = start + parseInt(m[1], 10);
       if (buf.length < end) return;
       const body = buf.subarray(start, end);
       buf = buf.subarray(end);
-      try { onMessage(JSON.parse(body.toString("utf8"))); } catch { /* ignore */ }
+      try {
+        onMessage(JSON.parse(body.toString("utf8")));
+      } catch {
+        /* ignore */
+      }
     }
   };
 }
@@ -98,14 +105,16 @@ writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
 //  - EMIT a server-initiated workspace/configuration request on startup, to
 //    prove the proxy auto-acks it (client must never see it)
 //  - LOG_DIR so we can inspect exactly what bytes reached the server
-const stubEnv = LIVE ? {} : {
-  STUB_AUTO_INIT: "1",
-  STUB_HOVER_RESULT: "1",
-  STUB_LOG_DIR: stubLog,
-  STUB_EMIT: JSON.stringify([
-    { jsonrpc: "2.0", id: 9001, method: "workspace/configuration", params: { items: [] } },
-  ]),
-};
+const stubEnv = LIVE
+  ? {}
+  : {
+      STUB_AUTO_INIT: "1",
+      STUB_HOVER_RESULT: "1",
+      STUB_LOG_DIR: stubLog,
+      STUB_EMIT: JSON.stringify([
+        { jsonrpc: "2.0", id: 9001, method: "workspace/configuration", params: { items: [] } },
+      ]),
+    };
 
 // ---------------------------------------------------------------------------
 // Launch the proxy and drive it.
@@ -127,7 +136,9 @@ const fromServerToClient = []; // messages the proxy forwarded to us (the client
 const feed = makeParser((msg) => {
   fromServerToClient.push(msg);
   const tag = msg.id !== undefined ? `id=${msg.id}` : "notif";
-  console.log(`  ← proxy→client  ${tag} ${msg.method || (msg.result !== undefined ? "result" : "error")}`);
+  console.log(
+    `  ← proxy→client  ${tag} ${msg.method || (msg.result !== undefined ? "result" : "error")}`,
+  );
 });
 proxy.stdout.on("data", feed);
 
@@ -142,8 +153,13 @@ function waitForId(id, timeout = 4000) {
     const deadline = Date.now() + timeout;
     const poll = setInterval(() => {
       const hit = fromServerToClient.find((m) => m.id === id);
-      if (hit) { clearInterval(poll); resolveP(hit); }
-      else if (Date.now() > deadline) { clearInterval(poll); rejectP(new Error(`timeout waiting for id=${id}`)); }
+      if (hit) {
+        clearInterval(poll);
+        resolveP(hit);
+      } else if (Date.now() > deadline) {
+        clearInterval(poll);
+        rejectP(new Error(`timeout waiting for id=${id}`));
+      }
     }, 20);
   });
 }
@@ -159,23 +175,54 @@ function check(name, ok, detail) {
 
 async function main() {
   console.log("── conversation ──");
-  send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { processId: process.pid, rootUri, capabilities: {} } });
+  send({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: { processId: process.pid, rootUri, capabilities: {} },
+  });
   const initResp = await waitForId(1);
-  check("initialize forwarded & answered", !!(initResp.result && initResp.result.capabilities), "got capabilities");
+  check(
+    "initialize forwarded & answered",
+    !!(initResp.result && initResp.result.capabilities),
+    "got capabilities",
+  );
 
   send({ jsonrpc: "2.0", method: "initialized", params: {} });
   await wait(300); // let regal warmup fire (setImmediate → didOpen burst)
 
   // Blocked request → proxy must synthesize {result:null} itself; server must NOT see it.
-  send({ jsonrpc: "2.0", id: 2, method: BLOCKED_METHOD, params: { textDocument: { uri: rootUri + "/x" }, position: { line: 0, character: 0 }, context: { includeDeclaration: true } } });
+  send({
+    jsonrpc: "2.0",
+    id: 2,
+    method: BLOCKED_METHOD,
+    params: {
+      textDocument: { uri: rootUri + "/x" },
+      position: { line: 0, character: 0 },
+      context: { includeDeclaration: true },
+    },
+  });
   const blockedResp = await waitForId(2);
-  check(`blocked ${BLOCKED_METHOD} → null result`, blockedResp.result === null, JSON.stringify(blockedResp.result));
+  check(
+    `blocked ${BLOCKED_METHOD} → null result`,
+    blockedResp.result === null,
+    JSON.stringify(blockedResp.result),
+  );
 
   // Non-blocked request → forwarded, real (stub) response round-trips back.
-  send({ jsonrpc: "2.0", id: 3, method: "textDocument/hover", params: { textDocument: { uri: rootUri + "/x" }, position: { line: 0, character: 0 } } });
+  send({
+    jsonrpc: "2.0",
+    id: 3,
+    method: "textDocument/hover",
+    params: { textDocument: { uri: rootUri + "/x" }, position: { line: 0, character: 0 } },
+  });
   if (!LIVE) {
     const hoverResp = await waitForId(3);
-    check("non-blocked hover forwarded & answered", hoverResp.result && hoverResp.result.contents === "hover-result", JSON.stringify(hoverResp.result));
+    check(
+      "non-blocked hover forwarded & answered",
+      hoverResp.result && hoverResp.result.contents === "hover-result",
+      JSON.stringify(hoverResp.result),
+    );
   }
 
   // Give async logging a beat, then inspect what the SERVER actually received.
@@ -183,24 +230,54 @@ async function main() {
   if (!LIVE) {
     let recv = [];
     try {
-      recv = readFileSync(join(stubLog, "recv.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
-    } catch { /* no log */ }
+      recv = readFileSync(join(stubLog, "recv.jsonl"), "utf8")
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l));
+    } catch {
+      /* no log */
+    }
 
     const serverSawBlocked = recv.some((m) => m.method === BLOCKED_METHOD);
-    check(`server never saw ${BLOCKED_METHOD}`, !serverSawBlocked, serverSawBlocked ? "LEAKED to server" : "intercepted at proxy");
+    check(
+      `server never saw ${BLOCKED_METHOD}`,
+      !serverSawBlocked,
+      serverSawBlocked ? "LEAKED to server" : "intercepted at proxy",
+    );
 
-    const serverGotAck = recv.some((m) => m.id === 9001 && m.result === null && m.method === undefined);
-    check("server-initiated workspace/configuration auto-acked", serverGotAck, serverGotAck ? "ack reached server" : "no ack seen");
+    const serverGotAck = recv.some(
+      (m) => m.id === 9001 && m.result === null && m.method === undefined,
+    );
+    check(
+      "server-initiated workspace/configuration auto-acked",
+      serverGotAck,
+      serverGotAck ? "ack reached server" : "no ack seen",
+    );
 
     const clientSawConfig = fromServerToClient.some((m) => m.method === "workspace/configuration");
-    check("client shielded from workspace/configuration", !clientSawConfig, clientSawConfig ? "leaked to client" : "never forwarded");
+    check(
+      "client shielded from workspace/configuration",
+      !clientSawConfig,
+      clientSawConfig ? "leaked to client" : "never forwarded",
+    );
 
     if (cfg.warmup) {
-      const opened = recv.filter((m) => m.method === "textDocument/didOpen").map((m) => m.params.textDocument.uri);
+      const opened = recv
+        .filter((m) => m.method === "textDocument/didOpen")
+        .map((m) => m.params.textDocument.uri);
       const regoOpened = opened.filter((u) => u.endsWith(".rego"));
-      check("warmup opened all .rego files", regoOpened.length === 2, `${regoOpened.length} didOpen (.rego)`);
+      check(
+        "warmup opened all .rego files",
+        regoOpened.length === 2,
+        `${regoOpened.length} didOpen (.rego)`,
+      );
       const openedTxt = opened.some((u) => u.endsWith(".txt"));
-      check("warmup skipped non-.rego files", !openedTxt, openedTxt ? "opened a .txt" : "extension filter held");
+      check(
+        "warmup skipped non-.rego files",
+        !openedTxt,
+        openedTxt ? "opened a .txt" : "extension filter held",
+      );
     }
   }
 
@@ -222,12 +299,18 @@ main()
     clearTimeout(HARD_TIMEOUT);
     const failed = results.filter((r) => !r.ok);
     console.log("");
-    console.log(`${failed.length === 0 ? "✅ PASS" : "❌ FAIL"} — ${results.length - failed.length}/${results.length} checks`);
+    console.log(
+      `${failed.length === 0 ? "✅ PASS" : "❌ FAIL"} — ${results.length - failed.length}/${results.length} checks`,
+    );
     process.exit(failed.length === 0 ? 0 : 1);
   })
   .catch((err) => {
     clearTimeout(HARD_TIMEOUT);
     console.error(`\n✗ driver error: ${err.message}`);
-    try { proxy.kill("SIGKILL"); } catch { /* ignore */ }
+    try {
+      proxy.kill("SIGKILL");
+    } catch {
+      /* ignore */
+    }
     process.exit(2);
   });

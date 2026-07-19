@@ -1,11 +1,7 @@
 {
   "bash": {
     "command": "node",
-    "args": [
-      "${CLAUDE_PLUGIN_ROOT}/lsp-proxy.js",
-      "--config",
-      "${CLAUDE_PLUGIN_ROOT}/proxy.json"
-    ],
+    "args": ["${CLAUDE_PLUGIN_ROOT}/lsp-proxy.js", "--config", "${CLAUDE_PLUGIN_ROOT}/proxy.json"],
     "extensionToLanguage": {
       ".sh": "shellscript",
       ".bash": "shellscript",

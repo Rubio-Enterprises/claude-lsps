@@ -16,11 +16,9 @@
 // reports median / min. Driven by tests/perf.sh. Node stdlib only, per repo
 // convention.
 
-"use strict";
-
-const fs = require("fs");
-const path = require("path");
-const { pathToFileURL } = require("url");
+const fs = require("node:fs");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const { requireEnv, newWorkdir, sleep } = require("./lsp-test-utils.js");
 const { LspClient, parseLspJson, wireLanguageIdFor } = require("./lsp-client.js");
@@ -35,41 +33,71 @@ const ITERS = Math.max(1, parseInt(process.env.PERF_ITERS || "3", 10));
 // on our behalf, and open-after-open is a spec violation Regal reacts badly to.
 const TARGETS = [
   {
-    plugin: "bash-language-server", binary: "bash-language-server",
-    subdir: "bash", includes: ["broken.sh"], file: "broken.sh",
-    publishes: true, timeout: 8000,
+    plugin: "bash-language-server",
+    binary: "bash-language-server",
+    subdir: "bash",
+    includes: ["broken.sh"],
+    file: "broken.sh",
+    publishes: true,
+    timeout: 8000,
   },
   {
-    plugin: "pyright", binary: "pyright-langserver",
-    subdir: "pyright", includes: ["broken.py", "pyrightconfig.json"], file: "broken.py",
-    publishes: true, timeout: 15000, refresh: { fixedText: "x: int = 5\nprint(x)\n" },
+    plugin: "pyright",
+    binary: "pyright-langserver",
+    subdir: "pyright",
+    includes: ["broken.py", "pyrightconfig.json"],
+    file: "broken.py",
+    publishes: true,
+    timeout: 15000,
+    refresh: { fixedText: "x: int = 5\nprint(x)\n" },
   },
   {
-    plugin: "vtsls", binary: "vtsls",
-    subdir: "vtsls", includes: ["broken.ts", "tsconfig.json"], file: "broken.ts",
-    publishes: true, timeout: 15000,
+    plugin: "vtsls",
+    binary: "vtsls",
+    subdir: "vtsls",
+    includes: ["broken.ts", "tsconfig.json"],
+    file: "broken.ts",
+    publishes: true,
+    timeout: 15000,
   },
   {
-    plugin: "ansible-language-server", binary: "ansible-language-server",
-    subdir: "ansible", includes: ["broken.yml", "ansible.cfg"], file: "broken.yml",
-    publishes: true, timeout: 15000, env: { ANSIBLE_NOCOWS: "1" },
+    plugin: "ansible-language-server",
+    binary: "ansible-language-server",
+    subdir: "ansible",
+    includes: ["broken.yml", "ansible.cfg"],
+    file: "broken.yml",
+    publishes: true,
+    timeout: 15000,
+    env: { ANSIBLE_NOCOWS: "1" },
   },
   {
-    plugin: "regal-lsp", binary: "regal",
-    subdir: "regal", includes: ["broken.rego", ".regal"], file: "broken.rego",
-    publishes: true, viaWarmup: true, timeout: 12000,
+    plugin: "regal-lsp",
+    binary: "regal",
+    subdir: "regal",
+    includes: ["broken.rego", ".regal"],
+    file: "broken.rego",
+    publishes: true,
+    viaWarmup: true,
+    timeout: 12000,
   },
   {
-    plugin: "cue-lsp", binary: "cue",
-    subdir: "cue", includes: ["clean.cue", "cue.mod"], file: "clean.cue",
-    publishes: false, timeout: 6000,
+    plugin: "cue-lsp",
+    binary: "cue",
+    subdir: "cue",
+    includes: ["clean.cue", "cue.mod"],
+    file: "clean.cue",
+    publishes: false,
+    timeout: 6000,
   },
 ];
 
 function onPath(bin) {
   for (const d of (process.env.PATH || "").split(path.delimiter)) {
     if (!d) continue;
-    try { fs.accessSync(path.join(d, bin), fs.constants.X_OK); return true; } catch {}
+    try {
+      fs.accessSync(path.join(d, bin), fs.constants.X_OK);
+      return true;
+    } catch {}
   }
   return false;
 }
@@ -91,7 +119,12 @@ async function measureOnce(t, iter) {
 
   const pluginDir = path.join(ROOT_DIR, t.plugin);
   const parsed = parseLspJson(pluginDir);
-  const client = new LspClient({ command: parsed.command, args: parsed.args, cwd: dir, env: t.env || {} });
+  const client = new LspClient({
+    command: parsed.command,
+    args: parsed.args,
+    cwd: dir,
+    env: t.env || {},
+  });
 
   const spawnAt = Date.now();
   await client.start();
@@ -118,7 +151,11 @@ async function measureOnce(t, iter) {
         const baseSeq = client.publishSeq(fileUri);
         const changeAt = Date.now();
         client.didChange({ uri: fileUri, text: t.refresh.fixedText });
-        const ref = await client.waitForPublish({ uri: fileUri, afterSeq: baseSeq, timeout: t.timeout });
+        const ref = await client.waitForPublish({
+          uri: fileUri,
+          afterSeq: baseSeq,
+          timeout: t.timeout,
+        });
         out.refresh = ref ? ref.at - changeAt : null;
       }
     } else {
@@ -128,7 +165,9 @@ async function measureOnce(t, iter) {
       if (!client.isAlive()) throw new Error("server exited before the analysis window elapsed");
     }
   } finally {
-    try { await client.shutdown(); } catch {}
+    try {
+      await client.shutdown();
+    } catch {}
   }
   return out;
 }
@@ -138,7 +177,7 @@ const median = (xs) => {
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 };
-const cell = (xs) => xs.length ? `${median(xs)} / ${Math.min(...xs)}` : "—";
+const cell = (xs) => (xs.length ? `${median(xs)} / ${Math.min(...xs)}` : "—");
 
 async function main() {
   const rows = [];
@@ -148,7 +187,9 @@ async function main() {
       continue;
     }
     process.stderr.write(`measuring ${t.plugin} (${ITERS}x)`);
-    const ready = [], firstDiag = [], refresh = [];
+    const ready = [],
+      firstDiag = [],
+      refresh = [];
     let err = null;
     for (let i = 0; i < ITERS; i++) {
       try {
@@ -164,8 +205,12 @@ async function main() {
     }
     process.stderr.write("\n");
     rows.push({
-      plugin: t.plugin, ready, firstDiag, refresh,
-      note: t.publishes ? null : "no publish", err,
+      plugin: t.plugin,
+      ready,
+      firstDiag,
+      refresh,
+      note: t.publishes ? null : "no publish",
+      err,
     });
   }
 
@@ -179,7 +224,10 @@ async function main() {
   console.log(`${pad("plugin")}${col("ready")}${col("first-diag")}${col("change→refresh")}`);
   console.log("-".repeat(W + 18 * 3));
   for (const r of rows) {
-    if (r.skipped) { console.log(`${pad(r.plugin)}${col("skipped")}   (${r.skipped})`); continue; }
+    if (r.skipped) {
+      console.log(`${pad(r.plugin)}${col("skipped")}   (${r.skipped})`);
+      continue;
+    }
     const diag = r.note ? r.note : cell(r.firstDiag);
     let line = `${pad(r.plugin)}${col(cell(r.ready))}${col(diag)}${col(r.refresh && r.refresh.length ? cell(r.refresh) : "—")}`;
     if (r.err) line += `   ! ${r.err}`;
@@ -188,7 +236,9 @@ async function main() {
   console.log("");
 }
 
-main().then(() => process.exit(0)).catch((e) => {
-  console.error(e && e.stack ? e.stack : String(e));
-  process.exit(1);
-});
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    console.error(e && e.stack ? e.stack : String(e));
+    process.exit(1);
+  });

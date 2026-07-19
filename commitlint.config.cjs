@@ -4,5 +4,5 @@
 // as ESM and commitlint 19's cosmiconfig loader fails with
 // ERR_REQUIRE_CYCLE_MODULE. .cjs is unambiguously CommonJS.
 module.exports = {
-  extends: ['@commitlint/config-conventional'],
+  extends: ["@commitlint/config-conventional"],
 };

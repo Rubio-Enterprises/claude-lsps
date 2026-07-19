@@ -19,12 +19,10 @@
 //
 // Node stdlib only; reuses the repo's test LspClient for the wire handshake.
 
-"use strict";
-
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const { pathToFileURL } = require("url");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const { LspClient } = require("../../tests/helpers/lsp-client.js");
 
@@ -34,7 +32,8 @@ const BROKEN = 'x: int = "not an int"\nprint(x)\n';
 const FIXED = "x: int = 5\nprint(x)\n";
 const PYRIGHTCONFIG = JSON.stringify(
   { include: ["."], pythonVersion: "3.11", reportGeneralTypeIssues: "error" },
-  null, 2,
+  null,
+  2,
 );
 
 function makeWorkdir() {
@@ -57,15 +56,23 @@ async function run({ label, command, args, hybrid = false }) {
   const client = new LspClient({ command, args, cwd: dir });
 
   const result = {
-    label, opened: null, afterDiskFix: null, refreshMs: null,
-    afterClientEdit: null, afterHybridFix: null,
+    label,
+    opened: null,
+    afterDiskFix: null,
+    refreshMs: null,
+    afterClientEdit: null,
+    afterHybridFix: null,
   };
   await client.start();
   try {
     await client.initialize({ rootUri });
 
     client.didOpen({ uri: fileUri, languageId: "python", text: BROKEN });
-    const errDiags = await client.waitForDiagnostics({ uri: fileUri, mode: "push", timeout: 15000 });
+    const errDiags = await client.waitForDiagnostics({
+      uri: fileUri,
+      mode: "push",
+      timeout: 15000,
+    });
     result.opened = errDiags.map((d) => d.message);
     if (errDiags.length === 0) throw new Error("expected an error on open, got none");
 
@@ -76,7 +83,11 @@ async function run({ label, command, args, hybrid = false }) {
 
     // Wait for a refresh publish; if none comes within the window, pyright
     // stayed stale (the control's expected outcome).
-    const refreshed = await client.waitForPublish({ uri: fileUri, afterSeq: baseSeq, timeout: 4000 });
+    const refreshed = await client.waitForPublish({
+      uri: fileUri,
+      afterSeq: baseSeq,
+      timeout: 4000,
+    });
     if (refreshed) {
       result.afterDiskFix = refreshed.diagnostics.map((d) => d.message);
       result.refreshMs = refreshed.at - changeAt;
@@ -89,19 +100,31 @@ async function run({ label, command, args, hybrid = false }) {
       baseSeq = client.publishSeq(fileUri);
       fs.writeFileSync(filePath, BROKEN);
       client.didChange({ uri: fileUri, text: BROKEN });
-      const clientPub = await client.waitForPublish({ uri: fileUri, afterSeq: baseSeq, timeout: 8000 });
+      const clientPub = await client.waitForPublish({
+        uri: fileUri,
+        afterSeq: baseSeq,
+        timeout: 8000,
+      });
       result.afterClientEdit = clientPub ? clientPub.diagnostics.map((d) => d.message) : null;
 
       // Phase 4 — out-of-band disk-only fix AFTER the client has didChanged.
       // A back-off design goes permanently deaf here; reconciliation must not.
       baseSeq = client.publishSeq(fileUri);
       fs.writeFileSync(filePath, FIXED);
-      const hybridPub = await client.waitForPublish({ uri: fileUri, afterSeq: baseSeq, timeout: 4000 });
+      const hybridPub = await client.waitForPublish({
+        uri: fileUri,
+        afterSeq: baseSeq,
+        timeout: 4000,
+      });
       result.afterHybridFix = hybridPub ? hybridPub.diagnostics.map((d) => d.message) : null;
     }
   } finally {
-    try { await client.shutdown(); } catch {}
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+    try {
+      await client.shutdown();
+    } catch {}
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {}
   }
   return result;
 }
@@ -121,10 +144,13 @@ async function main() {
 
   const line = (r) => {
     const err = r.opened.length;
-    if (r.afterDiskFix === null) return `${r.label}: opened→${err} error(s); after disk fix → NO re-publish (stale)`;
+    if (r.afterDiskFix === null)
+      return `${r.label}: opened→${err} error(s); after disk fix → NO re-publish (stale)`;
     const n = r.afterDiskFix.length;
-    return `${r.label}: opened→${err} error(s); after disk fix → ${n} diag(s)` +
-      (n === 0 ? ` CLEARED in ${r.refreshMs}ms` : " (still present)");
+    return (
+      `${r.label}: opened→${err} error(s); after disk fix → ${n} diag(s)` +
+      (n === 0 ? ` CLEARED in ${r.refreshMs}ms` : " (still present)")
+    );
   };
 
   console.log("");
@@ -135,31 +161,37 @@ async function main() {
   const h = treatment;
   console.log(
     `HYBRID    (sync proxy): client didChange → ` +
-    `${h.afterClientEdit === null ? "NO publish" : `${h.afterClientEdit.length} diag(s)`}; ` +
-    `then disk-only fix → ` +
-    `${h.afterHybridFix === null ? "NO re-publish (proxy went deaf)" : `${h.afterHybridFix.length} diag(s)`}`
+      `${h.afterClientEdit === null ? "NO publish" : `${h.afterClientEdit.length} diag(s)`}; ` +
+      `then disk-only fix → ` +
+      `${h.afterHybridFix === null ? "NO re-publish (proxy went deaf)" : `${h.afterHybridFix.length} diag(s)`}`,
   );
   console.log("");
 
   // Expectations: control stays stale; treatment clears; hybrid phase shows the
   // client's own edit landing AND the subsequent disk-only fix still syncing.
   const controlStale = control.afterDiskFix === null;
-  const treatmentFixed = Array.isArray(treatment.afterDiskFix) && treatment.afterDiskFix.length === 0;
+  const treatmentFixed =
+    Array.isArray(treatment.afterDiskFix) && treatment.afterDiskFix.length === 0;
   const clientEditLanded = Array.isArray(h.afterClientEdit) && h.afterClientEdit.length >= 1;
   const hybridFixed = Array.isArray(h.afterHybridFix) && h.afterHybridFix.length === 0;
 
   const problems = [];
-  if (!controlStale) problems.push("control unexpectedly refreshed (pyright watched disk on its own?)");
+  if (!controlStale)
+    problems.push("control unexpectedly refreshed (pyright watched disk on its own?)");
   if (!treatmentFixed) problems.push("treatment did NOT clear the error via the proxy");
-  if (!clientEditLanded) problems.push("client-driven didChange did not produce the expected error");
-  if (!hybridFixed) problems.push("disk-only fix AFTER a client didChange did not sync (back-off regression)");
+  if (!clientEditLanded)
+    problems.push("client-driven didChange did not produce the expected error");
+  if (!hybridFixed)
+    problems.push("disk-only fix AFTER a client didChange did not sync (back-off regression)");
 
   if (problems.length) {
     console.log("DEMO FAILED:");
     for (const p of problems) console.log(`  - ${p}`);
     process.exit(1);
   }
-  console.log("DEMO PASSED — disk-only edits sync through the proxy, including after client didChanges.");
+  console.log(
+    "DEMO PASSED — disk-only edits sync through the proxy, including after client didChanges.",
+  );
   process.exit(0);
 }
 

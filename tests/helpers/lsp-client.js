@@ -11,11 +11,9 @@
 //
 // Hand-rolled with Node stdlib only per repo convention.
 
-"use strict";
-
-const { spawn } = require("child_process");
-const fs = require("fs");
-const path = require("path");
+const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const HEADER_DELIM = Buffer.from("\r\n\r\n");
 const CL_RE = /^content-length:\s*(\d+)\s*$/im;
@@ -32,15 +30,15 @@ const PULL_TIMEOUT_MS = parseInt(process.env.LIVE_PULL_TIMEOUT_MS || "10000", 10
 // Code's subset client does in production. Auto-acking *more* than this would
 // hide protocol gaps the live suite is supposed to catch.
 const SERVER_REQUEST_AUTOACKS = {
-  "client/registerCapability":      () => null,
-  "client/unregisterCapability":    () => null,
+  "client/registerCapability": () => null,
+  "client/unregisterCapability": () => null,
   "window/workDoneProgress/create": () => null,
   // workspace/configuration's spec-correct response is an array of length
   // params.items.length. The production proxies reply with a single null,
   // which is spec-violating but works for the servers they wrap; the test
   // client keeps the spec-compliant shape so pyright/vtsls direct-spawn
   // scenarios don't trip on the proxy bug. (See PR review finding E3.)
-  "workspace/configuration":        (p) => (p && p.items ? p.items.map(() => null) : []),
+  "workspace/configuration": (p) => (p && p.items ? p.items.map(() => null) : []),
 };
 
 const DEFAULT_CAPS = {
@@ -123,10 +121,11 @@ class LspClient {
         // of "request timed out" 15s later.
         for (const p of this._pending.values()) {
           clearTimeout(p.timer);
-          p.reject(new Error(
-            `LSP process exited (code=${code}, signal=${signal}) ` +
-            `with pending request`
-          ));
+          p.reject(
+            new Error(
+              `LSP process exited (code=${code}, signal=${signal}) ` + `with pending request`,
+            ),
+          );
         }
         this._pending.clear();
         resolve({ code, signal });
@@ -141,7 +140,9 @@ class LspClient {
     });
   }
 
-  stderr() { return Buffer.concat(this._stderrChunks).toString("utf8"); }
+  stderr() {
+    return Buffer.concat(this._stderrChunks).toString("utf8");
+  }
 
   _onStdoutData(chunk) {
     this._buffer = Buffer.concat([this._buffer, chunk]);
@@ -158,7 +159,7 @@ class LspClient {
         // frame's header re-syncs cleanly.
         process.stderr.write(
           `[lsp-client] dropping ${this._buffer.length} buffered bytes: ` +
-          `header without Content-Length\n`
+            `header without Content-Length\n`,
         );
         this._buffer = Buffer.alloc(0);
         return;
@@ -170,7 +171,11 @@ class LspClient {
       const body = this._buffer.subarray(bodyStart, messageEnd);
       this._buffer = this._buffer.subarray(messageEnd);
       let msg;
-      try { msg = JSON.parse(body.toString("utf8")); } catch { continue; }
+      try {
+        msg = JSON.parse(body.toString("utf8"));
+      } catch {
+        continue;
+      }
       this._handle(msg);
     }
   }
@@ -215,7 +220,7 @@ class LspClient {
     } catch (err) {
       // A bug in this handler (or a malformed message that slipped past the
       // guards above) must not abort the test process. Log + drop.
-      process.stderr.write(`[lsp-client] _handle error: ${err && err.stack || err}\n`);
+      process.stderr.write(`[lsp-client] _handle error: ${(err && err.stack) || err}\n`);
     }
   }
 
@@ -247,18 +252,26 @@ class LspClient {
     });
   }
 
-  async initialize({ rootUri, capabilities = DEFAULT_CAPS, workspaceFolders,
-                     initializationOptions, settings = {} }) {
-    const wf = workspaceFolders
-      || (rootUri ? [{ uri: rootUri, name: "fixture" }] : null);
-    const result = await this.request("initialize", {
-      processId: process.pid,
-      rootUri: rootUri || null,
-      capabilities,
-      clientInfo: { name: "claude-lsps-live-test", version: "0" },
-      workspaceFolders: wf,
-      initializationOptions,
-    }, { timeout: 15000 });
+  async initialize({
+    rootUri,
+    capabilities = DEFAULT_CAPS,
+    workspaceFolders,
+    initializationOptions,
+    settings = {},
+  }) {
+    const wf = workspaceFolders || (rootUri ? [{ uri: rootUri, name: "fixture" }] : null);
+    const result = await this.request(
+      "initialize",
+      {
+        processId: process.pid,
+        rootUri: rootUri || null,
+        capabilities,
+        clientInfo: { name: "claude-lsps-live-test", version: "0" },
+        workspaceFolders: wf,
+        initializationOptions,
+      },
+      { timeout: 15000 },
+    );
     this._serverCaps = result.capabilities || {};
     this.notify("initialized", {});
     // Pyright (and many others) sit idle after `initialized` until they see
@@ -273,8 +286,12 @@ class LspClient {
   }
 
   isAlive() {
-    return !!(this.child && this.child.exitCode === null
-      && this.child.signalCode === null && !this.child.killed);
+    return !!(
+      this.child &&
+      this.child.exitCode === null &&
+      this.child.signalCode === null &&
+      !this.child.killed
+    );
   }
 
   didOpen({ uri, languageId, text, version = 1 }) {
@@ -292,7 +309,7 @@ class LspClient {
   // pyright needs in order to re-analyze an open document — without it, the
   // last-published diagnostics stay stale no matter what changes on disk.
   didChange({ uri, text, version }) {
-    const v = version ?? ((this._docVersions.get(uri) || 1) + 1);
+    const v = version ?? (this._docVersions.get(uri) || 1) + 1;
     this._docVersions.set(uri, v);
     this.notify("textDocument/didChange", {
       textDocument: { uri, version: v },
@@ -318,22 +335,28 @@ class LspClient {
   //   as "updates". Defaults to 0, so any publish for the URI counts (the
   //   original behavior). Pass publishSeq(uri) captured before a didChange to
   //   wait for the refresh instead of returning the stale cached diagnostics.
-  async waitForDiagnostics({ uri, mode = "auto", quietMs, timeout, requirePublish = true, afterSeq = null } = {}) {
-    const resolved = mode === "auto"
-      ? (this.hasPullDiagnostics() ? "pull" : "push")
-      : mode;
+  async waitForDiagnostics({
+    uri,
+    mode = "auto",
+    quietMs,
+    timeout,
+    requirePublish = true,
+    afterSeq = null,
+  } = {}) {
+    const resolved = mode === "auto" ? (this.hasPullDiagnostics() ? "pull" : "push") : mode;
     if (resolved === "pull") {
-      const r = await this.request("textDocument/diagnostic",
+      const r = await this.request(
+        "textDocument/diagnostic",
         { textDocument: { uri } },
-        { timeout: timeout ?? PULL_TIMEOUT_MS });
+        { timeout: timeout ?? PULL_TIMEOUT_MS },
+      );
       if (!r) return [];
       if (r.kind === "full") return r.items || [];
       // "unchanged" on a first-ever pull (we didn't send previousResultId)
       // means the server isn't actually answering — fail loud rather than
       // silently treating it as "no diagnostics".
       throw new Error(
-        `pull diagnostic for ${uri} returned kind=${JSON.stringify(r.kind)}; ` +
-        `expected "full"`
+        `pull diagnostic for ${uri} returned kind=${JSON.stringify(r.kind)}; ` + `expected "full"`,
       );
     }
     const t = timeout ?? PUSH_TIMEOUT_MS;
@@ -367,7 +390,7 @@ class LspClient {
           if (!updated && requirePublish) {
             throw new Error(
               `no publishDiagnostics received for ${uri} within ${t}ms ` +
-              `(server may have crashed or never started analysis)`
+                `(server may have crashed or never started analysis)`,
             );
           }
           return this._diagsByUri.get(uri) || [];
@@ -401,9 +424,15 @@ class LspClient {
   // runs orphan worker processes. graceMs gives the server time to flush
   // NODE_V8_COVERAGE on clean exit (the 99-coverage gate depends on this).
   async shutdown({ graceMs = 3000 } = {}) {
-    try { await this.request("shutdown", null, { timeout: 2000 }); } catch {}
-    try { this.notify("exit", null); } catch {}
-    try { this.child.stdin.end(); } catch {}
+    try {
+      await this.request("shutdown", null, { timeout: 2000 });
+    } catch {}
+    try {
+      this.notify("exit", null);
+    } catch {}
+    try {
+      this.child.stdin.end();
+    } catch {}
     if (this.exited) await Promise.race([this.exited, sleep(graceMs)]);
 
     if (!this.child || this.child.exitCode !== null) return;
@@ -411,8 +440,14 @@ class LspClient {
     // Server didn't exit cleanly. Escalate to SIGTERM on the whole process
     // group, then SIGKILL after another short grace.
     const pgKill = (signal) => {
-      try { process.kill(-this.child.pid, signal); return true; } catch {}
-      try { this.child.kill(signal); return true; } catch {}
+      try {
+        process.kill(-this.child.pid, signal);
+        return true;
+      } catch {}
+      try {
+        this.child.kill(signal);
+        return true;
+      } catch {}
       return false;
     };
     pgKill("SIGTERM");
@@ -431,7 +466,7 @@ function parseLspJson(pluginDir) {
   if (keys.length > 1) {
     throw new Error(
       `${pluginDir}/.lsp.json has multiple language entries (${keys.join(", ")}); ` +
-      `live-suite needs explicit selection`
+        `live-suite needs explicit selection`,
     );
   }
   const entry = raw[keys[0]];

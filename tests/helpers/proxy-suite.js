@@ -1,13 +1,20 @@
 #!/usr/bin/env node
-"use strict";
 
-const { spawn } = require("child_process");
-const fs = require("fs");
-const path = require("path");
+const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const {
-  requireEnv, frameOf, parseFrames, sleep, waitFor, newWorkdir,
-  readJsonLines, assert, spawnProxy, dispatch,
+  requireEnv,
+  frameOf,
+  parseFrames,
+  sleep,
+  waitFor,
+  newWorkdir,
+  readJsonLines,
+  assert,
+  spawnProxy,
+  dispatch,
 } = require("./lsp-test-utils.js");
 
 const { ROOT_DIR, TMP_DIR, TESTS_DIR } = requireEnv();
@@ -29,10 +36,13 @@ async function waitForHandshake(proxy, logDir) {
   const ping = { jsonrpc: "2.0", method: "$/test-ready-ping", params: {} };
   proxy.child.stdin.write(frameOf(ping));
   const log = path.join(logDir, "recv.jsonl");
-  await waitFor(() => {
-    if (!fs.existsSync(log)) return false;
-    return readJsonLines(log).some((m) => m.method === "$/test-ready-ping");
-  }, { timeout: 8000 });
+  await waitFor(
+    () => {
+      if (!fs.existsSync(log)) return false;
+      return readJsonLines(log).some((m) => m.method === "$/test-ready-ping");
+    },
+    { timeout: 8000 },
+  );
 }
 
 async function passthrough(setProxy) {
@@ -57,12 +67,16 @@ async function passthrough(setProxy) {
 
   const resp = parseFrames(proxy.stdoutBuf()).find((f) => f.body.id === 1);
   assert(resp, "expected response with id=1");
-  assert(resp.body.result && resp.body.result.contents === "hover-result",
-    `unexpected response body: ${JSON.stringify(resp.body)}`);
+  assert(
+    resp.body.result && resp.body.result.contents === "hover-result",
+    `unexpected response body: ${JSON.stringify(resp.body)}`,
+  );
 
   const stubReceived = fs.readFileSync(path.join(dir, "recv.log"));
-  assert(stubReceived.equals(sentBytes),
-    `stub bytes differ from client bytes; got ${stubReceived.length}B, sent ${sentBytes.length}B`);
+  assert(
+    stubReceived.equals(sentBytes),
+    `stub bytes differ from client bytes; got ${stubReceived.length}B, sent ${sentBytes.length}B`,
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -95,16 +109,20 @@ async function blockedRequest(setProxy) {
   // currently synthesizes {result: null}. An LSP client reading this will
   // misrender as "no references" rather than "unsupported". Tracked as a
   // known proxy bug — flip these asserts when the proxy is fixed.
-  assert(resp.body.result === null, `expected result:null, got ${JSON.stringify(resp.body.result)}`);
+  assert(
+    resp.body.result === null,
+    `expected result:null, got ${JSON.stringify(resp.body.result)}`,
+  );
   assert(resp.body.error === undefined, "result:null and error are mutually exclusive in JSON-RPC");
   assert(resp.body.id === 42, "blocked response id must mirror request id");
-  assert(resp.contentLength === Buffer.from(JSON.stringify(resp.body)).length,
-    "Content-Length mismatch");
+  assert(
+    resp.contentLength === Buffer.from(JSON.stringify(resp.body)).length,
+    "Content-Length mismatch",
+  );
 
   const recvLog = path.join(dir, "recv.log");
   const stubReceived = fs.existsSync(recvLog) ? fs.readFileSync(recvLog, "utf8") : "";
-  assert(!stubReceived.includes("textDocument/references"),
-    "stub received the blocked request");
+  assert(!stubReceived.includes("textDocument/references"), "stub received the blocked request");
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -123,30 +141,37 @@ async function blockedNotification(setProxy) {
   // notification. When the second one shows up at the stub, the first has
   // already been processed (and dropped if blocking works). Eliminates the
   // 200ms sleep race.
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "textDocument/references",
-    params: { uri: "file:///x" },
-  }));
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "$/test-sentinel-after-blocked",
-    params: {},
-  }));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "textDocument/references",
+      params: { uri: "file:///x" },
+    }),
+  );
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "$/test-sentinel-after-blocked",
+      params: {},
+    }),
+  );
 
   await waitFor(() => {
     const f = path.join(dir, "recv.jsonl");
-    return fs.existsSync(f) && readJsonLines(f).some((m) => m.method === "$/test-sentinel-after-blocked");
+    return (
+      fs.existsSync(f) && readJsonLines(f).some((m) => m.method === "$/test-sentinel-after-blocked")
+    );
   });
 
   const stubFile = path.join(dir, "recv.log");
   const stubReceived = fs.existsSync(stubFile) ? fs.readFileSync(stubFile, "utf8") : "";
-  assert(!stubReceived.includes("textDocument/references"),
-    "stub received the blocked notification");
+  assert(
+    !stubReceived.includes("textDocument/references"),
+    "stub received the blocked notification",
+  );
 
   const out = proxy.stdoutBuf();
-  assert(out.length === 0,
-    `proxy wrote unexpected bytes to client: ${out.toString("utf8")}`);
+  assert(out.length === 0, `proxy wrote unexpected bytes to client: ${out.toString("utf8")}`);
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -159,12 +184,15 @@ async function autoAckMethod(method, setProxy) {
   // every other auto-acked method gets result:null.
   const isConfig = method === "workspace/configuration";
   const serverReq = {
-    jsonrpc: "2.0", id: 99, method,
+    jsonrpc: "2.0",
+    id: 99,
+    method,
     params: isConfig ? { items: [{ section: "a" }, { section: "b" }] } : {},
   };
-  const ackMatches = (m) => (isConfig
-    ? Array.isArray(m.result) && m.result.length === 2 && m.result.every((x) => x === null)
-    : m.result === null);
+  const ackMatches = (m) =>
+    isConfig
+      ? Array.isArray(m.result) && m.result.length === 2 && m.result.every((x) => x === null)
+      : m.result === null;
   const proxy = spawnProxy({
     proxyJs: ANSIBLE_PROXY,
     config: proxyConfig(),
@@ -175,23 +203,33 @@ async function autoAckMethod(method, setProxy) {
   // Wait for the proxy's auto-ack to land at the stub: id matches, result has
   // the expected shape, *and* method is absent (so we're not matching the
   // stub's outbound request being mistakenly logged as inbound).
-  await waitFor(() => readJsonLines(path.join(dir, "recv.jsonl"))
-    .some((m) => m.id === 99 && m.method === undefined && m.jsonrpc === "2.0" && ackMatches(m)));
+  await waitFor(() =>
+    readJsonLines(path.join(dir, "recv.jsonl")).some(
+      (m) => m.id === 99 && m.method === undefined && m.jsonrpc === "2.0" && ackMatches(m),
+    ),
+  );
 
   // Drive a sentinel notification through the proxy and wait for the stub to
   // see it. Once it has, any client-bound frame the proxy was going to emit
   // for the server-initiated request would already be in stdoutBuf.
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "$/test-sentinel-after-autoack",
-    params: {},
-  }));
-  await waitFor(() => readJsonLines(path.join(dir, "recv.jsonl"))
-    .some((m) => m.method === "$/test-sentinel-after-autoack"));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "$/test-sentinel-after-autoack",
+      params: {},
+    }),
+  );
+  await waitFor(() =>
+    readJsonLines(path.join(dir, "recv.jsonl")).some(
+      (m) => m.method === "$/test-sentinel-after-autoack",
+    ),
+  );
 
   const clientFrames = parseFrames(proxy.stdoutBuf());
-  assert(!clientFrames.some((f) => f.body.id === 99 && f.body.method === method),
-    `client unexpectedly received server-initiated ${method}`);
+  assert(
+    !clientFrames.some((f) => f.body.id === 99 && f.body.method === method),
+    `client unexpectedly received server-initiated ${method}`,
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -202,7 +240,12 @@ async function autoAckMethod(method, setProxy) {
 async function serverRequestForwardedWhenNotAutoAcked(setProxy) {
   const dir = wd("server-req-forwarded");
   const method = "window/showMessageRequest";
-  const serverReq = { jsonrpc: "2.0", id: 77, method, params: { type: 3, message: "pick one", actions: [] } };
+  const serverReq = {
+    jsonrpc: "2.0",
+    id: 77,
+    method,
+    params: { type: 3, message: "pick one", actions: [] },
+  };
   const proxy = spawnProxy({
     proxyJs: ANSIBLE_PROXY,
     config: proxyConfig(),
@@ -210,15 +253,17 @@ async function serverRequestForwardedWhenNotAutoAcked(setProxy) {
   });
   setProxy(proxy);
 
-  await waitFor(() => parseFrames(proxy.stdoutBuf())
-    .some((f) => f.body.id === 77 && f.body.method === method));
+  await waitFor(() =>
+    parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 77 && f.body.method === method),
+  );
 
   const clientFrames = parseFrames(proxy.stdoutBuf());
   const fwd = clientFrames.find((f) => f.body.id === 77 && f.body.method === method);
   assert(fwd, `expected ${method} to be forwarded to client`);
   // Proxy must not also pre-answer; if it did, we'd see a response frame for id=77.
-  const ackedAtStub = readJsonLines(path.join(dir, "recv.jsonl"))
-    .some((m) => m.id === 77 && m.result !== undefined);
+  const ackedAtStub = readJsonLines(path.join(dir, "recv.jsonl")).some(
+    (m) => m.id === 77 && m.result !== undefined,
+  );
   assert(!ackedAtStub, "proxy auto-answered a method not in the auto-ack set");
 
   proxy.child.stdin.end();
@@ -246,16 +291,21 @@ async function splitBuffer(setProxy) {
     await new Promise((r) => setImmediate(r));
   }
 
-  await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 7),
-    { timeout: 6000 });
+  await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 7), {
+    timeout: 6000,
+  });
 
   const stubMsgs = readJsonLines(path.join(dir, "recv.jsonl"));
-  assert(stubMsgs.some((m) => m.id === 7 && m.method === "textDocument/hover"),
-    "stub did not reconstruct hover request from byte-split input");
+  assert(
+    stubMsgs.some((m) => m.id === 7 && m.method === "textDocument/hover"),
+    "stub did not reconstruct hover request from byte-split input",
+  );
 
   const resp = parseFrames(proxy.stdoutBuf()).find((f) => f.body.id === 7);
-  assert(resp && resp.body.result.contents === "hover-result",
-    "client did not reconstruct hover response from byte-split server output");
+  assert(
+    resp && resp.body.result.contents === "hover-result",
+    "client did not reconstruct hover response from byte-split server output",
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -277,8 +327,10 @@ async function malformedHeaderForwarded(setProxy) {
     return fs.existsSync(f) && fs.statSync(f).size >= bytes.length;
   });
   const received = fs.readFileSync(path.join(dir, "recv.log"));
-  assert(received.equals(bytes),
-    `stub did not receive malformed bytes verbatim; got ${received.length}B, sent ${bytes.length}B`);
+  assert(
+    received.equals(bytes),
+    `stub did not receive malformed bytes verbatim; got ${received.length}B, sent ${bytes.length}B`,
+  );
   proxy.child.stdin.end();
   await proxy.exited;
 }
@@ -293,18 +345,17 @@ async function unparseableBodyForwarded(setProxy) {
   setProxy(proxy);
 
   const body = Buffer.from("{not-json");
-  const wire = Buffer.concat([
-    Buffer.from(`Content-Length: ${body.length}\r\n\r\n`),
-    body,
-  ]);
+  const wire = Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`), body]);
   proxy.child.stdin.write(wire);
   await waitFor(() => {
     const f = path.join(dir, "recv.log");
     return fs.existsSync(f) && fs.statSync(f).size >= wire.length;
   });
   const received = fs.readFileSync(path.join(dir, "recv.log"));
-  assert(received.equals(wire),
-    `stub did not receive raw frame; got ${received.length}B, sent ${wire.length}B`);
+  assert(
+    received.equals(wire),
+    `stub did not receive raw frame; got ${received.length}B, sent ${wire.length}B`,
+  );
   proxy.child.stdin.end();
   await proxy.exited;
 }
@@ -333,8 +384,10 @@ async function serverToClientByteIdentical(setProxy) {
 
   await waitFor(() => proxy.stdoutBuf().length >= expected.length);
   const got = proxy.stdoutBuf();
-  assert(got.equals(expected),
-    `server->client bytes differ; got ${got.length}B '${got.toString("utf8")}', expected '${expected.toString("utf8")}'`);
+  assert(
+    got.equals(expected),
+    `server->client bytes differ; got ${got.length}B '${got.toString("utf8")}', expected '${expected.toString("utf8")}'`,
+  );
   proxy.child.stdin.end();
   await proxy.exited;
 }
@@ -364,12 +417,16 @@ async function regalPassthroughParity(setProxy) {
   await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 11));
 
   const resp = parseFrames(proxy.stdoutBuf()).find((f) => f.body.id === 11);
-  assert(resp && resp.body.result && resp.body.result.contents === "hover-result",
-    `regal proxy passthrough failed: ${JSON.stringify(resp && resp.body)}`);
+  assert(
+    resp && resp.body.result && resp.body.result.contents === "hover-result",
+    `regal proxy passthrough failed: ${JSON.stringify(resp && resp.body)}`,
+  );
 
   const stubReceived = fs.readFileSync(path.join(dir, "recv.log"));
-  assert(stubReceived.equals(sentBytes),
-    `regal stub bytes differ from client bytes; got ${stubReceived.length}B, sent ${sentBytes.length}B`);
+  assert(
+    stubReceived.equals(sentBytes),
+    `regal stub bytes differ from client bytes; got ${stubReceived.length}B, sent ${sentBytes.length}B`,
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -384,18 +441,24 @@ async function regalBlockedRequestParity(setProxy) {
   });
   setProxy(proxy);
 
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    id: 88,
-    method: "textDocument/references",
-    params: { textDocument: { uri: "file:///x.rego" }, position: { line: 0, character: 0 } },
-  }));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      id: 88,
+      method: "textDocument/references",
+      params: { textDocument: { uri: "file:///x.rego" }, position: { line: 0, character: 0 } },
+    }),
+  );
   await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 88));
   const resp = parseFrames(proxy.stdoutBuf()).find((f) => f.body.id === 88);
-  assert(resp && resp.body.result === null,
-    "regal proxy did not synthesize result:null for blocked request");
+  assert(
+    resp && resp.body.result === null,
+    "regal proxy did not synthesize result:null for blocked request",
+  );
 
-  const recv = fs.existsSync(path.join(dir, "recv.log")) ? fs.readFileSync(path.join(dir, "recv.log"), "utf8") : "";
+  const recv = fs.existsSync(path.join(dir, "recv.log"))
+    ? fs.readFileSync(path.join(dir, "recv.log"), "utf8")
+    : "";
   assert(!recv.includes("textDocument/references"), "regal stub received the blocked request");
 
   proxy.child.stdin.end();
@@ -430,8 +493,10 @@ async function childExitCodePropagated(setProxy) {
   setProxy(proxy);
   proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "$/please-exit", params: {} }));
   const result = await proxy.exited;
-  assert(result.code === 42,
-    `expected proxy exit code 42, got code=${result.code} signal=${result.signal}`);
+  assert(
+    result.code === 42,
+    `expected proxy exit code 42, got code=${result.code} signal=${result.signal}`,
+  );
 }
 
 async function stdinEofTerminatesChild(setProxy) {
@@ -464,17 +529,20 @@ async function runProxyExpectFailure(args, { stdin = "ignore" } = {}) {
 async function configMissing() {
   const { code, stderr } = await runProxyExpectFailure([ANSIBLE_PROXY]);
   assert(code !== 0, `expected non-zero exit; got ${code}`);
-  assert(/Usage:/.test(stderr) && /--config/.test(stderr),
-    `expected 'Usage:' with --config in stderr; got: ${stderr}`);
+  assert(
+    /Usage:/.test(stderr) && /--config/.test(stderr),
+    `expected 'Usage:' with --config in stderr; got: ${stderr}`,
+  );
 }
 
 async function configUnreadable() {
-  const { code, stderr } = await runProxyExpectFailure(
-    [ANSIBLE_PROXY, "--config", "/no/such/file.json"]
-  );
+  const { code, stderr } = await runProxyExpectFailure([
+    ANSIBLE_PROXY,
+    "--config",
+    "/no/such/file.json",
+  ]);
   assert(code !== 0, `expected non-zero exit; got ${code}`);
-  assert(/Failed to read config/i.test(stderr),
-    `expected read-failure message; got: ${stderr}`);
+  assert(/Failed to read config/i.test(stderr), `expected read-failure message; got: ${stderr}`);
 }
 
 async function configEmptyServer() {
@@ -483,23 +551,27 @@ async function configEmptyServer() {
   fs.writeFileSync(cfg, JSON.stringify({ server: [], blocked: [] }));
   const { code, stderr } = await runProxyExpectFailure([ANSIBLE_PROXY, "--config", cfg]);
   assert(code !== 0, `expected non-zero exit; got ${code}`);
-  assert(/non-empty array/i.test(stderr),
-    `expected non-empty-array message; got: ${stderr}`);
+  assert(/non-empty array/i.test(stderr), `expected non-empty-array message; got: ${stderr}`);
 }
 
 async function childSpawnError() {
   const dir = wd("spawn-error");
   const cfg = path.join(dir, "proxy.json");
-  fs.writeFileSync(cfg, JSON.stringify({
-    server: ["/no/such/binary/__definitely_not_there__", "--stdio"],
-    blocked: [],
-  }));
-  const { code, stderr } = await runProxyExpectFailure(
-    [ANSIBLE_PROXY, "--config", cfg], { stdin: "pipe" }
+  fs.writeFileSync(
+    cfg,
+    JSON.stringify({
+      server: ["/no/such/binary/__definitely_not_there__", "--stdio"],
+      blocked: [],
+    }),
   );
+  const { code, stderr } = await runProxyExpectFailure([ANSIBLE_PROXY, "--config", cfg], {
+    stdin: "pipe",
+  });
   assert(code !== 0, `expected non-zero exit on spawn ENOENT; got ${code}`);
-  assert(/child error/i.test(stderr) || /ENOENT/.test(stderr),
-    `expected child-error message in stderr; got: ${stderr}`);
+  assert(
+    /child error/i.test(stderr) || /ENOENT/.test(stderr),
+    `expected child-error message in stderr; got: ${stderr}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -508,7 +580,7 @@ async function childSpawnError() {
 // spreads across copies (merged by hash in the gate).
 // ---------------------------------------------------------------------------
 
-const { pathToFileURL } = require("url");
+const { pathToFileURL } = require("node:url");
 
 function syncSetup(tag, { config = {}, text = "one\n" } = {}) {
   const dir = wd(tag);
@@ -532,8 +604,10 @@ function didOpenFrame(uri, text, version = 1) {
 }
 
 const stubMsgs = (dir) => readJsonLines(path.join(dir, "recv.jsonl"));
-const injectedChanges = (dir, uri) => stubMsgs(dir).filter((m) =>
-  m.method === "textDocument/didChange" && m.params.textDocument.uri === uri);
+const injectedChanges = (dir, uri) =>
+  stubMsgs(dir).filter(
+    (m) => m.method === "textDocument/didChange" && m.params.textDocument.uri === uri,
+  );
 
 // Disk-only edit to an open document → proxy injects didChange + didSave.
 async function syncInjectsOnDiskEdit(setProxy) {
@@ -544,18 +618,27 @@ async function syncInjectsOnDiskEdit(setProxy) {
   await waitFor(() => stubMsgs(dir).some((m) => m.method === "textDocument/didOpen"));
 
   fs.writeFileSync(docPath, "two\n");
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.contentChanges[0].text === "two\n"), { timeout: 6000 });
+  await waitFor(
+    () => injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "two\n"),
+    { timeout: 6000 },
+  );
 
   const change = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "two\n");
-  assert(change.params.textDocument.version === 2,
-    `expected injected version 2, got ${change.params.textDocument.version}`);
-  assert(change.params.contentChanges[0].range === undefined,
-    "injected didChange must be a full-document change (no range)");
+  assert(
+    change.params.textDocument.version === 2,
+    `expected injected version 2, got ${change.params.textDocument.version}`,
+  );
+  assert(
+    change.params.contentChanges[0].range === undefined,
+    "injected didChange must be a full-document change (no range)",
+  );
 
   // didSave follows the didChange for save-triggered linters.
-  await waitFor(() => stubMsgs(dir).some((m) =>
-    m.method === "textDocument/didSave" && m.params.textDocument.uri === uri));
+  await waitFor(() =>
+    stubMsgs(dir).some(
+      (m) => m.method === "textDocument/didSave" && m.params.textDocument.uri === uri,
+    ),
+  );
   const msgs = stubMsgs(dir);
   const iChange = msgs.findIndex((m) => m.method === "textDocument/didChange");
   const iSave = msgs.findIndex((m) => m.method === "textDocument/didSave");
@@ -574,27 +657,40 @@ async function syncReconcilesClientDidChange(setProxy) {
   proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
   // Client's own edit, Edit-tool style: disk write + full-text didChange v5.
   fs.writeFileSync(docPath, "five\n");
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "textDocument/didChange",
-    params: { textDocument: { uri, version: 5 }, contentChanges: [{ text: "five\n" }] },
-  }));
-  await waitFor(() => stubMsgs(dir).some((m) =>
-    m.method === "textDocument/didChange" && m.params.textDocument.version === 5));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "textDocument/didChange",
+      params: { textDocument: { uri, version: 5 }, contentChanges: [{ text: "five\n" }] },
+    }),
+  );
+  await waitFor(() =>
+    stubMsgs(dir).some(
+      (m) => m.method === "textDocument/didChange" && m.params.textDocument.version === 5,
+    ),
+  );
 
   // Give the poll a couple ticks to see the client-written disk state; it must
   // NOT inject for it (disk == buffer after reconciliation).
   await sleep(200);
-  assert(injectedChanges(dir, uri).length === 1,
-    "proxy injected for the client's own write (reconciliation failed)");
+  assert(
+    injectedChanges(dir, uri).length === 1,
+    "proxy injected for the client's own write (reconciliation failed)",
+  );
 
   // Now the out-of-band edit — the injected version must continue past 5.
   fs.writeFileSync(docPath, "six\n");
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.contentChanges[0].text === "six\n"), { timeout: 6000 });
-  const injected = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "six\n");
-  assert(injected.params.textDocument.version === 6,
-    `expected injected version 6 (max(client 5)+1), got ${injected.params.textDocument.version}`);
+  await waitFor(
+    () => injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "six\n"),
+    { timeout: 6000 },
+  );
+  const injected = injectedChanges(dir, uri).find(
+    (m) => m.params.contentChanges[0].text === "six\n",
+  );
+  assert(
+    injected.params.textDocument.version === 6,
+    `expected injected version 6 (max(client 5)+1), got ${injected.params.textDocument.version}`,
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -607,23 +703,29 @@ async function syncIncrementalDisables(setProxy) {
   setProxy(proxy);
 
   proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "textDocument/didChange",
-    params: {
-      textDocument: { uri, version: 2 },
-      contentChanges: [{
-        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
-        text: "two",
-      }],
-    },
-  }));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "textDocument/didChange",
+      params: {
+        textDocument: { uri, version: 2 },
+        contentChanges: [
+          {
+            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+            text: "two",
+          },
+        ],
+      },
+    }),
+  );
   await waitFor(() => /disk-sync disabled/.test(proxy.stderr()));
 
   fs.writeFileSync(docPath, "three\n");
   await sleep(300); // several poll ticks
-  assert(!injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "three\n"),
-    "proxy injected for a document with an unreconstructable buffer");
+  assert(
+    !injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "three\n"),
+    "proxy injected for a document with an unreconstructable buffer",
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -636,33 +738,45 @@ async function syncResyncAfterFulltext(setProxy) {
   setProxy(proxy);
 
   proxy.child.stdin.write(didOpenFrame(uri, "one\n"));
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "textDocument/didChange",
-    params: {
-      textDocument: { uri, version: 2 },
-      contentChanges: [{
-        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
-        text: "two",
-      }],
-    },
-  }));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "textDocument/didChange",
+      params: {
+        textDocument: { uri, version: 2 },
+        contentChanges: [
+          {
+            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+            text: "two",
+          },
+        ],
+      },
+    }),
+  );
   await waitFor(() => /disk-sync disabled/.test(proxy.stderr()));
 
   // Full-document replacement restores syncability.
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "textDocument/didChange",
-    params: { textDocument: { uri, version: 3 }, contentChanges: [{ text: "three\n" }] },
-  }));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "textDocument/didChange",
+      params: { textDocument: { uri, version: 3 }, contentChanges: [{ text: "three\n" }] },
+    }),
+  );
   await waitFor(() => /disk-sync re-enabled/.test(proxy.stderr()));
 
   fs.writeFileSync(docPath, "four\n");
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.contentChanges[0].text === "four\n"), { timeout: 6000 });
-  const injected = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "four\n");
-  assert(injected.params.textDocument.version === 4,
-    `expected injected v4 after resync, got v${injected.params.textDocument.version}`);
+  await waitFor(
+    () => injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "four\n"),
+    { timeout: 6000 },
+  );
+  const injected = injectedChanges(dir, uri).find(
+    (m) => m.params.contentChanges[0].text === "four\n",
+  );
+  assert(
+    injected.params.textDocument.version === 4,
+    `expected injected v4 after resync, got v${injected.params.textDocument.version}`,
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -679,19 +793,19 @@ async function syncNoopAndDidClose(setProxy) {
 
   fs.writeFileSync(docPath, "one\n"); // same content, new mtime
   await sleep(300);
-  assert(injectedChanges(dir, uri).length === 0,
-    "proxy injected for a content-identical rewrite");
+  assert(injectedChanges(dir, uri).length === 0, "proxy injected for a content-identical rewrite");
 
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "textDocument/didClose",
-    params: { textDocument: { uri } },
-  }));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "textDocument/didClose",
+      params: { textDocument: { uri } },
+    }),
+  );
   await waitFor(() => stubMsgs(dir).some((m) => m.method === "textDocument/didClose"));
   fs.writeFileSync(docPath, "two\n");
   await sleep(300);
-  assert(injectedChanges(dir, uri).length === 0,
-    "proxy injected for a closed document");
+  assert(injectedChanges(dir, uri).length === 0, "proxy injected for a closed document");
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -731,36 +845,57 @@ async function syncDeleteAndReappear(setProxy) {
   await waitFor(() => stubMsgs(dir).some((m) => m.method === "textDocument/didOpen"));
 
   fs.unlinkSync(docPath);
-  await waitFor(() => stubMsgs(dir).some((m) =>
-    m.method === "textDocument/didClose" && m.params.textDocument.uri === uri), { timeout: 6000 });
+  await waitFor(
+    () =>
+      stubMsgs(dir).some(
+        (m) => m.method === "textDocument/didClose" && m.params.textDocument.uri === uri,
+      ),
+    { timeout: 6000 },
+  );
 
   // Reappearance (e.g. git checkout back): reopen with the new disk content.
   fs.writeFileSync(docPath, "reborn\n");
-  await waitFor(() => stubMsgs(dir).some((m) =>
-    m.method === "textDocument/didOpen" && m.params.textDocument.text === "reborn\n"), { timeout: 6000 });
-  const reopen = stubMsgs(dir).find((m) =>
-    m.method === "textDocument/didOpen" && m.params.textDocument.text === "reborn\n");
+  await waitFor(
+    () =>
+      stubMsgs(dir).some(
+        (m) => m.method === "textDocument/didOpen" && m.params.textDocument.text === "reborn\n",
+      ),
+    { timeout: 6000 },
+  );
+  const reopen = stubMsgs(dir).find(
+    (m) => m.method === "textDocument/didOpen" && m.params.textDocument.text === "reborn\n",
+  );
   assert(reopen.params.textDocument.version > 1, "reopen must bump the version");
 
   // Disk-sync must keep working after the reopen.
   fs.writeFileSync(docPath, "again\n");
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.contentChanges[0].text === "again\n"), { timeout: 6000 });
+  await waitFor(
+    () => injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "again\n"),
+    { timeout: 6000 },
+  );
 
   // Delete again so the proxy closes, then have the CLIENT close: the proxy
   // must swallow it (exactly one didClose on the wire for this second cycle).
   fs.unlinkSync(docPath);
-  await waitFor(() => stubMsgs(dir).filter((m) => m.method === "textDocument/didClose").length >= 2,
-    { timeout: 6000 });
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "textDocument/didClose",
-    params: { textDocument: { uri } },
-  }));
-  proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "$/sentinel-after-close", params: {} }));
+  await waitFor(
+    () => stubMsgs(dir).filter((m) => m.method === "textDocument/didClose").length >= 2,
+    { timeout: 6000 },
+  );
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "textDocument/didClose",
+      params: { textDocument: { uri } },
+    }),
+  );
+  proxy.child.stdin.write(
+    frameOf({ jsonrpc: "2.0", method: "$/sentinel-after-close", params: {} }),
+  );
   await waitFor(() => stubMsgs(dir).some((m) => m.method === "$/sentinel-after-close"));
-  assert(stubMsgs(dir).filter((m) => m.method === "textDocument/didClose").length === 2,
-    "client didClose after proxy close must be swallowed, not forwarded");
+  assert(
+    stubMsgs(dir).filter((m) => m.method === "textDocument/didClose").length === 2,
+    "client didClose after proxy close must be swallowed, not forwarded",
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -777,29 +912,42 @@ async function syncVersionRebase(setProxy) {
 
   // Out-of-band edit → injected didChange v2.
   fs.writeFileSync(docPath, "two\n");
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.textDocument.version === 2), { timeout: 6000 });
+  await waitFor(() => injectedChanges(dir, uri).some((m) => m.params.textDocument.version === 2), {
+    timeout: 6000,
+  });
 
   // Client's own next edit still carries ITS counter (v2) — must arrive as v3.
   fs.writeFileSync(docPath, "three\n"); // Edit-tool style: disk write + didChange
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0",
-    method: "textDocument/didChange",
-    params: { textDocument: { uri, version: 2 }, contentChanges: [{ text: "three\n" }] },
-  }));
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.contentChanges[0].text === "three\n"), { timeout: 6000 });
-  const rebased = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "three\n");
-  assert(rebased.params.textDocument.version === 3,
-    `expected client v2 rebased to v3, got v${rebased.params.textDocument.version}`);
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      method: "textDocument/didChange",
+      params: { textDocument: { uri, version: 2 }, contentChanges: [{ text: "three\n" }] },
+    }),
+  );
+  await waitFor(
+    () => injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "three\n"),
+    { timeout: 6000 },
+  );
+  const rebased = injectedChanges(dir, uri).find(
+    (m) => m.params.contentChanges[0].text === "three\n",
+  );
+  assert(
+    rebased.params.textDocument.version === 3,
+    `expected client v2 rebased to v3, got v${rebased.params.textDocument.version}`,
+  );
 
   // And the next injection continues past the rebased version.
   fs.writeFileSync(docPath, "four\n");
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.contentChanges[0].text === "four\n"), { timeout: 6000 });
+  await waitFor(
+    () => injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "four\n"),
+    { timeout: 6000 },
+  );
   const next = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "four\n");
-  assert(next.params.textDocument.version === 4,
-    `expected injected v4 after rebase, got v${next.params.textDocument.version}`);
+  assert(
+    next.params.textDocument.version === 4,
+    `expected injected v4 after rebase, got v${next.params.textDocument.version}`,
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -815,20 +963,29 @@ async function syncTracksWarmupOpens(setProxy) {
   setProxy(proxy);
 
   // Drive initialize (stub AUTO_INIT answers) then initialized to trigger warmup.
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0", id: 1, method: "initialize",
-    params: { rootUri: pathToFileURL(dir).href },
-  }));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { rootUri: pathToFileURL(dir).href },
+    }),
+  );
   await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 1));
   proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "initialized", params: {} }));
   await waitFor(() => /warmup: sent \d+ didOpen/.test(proxy.stderr()));
-  assert(stubMsgs(dir).some((m) =>
-    m.method === "textDocument/didOpen" && m.params.textDocument.uri === uri),
-  "warmup did not open the fixture file");
+  assert(
+    stubMsgs(dir).some(
+      (m) => m.method === "textDocument/didOpen" && m.params.textDocument.uri === uri,
+    ),
+    "warmup did not open the fixture file",
+  );
 
   fs.writeFileSync(docPath, "changed\n");
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.contentChanges[0].text === "changed\n"), { timeout: 6000 });
+  await waitFor(
+    () => injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "changed\n"),
+    { timeout: 6000 },
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -846,8 +1003,10 @@ async function stdinEofExitCodeZero(setProxy) {
   await sleep(300); // let the child spawn
   proxy.child.stdin.end();
   const result = await proxy.exited;
-  assert(result.code === 0,
-    `expected exit 0 on clean stdin-EOF shutdown, got code=${result.code} signal=${result.signal}`);
+  assert(
+    result.code === 0,
+    `expected exit 0 on clean stdin-EOF shutdown, got code=${result.code} signal=${result.signal}`,
+  );
 }
 
 // Warmup must not re-open a document the client already opened (open-after-
@@ -867,26 +1026,38 @@ async function warmupSkipsClientOpenedDocs(setProxy) {
   });
   setProxy(proxy);
 
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0", id: 1, method: "initialize",
-    params: { rootUri: pathToFileURL(dir).href },
-  }));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { rootUri: pathToFileURL(dir).href },
+    }),
+  );
   await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 1));
   // initialized + the client's own didOpen in one write: the didOpen frame is
   // processed synchronously before the setImmediate-deferred warmup runs.
-  proxy.child.stdin.write(Buffer.concat([
-    frameOf({ jsonrpc: "2.0", method: "initialized", params: {} }),
-    didOpenFrame(mineUri, "mine\n"),
-  ]));
+  proxy.child.stdin.write(
+    Buffer.concat([
+      frameOf({ jsonrpc: "2.0", method: "initialized", params: {} }),
+      didOpenFrame(mineUri, "mine\n"),
+    ]),
+  );
   await waitFor(() => /warmup: sent \d+ didOpen/.test(proxy.stderr()));
 
   const opens = stubMsgs(dir).filter((m) => m.method === "textDocument/didOpen");
-  assert(opens.filter((m) => m.params.textDocument.uri === mineUri).length === 1,
-    "warmup re-opened a client-opened document");
-  assert(opens.some((m) => m.params.textDocument.uri === otherUri),
-    "warmup skipped a file the client had NOT opened");
-  assert(/warmup: sent 1 didOpen/.test(proxy.stderr()),
-    "warmup sent-count should reflect the dedup skip");
+  assert(
+    opens.filter((m) => m.params.textDocument.uri === mineUri).length === 1,
+    "warmup re-opened a client-opened document",
+  );
+  assert(
+    opens.some((m) => m.params.textDocument.uri === otherUri),
+    "warmup skipped a file the client had NOT opened",
+  );
+  assert(
+    /warmup: sent 1 didOpen/.test(proxy.stderr()),
+    "warmup sent-count should reflect the dedup skip",
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
@@ -907,37 +1078,51 @@ async function warmupThenClientOpenTranslated(setProxy) {
   });
   setProxy(proxy);
 
-  proxy.child.stdin.write(frameOf({
-    jsonrpc: "2.0", id: 1, method: "initialize",
-    params: { rootUri: pathToFileURL(dir).href },
-  }));
+  proxy.child.stdin.write(
+    frameOf({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { rootUri: pathToFileURL(dir).href },
+    }),
+  );
   await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 1));
   proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "initialized", params: {} }));
   await waitFor(() => /warmup: sent 1 didOpen/.test(proxy.stderr()));
 
   // Client now opens the warmup-opened file with its own buffer content.
   proxy.child.stdin.write(didOpenFrame(uri, "client-buffer\n"));
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.contentChanges[0].text === "client-buffer\n"), { timeout: 6000 });
+  await waitFor(
+    () =>
+      injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "client-buffer\n"),
+    { timeout: 6000 },
+  );
 
-  const opens = stubMsgs(dir).filter((m) =>
-    m.method === "textDocument/didOpen" && m.params.textDocument.uri === uri);
+  const opens = stubMsgs(dir).filter(
+    (m) => m.method === "textDocument/didOpen" && m.params.textDocument.uri === uri,
+  );
   assert(opens.length === 1, `expected exactly 1 didOpen on the wire, got ${opens.length}`);
-  const translated = injectedChanges(dir, uri).find((m) => m.params.contentChanges[0].text === "client-buffer\n");
-  assert(translated.params.textDocument.version > opens[0].params.textDocument.version,
-    "translated didChange version must exceed the warmup open's version");
+  const translated = injectedChanges(dir, uri).find(
+    (m) => m.params.contentChanges[0].text === "client-buffer\n",
+  );
+  assert(
+    translated.params.textDocument.version > opens[0].params.textDocument.version,
+    "translated didChange version must exceed the warmup open's version",
+  );
 
   // Disk-sync must keep working with the reconciled buffer.
   fs.writeFileSync(docPath, "after\n");
-  await waitFor(() => injectedChanges(dir, uri)
-    .some((m) => m.params.contentChanges[0].text === "after\n"), { timeout: 6000 });
+  await waitFor(
+    () => injectedChanges(dir, uri).some((m) => m.params.contentChanges[0].text === "after\n"),
+    { timeout: 6000 },
+  );
 
   proxy.child.stdin.end();
   await proxy.exited;
 }
 
 const SCENARIOS = {
-  "passthrough": passthrough,
+  passthrough: passthrough,
   "passthrough-server-to-client": serverToClientByteIdentical,
   "blocked-request": blockedRequest,
   "blocked-notification": blockedNotification,
@@ -949,8 +1134,8 @@ const SCENARIOS = {
   "split-buffer": splitBuffer,
   "malformed-header-forwarded": malformedHeaderForwarded,
   "unparseable-body-forwarded": unparseableBodyForwarded,
-  "sigterm": (setProxy) => signalForwarded("SIGTERM", setProxy),
-  "sigint": (setProxy) => signalForwarded("SIGINT", setProxy),
+  sigterm: (setProxy) => signalForwarded("SIGTERM", setProxy),
+  sigint: (setProxy) => signalForwarded("SIGINT", setProxy),
   "exit-code-propagated": childExitCodePropagated,
   "stdin-eof": stdinEofTerminatesChild,
   "config-missing": configMissing,

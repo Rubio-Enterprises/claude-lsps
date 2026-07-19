@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 // Usage: node coverage-check.js [--threshold=80]
-"use strict";
 
-const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
-const { fileURLToPath } = require("url");
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+const { fileURLToPath } = require("node:url");
 
 const ROOT_DIR = process.env.ROOT_DIR;
 const COV_DIR = process.env.NODE_V8_COVERAGE;
@@ -17,7 +16,8 @@ if (!ROOT_DIR || !COV_DIR) {
 // Glob every plugin directory for lsp-proxy.js so a new proxy added later
 // automatically falls under the coverage gate instead of silently shipping
 // at 0%.
-const TARGETS = fs.readdirSync(ROOT_DIR)
+const TARGETS = fs
+  .readdirSync(ROOT_DIR)
   .map((d) => path.join(ROOT_DIR, d, "lsp-proxy.js"))
   .filter((p) => fs.existsSync(p))
   // Realpath both sides so macOS' /private/var <-> /var mapping in V8 URLs
@@ -32,7 +32,8 @@ for (const arg of process.argv.slice(2)) {
 
 function loadCoverageFiles() {
   if (!fs.existsSync(COV_DIR)) return [];
-  return fs.readdirSync(COV_DIR)
+  return fs
+    .readdirSync(COV_DIR)
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
       const full = path.join(COV_DIR, f);
@@ -52,7 +53,11 @@ function urlToPath(url) {
   const p = url.startsWith("file://") ? fileURLToPath(url) : url;
   // Normalize via realpath so /private/var-vs-/var on macOS doesn't cause a
   // miss against TARGETS (which are already realpath-ed above).
-  try { return fs.realpathSync(p); } catch { return p; }
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return p;
+  }
 }
 
 // V8 coverage is range-based. Per-byte state: 0 = no instrumentation, 1 =
@@ -90,14 +95,17 @@ function computeCoverage(sourcePath, entries) {
   // A line counts as covered if it has any covered byte; uncovered if it has
   // uncovered bytes but no covered byte; otherwise it's outside the
   // denominator (blank lines, comments, code outside any function body).
-  let covered = 0, uncovered = 0, total = 0;
+  let covered = 0,
+    uncovered = 0,
+    total = 0;
   const uncoveredLineNums = [];
   let line = 0;
   let i = 0;
   while (i <= len) {
     let end = i;
     while (end < len && source[end] !== "\n") end++;
-    let hasCovered = false, hasUncovered = false;
+    let hasCovered = false,
+      hasUncovered = false;
     for (let j = i; j < end; j++) {
       if (state[j] === 1) hasCovered = true;
       else if (state[j] === 2) hasUncovered = true;
@@ -157,24 +165,29 @@ function main() {
   const lines = [];
   for (const members of groups.values()) {
     const entries = members.flatMap((t) => byFile.get(t) || []);
-    const label = members.length === 1
-      ? path.relative(ROOT_DIR, members[0])
-      : `${members.length} identical copies (${members.map((t) => path.relative(ROOT_DIR, t)).join(", ")})`;
+    const label =
+      members.length === 1
+        ? path.relative(ROOT_DIR, members[0])
+        : `${members.length} identical copies (${members.map((t) => path.relative(ROOT_DIR, t)).join(", ")})`;
     if (entries.length === 0) {
       lines.push(`  ${label}: NO DATA`);
       pass = false;
       continue;
     }
-    const { coveredLines, uncoveredLines, percent, uncoveredLineNums } = computeCoverage(members[0], entries);
+    const { coveredLines, uncoveredLines, percent, uncoveredLineNums } = computeCoverage(
+      members[0],
+      entries,
+    );
     const status = percent >= threshold ? "ok" : "FAIL";
     lines.push(
       `  ${label}: ${percent.toFixed(1)}% ` +
-      `(${coveredLines} covered / ${coveredLines + uncoveredLines} executable) [${status}]`
+        `(${coveredLines} covered / ${coveredLines + uncoveredLines} executable) [${status}]`,
     );
     if (percent < threshold) {
       pass = false;
       const sample = uncoveredLineNums.slice(0, 15).join(", ");
-      const more = uncoveredLineNums.length > 15 ? ` ...(+${uncoveredLineNums.length - 15} more)` : "";
+      const more =
+        uncoveredLineNums.length > 15 ? ` ...(+${uncoveredLineNums.length - 15} more)` : "";
       lines.push(`      uncovered lines: ${sample}${more}`);
     }
   }
