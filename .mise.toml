@@ -43,3 +43,10 @@
 # and local `copier update` parity. The reusable workflow also installs copier
 # explicitly as belt-and-braces for consumers not yet re-rendered with this pin.
 "pipx:copier"                = "9.16.0"
+# Node runtime pin — universal (P5-C unification). Every repo runs the
+# npm:-backend hook tools above (commitlint / markdownlint / prettier), so the
+# node runtime they require is pinned HERE for every repo. Previously most
+# repos carried this pin in .tool-versions; that file now holds only the
+# python/go pins (ASDF-format toolchains with no backend prefix) and renders
+# only when one of those stacks is present.
+node = "22.12.0"
