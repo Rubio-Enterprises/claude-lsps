@@ -82,5 +82,18 @@
     "swift-lsp@claude-plugins-official": true,
     "tools-skills@tools-skills": true,
     "vtsls@claude-lsps": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/session-start-claude-shim.sh"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -50,3 +50,59 @@
 # python/go pins (ASDF-format toolchains with no backend prefix) and renders
 # only when one of those stacks is present.
 node = "22.12.0"
+# Biome 2.x — JS/TS language facets (has_javascript or has_typescript,
+# including ts-web-angular). This pin is
+# LOAD-BEARING: both the lefthook `biome` pre-commit hook and the lint-format
+# CI gate invoke `mise exec -- biome`, resolving this exact version. (The hook
+# previously used bare `npx biome`, which silently resolved the abandoned npm
+# registry package named `biome` whenever no consumer devDep was installed.)
+# Also pinned for any non-TS archetype when has_embedded_web=true
+# so the embedded web surface (JS/JSX/TS/CSS) gets the same Biome floor as a
+# standalone ts-* repo (e.g. vibetunnel Swift + Node, todoist-classify Python +
+# React/JSX).
+#
+# Note for ts-web-angular: the template pins Biome and renders `biome.json`
+# uniformly with ts-web. The audit-side override-policy Rego rule that "scripts.lint
+# invokes biome" is relaxed for Angular repos (policy/typescript/overrides.rego's
+# `is_angular_repo` bypass) so consumers running `ng lint` still pass — but the
+# template no longer withholds biome.json from Angular consumers who legitimately
+# want Biome alongside ESLint (e.g. super-productivity's `scripts.lint: "biome
+# check ."`). Consumers who don't want Biome can delete biome.json; `_skip_if_exists`
+# keeps it from coming back on `copier update`.
+"npm:@biomejs/biome"       = "2.5.2"
+# TS archetypes: tasks delegate to package.json scripts (the consumer owns
+# package.json per Pattern A/D / _skip_if_exists). The audit Layer B JSON
+# Schema enforces that lint, test, e2e exist in scripts; this contract makes
+# `mise run <task>` the uniform invocation across all archetypes regardless
+# of how the underlying TS toolchain is wired.
+[tasks.lint]
+description = "Delegates to scripts.lint in package.json"
+run = ["npm run lint"]
+
+[tasks.typecheck]
+# Strict TS type-check (§ type-checking floor). Delegates to scripts.typecheck
+# in package.json (`tsc --noEmit`, or `astro check` for astro repos) — added by
+# the ensure-pkg-typecheck-script.sh _tasks hook and required by
+# package-json.schema.json for ts-* archetypes. The rendered standards.yml
+# `typecheck` job invokes `astro check` directly when astro.config.* is present
+# and otherwise runs `npm run typecheck` (this task's delegate). [tasks.lint]
+# above only runs `npm run lint`, which historically did NOT run tsc — this is
+# the task that makes `mise run typecheck` a uniform local invocation matching
+# the CI gate.
+# --if-present: this task renders for EVERY ts-* archetype, but the
+# ensure-pkg-typecheck-script.sh hook (and package-json.schema.json) only add/
+# require scripts.typecheck when `typescript` is an actual (dev)dependency. A
+# JS-only ts-* repo (fleet-live: the claude-statusline fork) otherwise
+# hard-fails the typecheck gate on `npm error Missing script: "typecheck"`
+# with nothing to typecheck. Layer B still requires the script wherever
+# typescript IS a dependency, so this cannot mask a missing check there.
+description = "Delegates to scripts.typecheck in package.json (tsc --noEmit; `astro check` for astro repos)"
+run = ["npm run --if-present typecheck"]
+
+[tasks.test]
+description = "Delegates to scripts.test in package.json"
+run = ["npm run test"]
+
+[tasks.build]
+description = "Delegates to scripts.build in package.json"
+run = ["npm run build"]
