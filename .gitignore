@@ -20,5 +20,5 @@ build/
 coverage/
 reports/
 
-# Per-archetype
+# Per-stack
 # <<< rubio-standards <<<
