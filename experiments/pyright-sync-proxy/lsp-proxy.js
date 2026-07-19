@@ -42,12 +42,10 @@
 //
 // Node stdlib only, per repo convention.
 
-"use strict";
-
-const { spawn } = require("child_process");
-const { readFileSync, statSync } = require("fs");
-const { resolve } = require("path");
-const { fileURLToPath } = require("url");
+const { spawn } = require("node:child_process");
+const { readFileSync, statSync } = require("node:fs");
+const { resolve } = require("node:path");
+const { fileURLToPath } = require("node:url");
 
 // -- Config ------------------------------------------------------------------
 
@@ -165,7 +163,11 @@ function drainClient() {
     buffer = buffer.subarray(messageEnd);
 
     let msg = null;
-    try { msg = JSON.parse(bodyBytes.toString("utf8")); } catch { /* forward raw */ }
+    try {
+      msg = JSON.parse(bodyBytes.toString("utf8"));
+    } catch {
+      /* forward raw */
+    }
     if (msg) observe(msg);
 
     // Always forward the client's original bytes unchanged.
@@ -209,7 +211,7 @@ function observe(msg) {
           // Incremental edit — buffer no longer reconstructable from taps.
           st.unsyncable = true;
           process.stderr.write(
-            `[pyright-sync] incremental didChange for ${td.uri}; disk-sync disabled for it\n`
+            `[pyright-sync] incremental didChange for ${td.uri}; disk-sync disabled for it\n`,
           );
         }
       }
@@ -237,7 +239,10 @@ function pollOpenFiles() {
   for (const [uri, st] of open) {
     if (st.unsyncable || !st.path) continue;
     const cur = statOf(st.path);
-    if (!cur) { st.pending = false; continue; }
+    if (!cur) {
+      st.pending = false;
+      continue;
+    }
 
     if (!sameStat(cur, st.stat)) {
       // Disk changed since last poll — record and wait one tick for it to settle.
@@ -250,7 +255,11 @@ function pollOpenFiles() {
     // Stable for a full tick — safe to read and (maybe) inject.
     st.pending = false;
     let text;
-    try { text = readFileSync(st.path, "utf8"); } catch { continue; }
+    try {
+      text = readFileSync(st.path, "utf8");
+    } catch {
+      continue;
+    }
     if (text === st.text) continue; // content-identical (e.g. touch) — no-op
 
     st.version += 1;

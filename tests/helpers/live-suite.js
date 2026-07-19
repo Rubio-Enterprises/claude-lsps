@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-"use strict";
 
-const fs = require("fs");
-const path = require("path");
-const { pathToFileURL } = require("url");
+const fs = require("node:fs");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const { requireEnv, newWorkdir, dispatch } = require("./lsp-test-utils.js");
 const { LspClient, parseLspJson, wireLanguageIdFor } = require("./lsp-client.js");
@@ -31,9 +30,19 @@ function prepWorkdir(tag, srcDir, includes) {
 // happens.
 async function runStandard(spec, setProxy) {
   const {
-    pluginName, fixturesSubdir, includes, primaryFile,
-    expectZero, expectMatch, scenarioTag, extraEnv,
-    diagMode, diagTimeoutMs, diagQuietMs, viaWarmup, requirePublish,
+    pluginName,
+    fixturesSubdir,
+    includes,
+    primaryFile,
+    expectZero,
+    expectMatch,
+    scenarioTag,
+    extraEnv,
+    diagMode,
+    diagTimeoutMs,
+    diagQuietMs,
+    viaWarmup,
+    requirePublish,
   } = spec;
 
   const dir = prepWorkdir(scenarioTag, path.join(FIXTURES, fixturesSubdir), includes);
@@ -43,10 +52,13 @@ async function runStandard(spec, setProxy) {
   const pluginDir = path.join(ROOT_DIR, pluginName);
   const parsed = parseLspJson(pluginDir);
   const client = new LspClient({
-    command: parsed.command, args: parsed.args, cwd: dir, env: extraEnv || {},
+    command: parsed.command,
+    args: parsed.args,
+    cwd: dir,
+    env: extraEnv || {},
   });
   await client.start();
-  setProxy(client);  // dispatch() reads .child for SIGTERM-with-grace cleanup
+  setProxy(client); // dispatch() reads .child for SIGTERM-with-grace cleanup
 
   let diags = [];
   let aliveAfterWait = false;
@@ -67,7 +79,9 @@ async function runStandard(spec, setProxy) {
     aliveAfterWait = client.isAlive();
     stderrSnapshot = client.stderr();
   } finally {
-    try { await client.shutdown(); } catch {}
+    try {
+      await client.shutdown();
+    } catch {}
   }
 
   // Servers that never publish for clean files (cue lsp, vtsls/tsserver) use
@@ -77,7 +91,7 @@ async function runStandard(spec, setProxy) {
   if (requirePublish === false && !aliveAfterWait) {
     throw new Error(
       `server exited before the diagnostics window elapsed (crash?)` +
-      (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : "")
+        (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : ""),
     );
   }
 
@@ -85,8 +99,11 @@ async function runStandard(spec, setProxy) {
     if (diags.length !== 0) {
       throw new Error(
         `expected 0 diagnostics, got ${diags.length}:\n` +
-        diags.slice(0, 5).map((d) => `  - ${d.message}`).join("\n") +
-        (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : "")
+          diags
+            .slice(0, 5)
+            .map((d) => `  - ${d.message}`)
+            .join("\n") +
+          (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : ""),
       );
     }
   }
@@ -94,14 +111,17 @@ async function runStandard(spec, setProxy) {
     if (diags.length === 0) {
       throw new Error(
         `expected ≥1 diagnostic matching ${expectMatch}, got 0` +
-        (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : "")
+          (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : ""),
       );
     }
     const messages = diags.map((d) => d.message || "").join(" | ");
     if (!expectMatch.test(messages)) {
       throw new Error(
         `expected diagnostic to match ${expectMatch}, got:\n` +
-        diags.slice(0, 5).map((d) => `  - ${d.message}`).join("\n")
+          diags
+            .slice(0, 5)
+            .map((d) => `  - ${d.message}`)
+            .join("\n"),
       );
     }
   }
@@ -112,44 +132,60 @@ async function runStandard(spec, setProxy) {
 const scenarios = {
   // bash-language-server uses tree-sitter + shellcheck. Syntax errors are
   // surfaced via push diagnostics.
-  "bash-clean": (sp) => runStandard({
-    pluginName: "bash-language-server",
-    fixturesSubdir: "bash",
-    includes: ["clean.sh"],
-    primaryFile: "clean.sh",
-    expectZero: true,
-    scenarioTag: "bash-clean",
-  }, sp),
-  "bash-broken": (sp) => runStandard({
-    pluginName: "bash-language-server",
-    fixturesSubdir: "bash",
-    includes: ["broken.sh"],
-    primaryFile: "broken.sh",
-    expectMatch: /syntax|expected|parse|unexpected/i,
-    scenarioTag: "bash-broken",
-  }, sp),
+  "bash-clean": (sp) =>
+    runStandard(
+      {
+        pluginName: "bash-language-server",
+        fixturesSubdir: "bash",
+        includes: ["clean.sh"],
+        primaryFile: "clean.sh",
+        expectZero: true,
+        scenarioTag: "bash-clean",
+      },
+      sp,
+    ),
+  "bash-broken": (sp) =>
+    runStandard(
+      {
+        pluginName: "bash-language-server",
+        fixturesSubdir: "bash",
+        includes: ["broken.sh"],
+        primaryFile: "broken.sh",
+        expectMatch: /syntax|expected|parse|unexpected/i,
+        scenarioTag: "bash-broken",
+      },
+      sp,
+    ),
 
   // pyright does NOT advertise diagnosticProvider (no pull support); it pushes
   // publishDiagnostics, including an empty array for clean files — so
   // pyright-clean is a real assertion (waits for the empty publish).
-  "pyright-clean": (sp) => runStandard({
-    pluginName: "pyright",
-    fixturesSubdir: "pyright",
-    includes: ["clean.py", "pyrightconfig.json"],
-    primaryFile: "clean.py",
-    expectZero: true,
-    scenarioTag: "pyright-clean",
-    diagTimeoutMs: 15000,
-  }, sp),
-  "pyright-broken": (sp) => runStandard({
-    pluginName: "pyright",
-    fixturesSubdir: "pyright",
-    includes: ["broken.py", "pyrightconfig.json"],
-    primaryFile: "broken.py",
-    expectMatch: /not assignable|incompatible|assignment/i,
-    scenarioTag: "pyright-broken",
-    diagTimeoutMs: 15000,
-  }, sp),
+  "pyright-clean": (sp) =>
+    runStandard(
+      {
+        pluginName: "pyright",
+        fixturesSubdir: "pyright",
+        includes: ["clean.py", "pyrightconfig.json"],
+        primaryFile: "clean.py",
+        expectZero: true,
+        scenarioTag: "pyright-clean",
+        diagTimeoutMs: 15000,
+      },
+      sp,
+    ),
+  "pyright-broken": (sp) =>
+    runStandard(
+      {
+        pluginName: "pyright",
+        fixturesSubdir: "pyright",
+        includes: ["broken.py", "pyrightconfig.json"],
+        primaryFile: "broken.py",
+        expectMatch: /not assignable|incompatible|assignment/i,
+        scenarioTag: "pyright-broken",
+        diagTimeoutMs: 15000,
+      },
+      sp,
+    ),
 
   // pyright-refresh: the stale-diagnostics reproduction. pyright is push-only
   // (no diagnosticProvider), so the ONLY way it re-analyzes an open document is
@@ -159,11 +195,10 @@ const scenarios = {
   // "stale errors after a fix" is the client failing to send didChange, not a
   // pyright bug. Also prints [perf] latencies for open→diag and change→refresh.
   "pyright-refresh": async (setProxy) => {
-    const dir = prepWorkdir(
-      "pyright-refresh",
-      path.join(FIXTURES, "pyright"),
-      ["broken.py", "pyrightconfig.json"]
-    );
+    const dir = prepWorkdir("pyright-refresh", path.join(FIXTURES, "pyright"), [
+      "broken.py",
+      "pyrightconfig.json",
+    ]);
     const fileUri = pathToFileURL(path.join(dir, "broken.py")).href;
     const rootUri = pathToFileURL(dir).href;
 
@@ -185,19 +220,26 @@ const scenarios = {
         text: brokenText,
       });
       const errDiags = await client.waitForDiagnostics({
-        uri: fileUri, mode: "push", timeout: 15000,
+        uri: fileUri,
+        mode: "push",
+        timeout: 15000,
       });
       const openLatency = Date.now() - openAt;
       if (errDiags.length === 0) {
         throw new Error(
           "expected a type error on open, got 0 diagnostics" +
-          `\n--- server stderr ---\n${client.stderr().slice(-1500)}`
+            `\n--- server stderr ---\n${client.stderr().slice(-1500)}`,
         );
       }
-      if (!/not assignable|incompatible|assignment/i.test(errDiags.map((d) => d.message).join(" | "))) {
+      if (
+        !/not assignable|incompatible|assignment/i.test(errDiags.map((d) => d.message).join(" | "))
+      ) {
         throw new Error(
           "diagnostics on open did not match the expected type error:\n" +
-          errDiags.slice(0, 5).map((d) => `  - ${d.message}`).join("\n")
+            errDiags
+              .slice(0, 5)
+              .map((d) => `  - ${d.message}`)
+              .join("\n"),
         );
       }
 
@@ -208,19 +250,27 @@ const scenarios = {
       const changeAt = Date.now();
       client.didChange({ uri: fileUri, text: "x: int = 5\nprint(x)\n" });
       const fixedDiags = await client.waitForDiagnostics({
-        uri: fileUri, mode: "push", timeout: 15000, afterSeq: baseSeq,
+        uri: fileUri,
+        mode: "push",
+        timeout: 15000,
+        afterSeq: baseSeq,
       });
       const refreshLatency = Date.now() - changeAt;
       if (fixedDiags.length !== 0) {
         throw new Error(
           `expected diagnostics to clear after the fix, still got ${fixedDiags.length}:\n` +
-          fixedDiags.slice(0, 5).map((d) => `  - ${d.message}`).join("\n")
+            fixedDiags
+              .slice(0, 5)
+              .map((d) => `  - ${d.message}`)
+              .join("\n"),
         );
       }
 
       console.log(`[perf] pyright open→diag=${openLatency}ms change→refresh=${refreshLatency}ms`);
     } finally {
-      try { await client.shutdown(); } catch {}
+      try {
+        await client.shutdown();
+      } catch {}
     }
   },
 
@@ -231,11 +281,10 @@ const scenarios = {
   // an empty set. Without the proxy this stays stale forever (proven by
   // experiments/lsp-wiretap/FINDINGS.md).
   "pyright-disksync": async (setProxy) => {
-    const dir = prepWorkdir(
-      "pyright-disksync",
-      path.join(FIXTURES, "pyright"),
-      ["broken.py", "pyrightconfig.json"]
-    );
+    const dir = prepWorkdir("pyright-disksync", path.join(FIXTURES, "pyright"), [
+      "broken.py",
+      "pyrightconfig.json",
+    ]);
     const filePath = path.join(dir, "broken.py");
     const fileUri = pathToFileURL(filePath).href;
     const rootUri = pathToFileURL(dir).href;
@@ -254,12 +303,14 @@ const scenarios = {
         text: fs.readFileSync(filePath, "utf8"),
       });
       const errDiags = await client.waitForDiagnostics({
-        uri: fileUri, mode: "push", timeout: 15000,
+        uri: fileUri,
+        mode: "push",
+        timeout: 15000,
       });
       if (errDiags.length === 0) {
         throw new Error(
           "expected a type error on open, got 0 diagnostics" +
-          `\n--- stderr ---\n${client.stderr().slice(-1500)}`
+            `\n--- stderr ---\n${client.stderr().slice(-1500)}`,
         );
       }
 
@@ -269,23 +320,30 @@ const scenarios = {
       fs.writeFileSync(filePath, "x: int = 5\nprint(x)\n");
 
       const refreshed = await client.waitForPublish({
-        uri: fileUri, afterSeq: baseSeq, timeout: 15000,
+        uri: fileUri,
+        afterSeq: baseSeq,
+        timeout: 15000,
       });
       if (!refreshed) {
         throw new Error(
           "no re-publish after disk-only fix — disk-sync did not inject" +
-          `\n--- stderr ---\n${client.stderr().slice(-1500)}`
+            `\n--- stderr ---\n${client.stderr().slice(-1500)}`,
         );
       }
       if (refreshed.diagnostics.length !== 0) {
         throw new Error(
           `expected diagnostics to clear after disk-only fix, got ${refreshed.diagnostics.length}:\n` +
-          refreshed.diagnostics.slice(0, 5).map((d) => `  - ${d.message}`).join("\n")
+            refreshed.diagnostics
+              .slice(0, 5)
+              .map((d) => `  - ${d.message}`)
+              .join("\n"),
         );
       }
       console.log(`[perf] pyright disk-fix→refresh=${refreshed.at - fixAt}ms`);
     } finally {
-      try { await client.shutdown(); } catch {}
+      try {
+        await client.shutdown();
+      } catch {}
     }
   },
 
@@ -295,25 +353,33 @@ const scenarios = {
   // requirePublish: false (no publish is expected) and relies on the
   // runStandard liveness check + the vtsls-broken scenario to prove the server
   // is actually analyzing. Needs tsconfig.json for the project to load.
-  "vtsls-clean": (sp) => runStandard({
-    pluginName: "vtsls",
-    fixturesSubdir: "vtsls",
-    includes: ["clean.ts", "tsconfig.json"],
-    primaryFile: "clean.ts",
-    expectZero: true,
-    scenarioTag: "vtsls-clean",
-    requirePublish: false,
-    diagTimeoutMs: 8000,
-  }, sp),
-  "vtsls-broken": (sp) => runStandard({
-    pluginName: "vtsls",
-    fixturesSubdir: "vtsls",
-    includes: ["broken.ts", "tsconfig.json"],
-    primaryFile: "broken.ts",
-    expectMatch: /not assignable|Type 'string'/i,
-    scenarioTag: "vtsls-broken",
-    diagTimeoutMs: 15000,
-  }, sp),
+  "vtsls-clean": (sp) =>
+    runStandard(
+      {
+        pluginName: "vtsls",
+        fixturesSubdir: "vtsls",
+        includes: ["clean.ts", "tsconfig.json"],
+        primaryFile: "clean.ts",
+        expectZero: true,
+        scenarioTag: "vtsls-clean",
+        requirePublish: false,
+        diagTimeoutMs: 8000,
+      },
+      sp,
+    ),
+  "vtsls-broken": (sp) =>
+    runStandard(
+      {
+        pluginName: "vtsls",
+        fixturesSubdir: "vtsls",
+        includes: ["broken.ts", "tsconfig.json"],
+        primaryFile: "broken.ts",
+        expectMatch: /not assignable|Type 'string'/i,
+        scenarioTag: "vtsls-broken",
+        diagTimeoutMs: 15000,
+      },
+      sp,
+    ),
 
   // cue-lsp: validates that `cue lsp serve` spawns, accepts the handshake,
   // accepts didOpen, and doesn't crash. As of cue v0.16.0, `cue lsp serve`
@@ -321,40 +387,52 @@ const scenarios = {
   // so we set requirePublish: false to let waitForDiagnostics return [] on
   // timeout without throwing. Re-add a `cue-broken` scenario (and drop the
   // requirePublish override) when upstream gains diagnostic support.
-  "cue-clean": (sp) => runStandard({
-    pluginName: "cue-lsp",
-    fixturesSubdir: "cue",
-    includes: ["clean.cue", "cue.mod"],
-    primaryFile: "clean.cue",
-    expectZero: true,
-    scenarioTag: "cue-clean",
-    requirePublish: false,
-  }, sp),
+  "cue-clean": (sp) =>
+    runStandard(
+      {
+        pluginName: "cue-lsp",
+        fixturesSubdir: "cue",
+        includes: ["clean.cue", "cue.mod"],
+        primaryFile: "clean.cue",
+        expectZero: true,
+        scenarioTag: "cue-clean",
+        requirePublish: false,
+      },
+      sp,
+    ),
 
   // ansible-language-server: through the proxy. Push diagnostics.
-  "ansible-clean": (sp) => runStandard({
-    pluginName: "ansible-language-server",
-    fixturesSubdir: "ansible",
-    includes: ["clean.yml", "ansible.cfg"],
-    primaryFile: "clean.yml",
-    expectZero: true,
-    scenarioTag: "ansible-clean",
-    extraEnv: { ANSIBLE_NOCOWS: "1" },
-    diagTimeoutMs: 15000,
-  }, sp),
+  "ansible-clean": (sp) =>
+    runStandard(
+      {
+        pluginName: "ansible-language-server",
+        fixturesSubdir: "ansible",
+        includes: ["clean.yml", "ansible.cfg"],
+        primaryFile: "clean.yml",
+        expectZero: true,
+        scenarioTag: "ansible-clean",
+        extraEnv: { ANSIBLE_NOCOWS: "1" },
+        diagTimeoutMs: 15000,
+      },
+      sp,
+    ),
   // ansible-language-server flags semantic errors only when ansible-lint is
   // installed; without it, the LS still catches raw YAML syntax errors via
   // yaml-language-server integration. broken.yml has an unclosed flow seq.
-  "ansible-broken": (sp) => runStandard({
-    pluginName: "ansible-language-server",
-    fixturesSubdir: "ansible",
-    includes: ["broken.yml", "ansible.cfg"],
-    primaryFile: "broken.yml",
-    expectMatch: /flow|sequence|indent|expected|sufficiently/i,
-    scenarioTag: "ansible-broken",
-    extraEnv: { ANSIBLE_NOCOWS: "1" },
-    diagTimeoutMs: 15000,
-  }, sp),
+  "ansible-broken": (sp) =>
+    runStandard(
+      {
+        pluginName: "ansible-language-server",
+        fixturesSubdir: "ansible",
+        includes: ["broken.yml", "ansible.cfg"],
+        primaryFile: "broken.yml",
+        expectMatch: /flow|sequence|indent|expected|sufficiently/i,
+        scenarioTag: "ansible-broken",
+        extraEnv: { ANSIBLE_NOCOWS: "1" },
+        diagTimeoutMs: 15000,
+      },
+      sp,
+    ),
 
   // regal-lsp: through the proxy. The proxy's warmup walks the workspace and
   // sends didOpen for every .rego file, so we MUST NOT send our own didOpen
@@ -366,40 +444,48 @@ const scenarios = {
   // later with the configured rule levels applied. We need a quiet period
   // ≥ that gap so the second publish overwrites the first; 2000ms gives
   // comfortable headroom.
-  "regal-clean": (sp) => runStandard({
-    pluginName: "regal-lsp",
-    fixturesSubdir: "regal",
-    includes: ["clean.rego", ".regal"],
-    primaryFile: "clean.rego",
-    expectZero: true,
-    scenarioTag: "regal-clean",
-    viaWarmup: true,
-    diagMode: "push",
-    diagQuietMs: 2000,
-    diagTimeoutMs: 12000,
-  }, sp),
-  "regal-broken": (sp) => runStandard({
-    pluginName: "regal-lsp",
-    fixturesSubdir: "regal",
-    includes: ["broken.rego", ".regal"],
-    primaryFile: "broken.rego",
-    expectMatch: /prefer.*==|equality|assignment|deprecated/i,
-    scenarioTag: "regal-broken",
-    viaWarmup: true,
-    diagMode: "push",
-    diagQuietMs: 2000,
-    diagTimeoutMs: 12000,
-  }, sp),
+  "regal-clean": (sp) =>
+    runStandard(
+      {
+        pluginName: "regal-lsp",
+        fixturesSubdir: "regal",
+        includes: ["clean.rego", ".regal"],
+        primaryFile: "clean.rego",
+        expectZero: true,
+        scenarioTag: "regal-clean",
+        viaWarmup: true,
+        diagMode: "push",
+        diagQuietMs: 2000,
+        diagTimeoutMs: 12000,
+      },
+      sp,
+    ),
+  "regal-broken": (sp) =>
+    runStandard(
+      {
+        pluginName: "regal-lsp",
+        fixturesSubdir: "regal",
+        includes: ["broken.rego", ".regal"],
+        primaryFile: "broken.rego",
+        expectMatch: /prefer.*==|equality|assignment|deprecated/i,
+        scenarioTag: "regal-broken",
+        viaWarmup: true,
+        diagMode: "push",
+        diagQuietMs: 2000,
+        diagTimeoutMs: 12000,
+      },
+      sp,
+    ),
 
   // regal warmup: workspace contains BOTH files, but the client never sends
   // didOpen. If diagnostics arrive for broken.rego, it can only be because the
   // proxy's warmup walked the workspace and sent didOpen on our behalf.
   "regal-warmup": async (setProxy) => {
-    const dir = prepWorkdir(
-      "regal-warmup",
-      path.join(FIXTURES, "regal"),
-      ["clean.rego", "broken.rego", ".regal"]
-    );
+    const dir = prepWorkdir("regal-warmup", path.join(FIXTURES, "regal"), [
+      "clean.rego",
+      "broken.rego",
+      ".regal",
+    ]);
     const brokenUri = pathToFileURL(path.join(dir, "broken.rego")).href;
     const rootUri = pathToFileURL(dir).href;
 
@@ -422,20 +508,26 @@ const scenarios = {
       });
       stderrSnapshot = client.stderr();
     } finally {
-      try { await client.shutdown(); } catch {}
+      try {
+        await client.shutdown();
+      } catch {}
     }
 
     if (diags.length === 0) {
       throw new Error(
         "warmup did not produce diagnostics for broken.rego;\n" +
-        "proxy stderr (last 1500 chars):\n" + stderrSnapshot.slice(-1500)
+          "proxy stderr (last 1500 chars):\n" +
+          stderrSnapshot.slice(-1500),
       );
     }
     const messages = diags.map((d) => d.message || "").join(" | ");
     if (!/prefer.*==|equality|use-assignment|deprecated/i.test(messages)) {
       throw new Error(
         `warmup produced diagnostics but none matched expected pattern; got:\n` +
-        diags.slice(0, 5).map((d) => `  - ${d.message}`).join("\n")
+          diags
+            .slice(0, 5)
+            .map((d) => `  - ${d.message}`)
+            .join("\n"),
       );
     }
   },

@@ -1,8 +1,6 @@
-"use strict";
-
-const { spawn } = require("child_process");
-const fs = require("fs");
-const path = require("path");
+const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const HEADER_DELIM = Buffer.from("\r\n\r\n");
 const CL_RE = /^content-length:\s*(\d+)\s*$/im;
@@ -74,10 +72,7 @@ function newWorkdir(rootTmp, tag) {
 
 function readJsonLines(file) {
   if (!fs.existsSync(file)) return [];
-  return fs.readFileSync(file, "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map(JSON.parse);
+  return fs.readFileSync(file, "utf8").split("\n").filter(Boolean).map(JSON.parse);
 }
 
 function assert(cond, msg) {
@@ -120,17 +115,23 @@ function spawnProxy({ proxyJs, config, configPath, stubEnv = {} }) {
 // coverage data on every scenario that throws and silently lower the gate.
 async function _killGracefully(child, graceMs = 750) {
   if (!child || child.killed) return;
-  try { child.kill("SIGTERM"); } catch {}
+  try {
+    child.kill("SIGTERM");
+  } catch {}
   const exited = new Promise((resolve) => {
     if (child.exitCode !== null) return resolve();
     child.once("exit", () => resolve());
   });
   let timer;
-  const timeout = new Promise((resolve) => { timer = setTimeout(resolve, graceMs); });
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(resolve, graceMs);
+  });
   await Promise.race([exited, timeout]);
   clearTimeout(timer);
   if (child.exitCode === null && !child.killed) {
-    try { child.kill("SIGKILL"); } catch {}
+    try {
+      child.kill("SIGKILL");
+    } catch {}
   }
 }
 
@@ -143,7 +144,9 @@ function dispatch(scenarios, name) {
   // Track every proxy a scenario spawns (some may chain multiple) so cleanup
   // can't leak a stale child.
   const activeProxies = [];
-  const setProxy = (p) => { activeProxies.push(p); };
+  const setProxy = (p) => {
+    activeProxies.push(p);
+  };
   (async () => {
     let exitCode = 0;
     try {

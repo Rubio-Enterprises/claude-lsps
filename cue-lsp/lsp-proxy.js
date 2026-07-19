@@ -60,12 +60,10 @@
 //
 // Node stdlib only, per repo convention.
 
-"use strict";
-
-const { spawn } = require("child_process");
-const { readFileSync, readdirSync, statSync } = require("fs");
-const { resolve, join, extname } = require("path");
-const { fileURLToPath, pathToFileURL } = require("url");
+const { spawn } = require("node:child_process");
+const { readFileSync, readdirSync, statSync } = require("node:fs");
+const { resolve, join, extname } = require("node:path");
+const { fileURLToPath, pathToFileURL } = require("node:url");
 
 // ---------------------------------------------------------------------------
 // Load configuration
@@ -95,9 +93,10 @@ const SERVER_CMD = config.server[0];
 const SERVER_ARGS = config.server.slice(1);
 const BLOCKED_METHODS = new Set(config.blocked || []);
 const WARMUP = config.warmup || null;
-const SYNC = config.sync === false
-  ? null
-  : { pollMs: Math.max(50, (config.sync && config.sync.pollMs) || 300) };
+const SYNC =
+  config.sync === false
+    ? null
+    : { pollMs: Math.max(50, (config.sync && config.sync.pollMs) || 300) };
 const LOG_PREFIX = `[lsp-proxy:${SERVER_CMD}]`;
 
 // ---------------------------------------------------------------------------
@@ -160,8 +159,14 @@ function statOf(p) {
 }
 
 function sameStat(a, b) {
-  return a && b && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs
-    && a.size === b.size && a.ino === b.ino;
+  return (
+    a &&
+    b &&
+    a.mtimeMs === b.mtimeMs &&
+    a.ctimeMs === b.ctimeMs &&
+    a.size === b.size &&
+    a.ino === b.ino
+  );
 }
 
 // Tracked even when disk-sync is off: openDocs doubles as the warmup dedup
@@ -213,13 +218,13 @@ function reconcileClientChange(msg, rawMessage) {
     if (st.unsyncable) {
       st.unsyncable = false;
       process.stderr.write(
-        `${LOG_PREFIX} disk-sync re-enabled for ${td.uri} (full-text didChange)\n`
+        `${LOG_PREFIX} disk-sync re-enabled for ${td.uri} (full-text didChange)\n`,
       );
     }
   } else if (sawIncremental && !st.unsyncable) {
     st.unsyncable = true;
     process.stderr.write(
-      `${LOG_PREFIX} incremental didChange for ${td.uri}; disk-sync disabled for it\n`
+      `${LOG_PREFIX} incremental didChange for ${td.uri}; disk-sync disabled for it\n`,
     );
   }
 
@@ -232,17 +237,23 @@ function reconcileClientChange(msg, rawMessage) {
     st.pending = false;
     st.version = Math.max(typeof td.version === "number" ? td.version : 0, st.version + 1);
     st.stat = st.path ? statOf(st.path) : null;
-    writeMessage(child.stdin, JSON.stringify({
-      jsonrpc: "2.0",
-      method: "textDocument/didOpen",
-      params: {
-        textDocument: {
-          uri: td.uri, languageId: st.languageId, version: st.version, text: knownText,
+    writeMessage(
+      child.stdin,
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "textDocument/didOpen",
+        params: {
+          textDocument: {
+            uri: td.uri,
+            languageId: st.languageId,
+            version: st.version,
+            text: knownText,
+          },
         },
-      },
-    }));
+      }),
+    );
     process.stderr.write(
-      `${LOG_PREFIX} disk-sync: reopened ${td.uri} v${st.version} (client edit after deletion)\n`
+      `${LOG_PREFIX} disk-sync: reopened ${td.uri} v${st.version} (client edit after deletion)\n`,
     );
     return null;
   }
@@ -263,7 +274,7 @@ function reconcileClientChange(msg, rawMessage) {
   };
   const body = Buffer.from(JSON.stringify(rebased));
   process.stderr.write(
-    `${LOG_PREFIX} disk-sync: rebased client didChange ${td.uri} v${clientV} -> v${st.version}\n`
+    `${LOG_PREFIX} disk-sync: rebased client didChange ${td.uri} v${clientV} -> v${st.version}\n`,
   );
   return Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`), body]);
 }
@@ -288,17 +299,26 @@ function pollOpenDocs() {
     // if the file reappears (branch switched back), the reopen path below
     // brings it back.
     if (!cur) {
-      if (st.closed) { st.pending = false; continue; }
-      if (!st.missing) { st.missing = true; continue; } // first tick: arm
+      if (st.closed) {
+        st.pending = false;
+        continue;
+      }
+      if (!st.missing) {
+        st.missing = true;
+        continue;
+      } // first tick: arm
       st.missing = false;
       st.pending = false;
       st.closed = true;
       st.stat = null;
-      writeMessage(child.stdin, JSON.stringify({
-        jsonrpc: "2.0",
-        method: "textDocument/didClose",
-        params: { textDocument: { uri } },
-      }));
+      writeMessage(
+        child.stdin,
+        JSON.stringify({
+          jsonrpc: "2.0",
+          method: "textDocument/didClose",
+          params: { textDocument: { uri } },
+        }),
+      );
       process.stderr.write(`${LOG_PREFIX} disk-sync: closed ${uri} (file deleted)\n`);
       continue;
     }
@@ -315,21 +335,30 @@ function pollOpenDocs() {
     // Stable for a full tick — safe to read and (maybe) inject.
     st.pending = false;
     let text;
-    try { text = readFileSync(st.path, "utf8"); } catch { continue; }
+    try {
+      text = readFileSync(st.path, "utf8");
+    } catch {
+      continue;
+    }
 
     // Reappearance of a proxy-closed document: reopen with disk content.
     if (st.closed) {
       st.closed = false;
       st.version += 1;
       st.text = text;
-      writeMessage(child.stdin, JSON.stringify({
-        jsonrpc: "2.0",
-        method: "textDocument/didOpen",
-        params: {
-          textDocument: { uri, languageId: st.languageId, version: st.version, text },
-        },
-      }));
-      process.stderr.write(`${LOG_PREFIX} disk-sync: reopened ${uri} v${st.version} (file reappeared)\n`);
+      writeMessage(
+        child.stdin,
+        JSON.stringify({
+          jsonrpc: "2.0",
+          method: "textDocument/didOpen",
+          params: {
+            textDocument: { uri, languageId: st.languageId, version: st.version, text },
+          },
+        }),
+      );
+      process.stderr.write(
+        `${LOG_PREFIX} disk-sync: reopened ${uri} v${st.version} (file reappeared)\n`,
+      );
       continue;
     }
 
@@ -337,19 +366,25 @@ function pollOpenDocs() {
 
     st.version += 1;
     st.text = text;
-    writeMessage(child.stdin, JSON.stringify({
-      jsonrpc: "2.0",
-      method: "textDocument/didChange",
-      params: {
-        textDocument: { uri, version: st.version },
-        contentChanges: [{ text }],
-      },
-    }));
-    writeMessage(child.stdin, JSON.stringify({
-      jsonrpc: "2.0",
-      method: "textDocument/didSave",
-      params: { textDocument: { uri } },
-    }));
+    writeMessage(
+      child.stdin,
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "textDocument/didChange",
+        params: {
+          textDocument: { uri, version: st.version },
+          contentChanges: [{ text }],
+        },
+      }),
+    );
+    writeMessage(
+      child.stdin,
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "textDocument/didSave",
+        params: { textDocument: { uri } },
+      }),
+    );
     process.stderr.write(`${LOG_PREFIX} disk-sync: injected didChange ${uri} v${st.version}\n`);
   }
 }
@@ -537,11 +572,7 @@ function drainServerBuffer() {
     }
 
     // Auto-respond to server-initiated requests the client can't handle.
-    if (
-      msg.id !== undefined &&
-      msg.method &&
-      SERVER_REQUESTS_AUTO_RESPOND.has(msg.method)
-    ) {
+    if (msg.id !== undefined && msg.method && SERVER_REQUESTS_AUTO_RESPOND.has(msg.method)) {
       const ack = JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: autoAckResult(msg) });
       writeMessage(child.stdin, ack);
       continue;
@@ -646,16 +677,19 @@ function drainBuffer() {
         st.pending = false;
         st.missing = false;
         st.unsyncable = false; // full text known again — buffer reconstructable
-        writeMessage(child.stdin, JSON.stringify({
-          jsonrpc: "2.0",
-          method: "textDocument/didChange",
-          params: {
-            textDocument: { uri: td.uri, version: st.version },
-            contentChanges: [{ text: st.text }],
-          },
-        }));
+        writeMessage(
+          child.stdin,
+          JSON.stringify({
+            jsonrpc: "2.0",
+            method: "textDocument/didChange",
+            params: {
+              textDocument: { uri: td.uri, version: st.version },
+              contentChanges: [{ text: st.text }],
+            },
+          }),
+        );
         process.stderr.write(
-          `${LOG_PREFIX} translated client didOpen -> didChange for already-open ${td.uri} v${st.version}\n`
+          `${LOG_PREFIX} translated client didOpen -> didChange for already-open ${td.uri} v${st.version}\n`,
         );
         outFrame = null;
       } else {
@@ -677,9 +711,7 @@ function drainBuffer() {
       // Then trigger warmup asynchronously (setImmediate lets the event loop
       // flush the initialized notification to the server before we send
       // the didOpen burst).
-      const rootDir = rootUri.startsWith("file://")
-        ? fileURLToPath(rootUri)
-        : rootUri;
+      const rootDir = rootUri.startsWith("file://") ? fileURLToPath(rootUri) : rootUri;
       setImmediate(() => warmupServer(rootDir));
       continue;
     }

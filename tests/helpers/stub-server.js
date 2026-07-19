@@ -11,10 +11,8 @@
 //   STUB_EXIT_ON_METHOD method that causes the stub to exit with STUB_EXIT_CODE
 //   STUB_EXIT_CODE      numeric exit code (default 0)
 
-"use strict";
-
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const LOG_DIR = process.env.STUB_LOG_DIR || "";
 const AUTO_INIT = process.env.STUB_AUTO_INIT === "1";
@@ -93,11 +91,13 @@ function drain() {
     appendJson(msg);
 
     if (AUTO_INIT && msg.method === "initialize" && msg.id !== undefined) {
-      process.stdout.write(frame({
-        jsonrpc: "2.0",
-        id: msg.id,
-        result: { capabilities: {} },
-      }));
+      process.stdout.write(
+        frame({
+          jsonrpc: "2.0",
+          id: msg.id,
+          result: { capabilities: {} },
+        }),
+      );
     }
     if (HOVER_RESULT && msg.method === "textDocument/hover" && msg.id !== undefined) {
       const f = frame({
@@ -125,7 +125,9 @@ function drain() {
 for (const sig of ["SIGTERM", "SIGINT"]) {
   process.on(sig, () => {
     if (SIGNAL_LOG) {
-      try { fs.appendFileSync(SIGNAL_LOG, sig + "\n"); } catch {}
+      try {
+        fs.appendFileSync(SIGNAL_LOG, sig + "\n");
+      } catch {}
     }
     process.exit(sig === "SIGINT" ? 130 : 143);
   });
