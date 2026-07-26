@@ -1,0 +1,150 @@
+name: test-gate
+# Canonical repository-local Test Gate (rubio-standards ADR-0020). Replaces the
+# retired bespoke `test.yml`.
+#
+# The old workflow drove both runners from a `strategy.matrix`; the contract
+# forbids matrices in this file (a matrix leg that never starts is
+# indistinguishable from one that passed), so each runner is now an explicit
+# job carrying the full execution proof, and both are listed in the aggregate's
+# `needs`.
+#
+# `make test` is a thin dispatcher onto `bash tests/run.sh` — see the Makefile
+# for why the harness is not invoked directly here.
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least-privilege default for the GITHUB_TOKEN: tests don't need write scope.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  tests-ubuntu:
+    name: tests / ubuntu-24.04
+    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    outputs:
+      tests_ran: ${{ steps.test.outputs.tests_ran }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      # Pin Node to a specific patch so setup-node@v6 can't drift across runs.
+      # Coverage collection uses NODE_V8_COVERAGE which has been stable since
+      # Node 18, but a fixed version keeps the coverage gate deterministic.
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24.18.0"
+
+      # jq is bundled with both runner images at compatible versions. We pin
+      # shellcheck explicitly because new releases periodically add diagnostics
+      # that would otherwise flip the suite from green to red without any code
+      # change. Identical binary on both OSes.
+      - name: install shellcheck (pinned)
+        env:
+          SHELLCHECK_VERSION: v0.10.0
+        run: |
+          set -euo pipefail
+          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          tmp=$(mktemp -d)
+          curl -fsSL "$url" | tar -xJ -C "$tmp"
+          sudo mv "$tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          rm -rf "$tmp"
+
+      - name: install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq
+
+      - name: print tool versions
+        run: |
+          bash --version | head -1
+          node --version
+          jq --version
+          shellcheck --version | head -2
+
+      - id: test
+        name: run test suite
+        # The harness prints a `PASS: <n> tests, 0 failures` summary line on a
+        # green run; that <n> is the executed-test COUNT the gate asserts is
+        # non-zero. Piping through tee keeps the log on the job output while
+        # `set -o pipefail` still propagates a red suite.
+        env:
+          RUBIO_TEST_GATE_COUNT_OUTPUT: ${{ runner.temp }}/test-gate-count
+        run: |
+          set -euo pipefail
+          rm -f "$RUBIO_TEST_GATE_COUNT_OUTPUT"
+          make test | tee "$RUNNER_TEMP/test-run.log"
+          awk '/^PASS: [0-9]+ tests/{print $2}' "$RUNNER_TEMP/test-run.log" > "$RUBIO_TEST_GATE_COUNT_OUTPUT"
+          test -s "$RUBIO_TEST_GATE_COUNT_OUTPUT"
+          test "$(cat "$RUBIO_TEST_GATE_COUNT_OUTPUT")" -gt 0
+          echo "tests_ran=true" >> "$GITHUB_OUTPUT"
+
+  tests-macos:
+    name: tests / macos
+    timeout-minutes: 15
+    runs-on: macos-latest
+    outputs:
+      tests_ran: ${{ steps.test.outputs.tests_ran }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24.18.0"
+
+      # shellcheck's darwin.x86_64 binary runs under Rosetta on arm64 runners;
+      # switch to darwin.aarch64 once published for the version we pin.
+      - name: install shellcheck (pinned)
+        env:
+          SHELLCHECK_VERSION: v0.10.0
+        run: |
+          set -euo pipefail
+          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.darwin.x86_64.tar.xz"
+          tmp=$(mktemp -d)
+          curl -fsSL "$url" | tar -xJ -C "$tmp"
+          sudo mv "$tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          rm -rf "$tmp"
+
+      - name: install jq
+        run: brew install jq
+
+      - name: print tool versions
+        run: |
+          bash --version | head -1
+          node --version
+          jq --version
+          shellcheck --version | head -2
+
+      - id: test
+        name: run test suite
+        env:
+          RUBIO_TEST_GATE_COUNT_OUTPUT: ${{ runner.temp }}/test-gate-count
+        run: |
+          set -euo pipefail
+          rm -f "$RUBIO_TEST_GATE_COUNT_OUTPUT"
+          make test | tee "$RUNNER_TEMP/test-run.log"
+          awk '/^PASS: [0-9]+ tests/{print $2}' "$RUNNER_TEMP/test-run.log" > "$RUBIO_TEST_GATE_COUNT_OUTPUT"
+          test -s "$RUBIO_TEST_GATE_COUNT_OUTPUT"
+          test "$(cat "$RUBIO_TEST_GATE_COUNT_OUTPUT")" -gt 0
+          echo "tests_ran=true" >> "$GITHUB_OUTPUT"
+
+  aggregate:
+    name: test-gate
+    if: ${{ always() }}
+    needs: [tests-ubuntu, tests-macos]
+    runs-on: ubuntu-24.04
+    env:
+      NEEDS_JSON: ${{ toJSON(needs) }}
+    steps:
+      - name: Require successful non-empty test execution
+        run: >-
+          jq -e 'length > 0 and all(.[]; .result == "success" and
+          .outputs.tests_ran == "true")' <<<"$NEEDS_JSON"

@@ -8,7 +8,7 @@ enforce_audit: true
 enforce_e2e: false
 enforce_lint_format: true
 enforce_lint_hooks: true
-enforce_tests: false
+enforce_tests: true
 enforce_typecheck: true
 enforcement_tier: internal
 has_ansible: false
