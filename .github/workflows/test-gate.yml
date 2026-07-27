@@ -30,7 +30,11 @@ jobs:
   tests-ubuntu:
     name: tests / ubuntu-24.04
     timeout-minutes: 15
-    runs-on: ubuntu-24.04
+    # Runner selection is routed through the org-level RUNNER_GLUE /
+    # RUNNER_MACOS variables so the fleet can be moved between GitHub-hosted
+    # and self-hosted pools centrally. The literal in the `||` fallback is the
+    # label this job used before the sweep, so an unset variable is a no-op.
+    runs-on: ${{ fromJSON(vars.RUNNER_GLUE || '["ubuntu-24.04"]') }}
     outputs:
       tests_ran: ${{ steps.test.outputs.tests_ran }}
     steps:
@@ -90,7 +94,7 @@ jobs:
   tests-macos:
     name: tests / macos
     timeout-minutes: 15
-    runs-on: macos-latest
+    runs-on: ${{ fromJSON(vars.RUNNER_MACOS || '["macos-latest"]') }}
     outputs:
       tests_ran: ${{ steps.test.outputs.tests_ran }}
     steps:
@@ -102,6 +106,11 @@ jobs:
 
       # shellcheck's darwin.x86_64 binary runs under Rosetta on arm64 runners;
       # switch to darwin.aarch64 once published for the version we pin.
+      #
+      # Installed into a runner-writable prefix on $GITHUB_PATH rather than
+      # `sudo mv`-ed into /usr/local/bin: passwordless sudo and a writable
+      # /usr/local/bin are GitHub-hosted-image properties, and RUNNER_MACOS may
+      # point this job at a self-hosted pool where neither holds.
       - name: install shellcheck (pinned)
         env:
           SHELLCHECK_VERSION: v0.10.0
@@ -110,11 +119,28 @@ jobs:
           url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.darwin.x86_64.tar.xz"
           tmp=$(mktemp -d)
           curl -fsSL "$url" | tar -xJ -C "$tmp"
-          sudo mv "$tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          mkdir -p "$RUNNER_TEMP/bin"
+          mv "$tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" "$RUNNER_TEMP/bin/shellcheck"
+          chmod +x "$RUNNER_TEMP/bin/shellcheck"
           rm -rf "$tmp"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
+      # jq ships with the GitHub-hosted macOS image but is not guaranteed on a
+      # self-hosted pool, and `brew` itself may be absent there. Install only
+      # when jq is genuinely missing, and fail with a legible message rather
+      # than a `brew: command not found` if it cannot be provided.
       - name: install jq
-        run: brew install jq
+        run: |
+          set -euo pipefail
+          if command -v jq >/dev/null 2>&1; then
+            echo "jq already present: $(command -v jq)"
+            exit 0
+          fi
+          if ! command -v brew >/dev/null 2>&1; then
+            echo "jq is missing and Homebrew is unavailable on this runner" >&2
+            exit 1
+          fi
+          brew install jq
 
       - name: print tool versions
         run: |
@@ -140,7 +166,7 @@ jobs:
     name: test-gate
     if: ${{ always() }}
     needs: [tests-ubuntu, tests-macos]
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(vars.RUNNER_GLUE || '["ubuntu-24.04"]') }}
     env:
       NEEDS_JSON: ${{ toJSON(needs) }}
     steps:
