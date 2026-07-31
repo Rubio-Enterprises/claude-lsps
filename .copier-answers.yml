@@ -1,6 +1,6 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.55.38
-_rubio_template_version: template/v1.55.38
+_commit: template/v1.55.40
+_rubio_template_version: template/v1.55.40
 _src_path: https://github.com/Rubio-Enterprises/standards.git
 container_registry: ghcr.io/Rubio-Enterprises
 default_branch: main
@@ -31,8 +31,6 @@ linter_floor: biome
 node_version: 22.12.0
 project_name: claude-lsps
 repo_type: native
-rust_test_timeout_minutes: 20
-rust_test_workload_class: glue
 upstream_branch: ''
 upstream_url: ''
 uses_release_please: false

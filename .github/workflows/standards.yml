@@ -3,10 +3,11 @@ name: standards
 # quotes, YAML 1.1 parsers fold `on` into the boolean `On`. GitHub Actions
 # resolves the key by name regardless, and actionlint accepts both forms.
 #
-# The PR gates (audit, lint/format, secret-scan/gitleaks, pr-title, typecheck,
-# python/rust tests) are NO LONGER rendered here — they are Required Governance
-# Workflows injected by org rulesets from `Rubio-Enterprises/.github`, resolved
-# at the repo's channel (`stable`, or `canary` for the canary ring). The
+# The PR gates (audit, lint/format, secret-scan/gitleaks, pr-title, typecheck)
+# are NO LONGER rendered here — they are Required Governance Workflows injected
+# by org rulesets from `Rubio-Enterprises/.github`, resolved at the repo's
+# channel (`stable`, or `canary` for the canary ring); canonical non-E2E tests
+# gate through the repo-local test-gate.yml required status instead. The
 # copier-sync/copier-check jobs are gone too — the rendered residue now
 # propagates as auto-merged Renovate copier PRs. What remains here is the
 # irreducibly consumer-local surface: the scheduled tree-wide trufflehog scan,
