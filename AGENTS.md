@@ -6,7 +6,7 @@ Repo-specific context (in-progress migrations, gotchas, agent guidance):
 
 ## What this repo is
 
-A Claude Code plugin **marketplace** that ships six LSP plugins (`ansible-language-server`, `bash-language-server`, `cue-lsp`, `pyright`, `regal-lsp`, `vtsls`). There is no application to build — the "product" is the directory tree itself, consumed by Claude Code via `.claude-plugin/marketplace.json`.
+A Claude Code plugin **marketplace** that ships five LSP plugins (`bash-language-server`, `cue-lsp`, `pyright`, `regal-lsp`, `vtsls`). There is no application to build — the "product" is the directory tree itself, consumed by Claude Code via `.claude-plugin/marketplace.json`.
 
 The repo is rendered against the standards template with `archetype: bare` (no language toolchain — see `${CLAUDE_PLUGIN_ROOT}/spec/bare.md`). Only the cross-cutting org floor applies; there is no `package.json`, `tsconfig.json`, or `biome.json` and audit checks for those files do not fire.
 
@@ -53,7 +53,7 @@ Behavior is driven per-plugin by `proxy.json`:
 
 - **`blocked`** — client→server requests the server would answer with JSON-RPC
   `-32601`, which puts Claude Code's LSP client into an unrecoverable broken
-  state. The proxy synthesizes `{result: null}` instead. (ansible, regal)
+  state. The proxy synthesizes `{result: null}` instead. (regal)
 - **auto-ack** (always on) — answers server→client requests Claude Code's
   client can't handle (`client/registerCapability`, `client/unregisterCapability`,
   `workspace/configuration`, `window/workDoneProgress/create`) so the server
@@ -76,14 +76,14 @@ Behavior is driven per-plugin by `proxy.json`:
   A deleted tracked file gets a synthetic `didClose` (clears diagnostics) and
   is reopened if it reappears (e.g. git branch switches).
 
-**Editing the proxy:** all six copies must stay byte-identical
+**Editing the proxy:** all five copies must stay byte-identical
 (`consistency/proxy-copies-identical` enforces it — plugin installs copy each
 plugin dir verbatim, so a shared file or symlink can't work). Edit one copy,
 then fan out: `for p in */lsp-proxy.js; do cp <edited-copy> "$p"; done`.
 
 ### Installer scripts (`hooks/check-*.sh`)
 
-All six follow the same template:
+All five follow the same template:
 
 1. If `BINARY` is already on PATH, exit 0 (idempotent — re-runs are free).
 2. Pick install method: `brew` if available, else `npm` (for Node-shipped servers) or direct binary download (for `cue-lsp`, `regal-lsp`). The exact fallback varies per plugin.

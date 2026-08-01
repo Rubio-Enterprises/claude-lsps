@@ -14,8 +14,8 @@
 # would still trip the gate without the per-file directives).
 #
 # Fixture exclusion (shellcheck, shfmt, yaml-prettier): tests/fixtures/** holds
-# deliberately-malformed inputs fed to the live LSP suite — bash/broken.sh has
-# an intentional parse error, ansible/broken.yml an unclosed flow sequence — so
+# deliberately-malformed inputs fed to the live LSP suite — e.g. bash/broken.sh
+# has an intentional parse error — so
 # the org-floor lint/format hooks must skip them, and shfmt/prettier
 # `stage_fixed` rewrites must not mutate the crafted inputs. shellcheck and
 # shfmt have no native file-ignore mechanism, so lefthook `exclude` is the only

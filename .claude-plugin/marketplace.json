@@ -13,17 +13,6 @@
   },
   "plugins": [
     {
-      "name": "ansible-language-server",
-      "version": "1.3.0",
-      "source": "./ansible-language-server",
-      "description": "Ansible language server",
-      "category": "development",
-      "tags": ["ansible", "yaml", "lsp"],
-      "author": {
-        "name": "strubio-ray"
-      }
-    },
-    {
       "name": "bash-language-server",
       "version": "1.1.0",
       "source": "./bash-language-server",

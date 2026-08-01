@@ -202,20 +202,18 @@ _test_concurrency_brew_mkdir() {
   fi
 }
 
-tc_conc_ansible() { _test_concurrency_brew ansible-language-server ansible-language-server; }
 tc_conc_bash() { _test_concurrency_brew bash-language-server bash-language-server; }
 tc_conc_cue() { _test_concurrency_brew cue-lsp cue; }
 tc_conc_pyright() { _test_concurrency_brew pyright pyright-langserver; }
 tc_conc_vtsls() { _test_concurrency_brew vtsls vtsls; }
 tc_conc_regal() { _test_concurrency_curl regal-lsp; }
 
-tc_conc_mkdir_ansible() { _test_concurrency_brew_mkdir ansible-language-server ansible-language-server; }
+tc_conc_mkdir_bash() { _test_concurrency_brew_mkdir bash-language-server bash-language-server; }
 
-register_test "installer/concurrency-ansible" tc_conc_ansible
 register_test "installer/concurrency-bash" tc_conc_bash
 register_test "installer/concurrency-cue" tc_conc_cue
 register_test "installer/concurrency-pyright" tc_conc_pyright
 register_test "installer/concurrency-vtsls" tc_conc_vtsls
 register_test "installer/concurrency-regal" tc_conc_regal
 
-register_test "installer/concurrency-mkdir-ansible" tc_conc_mkdir_ansible
+register_test "installer/concurrency-mkdir-bash" tc_conc_mkdir_bash

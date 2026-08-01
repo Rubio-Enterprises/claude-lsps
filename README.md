@@ -10,7 +10,6 @@ protocol gaps.
 
 | Plugin | LSP Server | Description |
 |--------|-----------|-------------|
-| `ansible-language-server` | `ansible-language-server --stdio` | Ansible language server |
 | `bash-language-server` | `bash-language-server start` | Bash/Shell language server |
 | `cue-lsp` | `cue lsp serve` | CUE language server (built into CUE CLI) |
 | `pyright` | `pyright-langserver --stdio` | Python type checker and language server |
@@ -71,7 +70,7 @@ It provides:
   open files on disk and injects the missing `didChange`/`didSave` so
   diagnostics refresh within a few hundred milliseconds. Disable per plugin
   with `"sync": false` in `proxy.json`.
-- **Blocked-method interception (ansible, regal).** Prevents Claude Code's LSP
+- **Blocked-method interception (regal).** Prevents Claude Code's LSP
   client from entering a broken state when a server returns JSON-RPC `-32601`
   for methods it doesn't implement; the proxy answers `null` instead.
 - **Server unblocking (all plugins).** Auto-answers server-initiated requests
