@@ -56,7 +56,6 @@
     }
   },
   "enabledPlugins": {
-    "ansible-language-server@claude-lsps": true,
     "bash-language-server@claude-lsps": true,
     "claude-code-setup@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
