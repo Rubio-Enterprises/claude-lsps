@@ -39,11 +39,6 @@ _register_if_present cue "live/cue-clean" tc_live_cue_clean
 # cue-broken intentionally omitted: cue lsp serve v0.16 does not publish
 # diagnostics. Restore when upstream gains support (live-suite.js note).
 
-tc_live_ansible_clean() { _live_run ansible-clean; }
-tc_live_ansible_broken() { _live_run ansible-broken; }
-_register_if_present ansible-language-server "live/ansible-clean" tc_live_ansible_clean
-_register_if_present ansible-language-server "live/ansible-broken" tc_live_ansible_broken
-
 tc_live_regal_clean() { _live_run regal-clean; }
 tc_live_regal_broken() { _live_run regal-broken; }
 tc_live_regal_warmup() { _live_run regal-warmup; }

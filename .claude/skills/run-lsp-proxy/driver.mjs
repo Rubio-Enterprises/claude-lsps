@@ -1,15 +1,13 @@
 #!/usr/bin/env node
-// driver.mjs — launch an LSP proxy (ansible-language-server or regal-lsp) and
+// driver.mjs — launch an LSP proxy (any plugin copy; regal-lsp by default) and
 // drive it with real JSON-RPC over stdio, then assert its wire behavior.
 //
 // The proxies are the only live, protocol-speaking code in this repo. On a
-// clean machine the real language servers (ansible-language-server, regal)
-// are usually absent, so by default this driver points the proxy at the
+// clean machine the real language server (regal) is usually absent, so by default this driver points the proxy at the
 // bundled stub server (tests/helpers/stub-server.js) — zero external installs.
 //
-//   node driver.mjs                      # drive ansible proxy against the stub
-//   node driver.mjs --plugin regal-lsp   # drive regal proxy (exercises warmup)
-//   node driver.mjs --plugin ansible-language-server --live
+//   node driver.mjs                      # drive regal proxy against the stub
+//   node driver.mjs --plugin regal-lsp --live
 //                                        # use the REAL server from proxy.json
 //                                        # (must be installed & on PATH)
 //
@@ -33,7 +31,7 @@ function opt(name, def) {
   const i = argv.indexOf(name);
   return i !== -1 && argv[i + 1] ? argv[i + 1] : def;
 }
-const PLUGIN = opt("--plugin", "ansible-language-server");
+const PLUGIN = opt("--plugin", "regal-lsp");
 const LIVE = argv.includes("--live");
 const PLUGIN_DIR = join(REPO, PLUGIN);
 const PROXY = join(PLUGIN_DIR, "lsp-proxy.js");
@@ -164,7 +162,7 @@ function waitForId(id, timeout = 4000) {
   });
 }
 
-// Blocked method that is blocked by BOTH proxies (ansible & regal block it):
+// Blocked method declared in regal-lsp/proxy.json:
 const BLOCKED_METHOD = "textDocument/references";
 
 const results = [];

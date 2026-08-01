@@ -23,7 +23,7 @@ const PUSH_TIMEOUT_MS = parseInt(process.env.LIVE_TIMEOUT_MS || "5000", 10);
 const PULL_TIMEOUT_MS = parseInt(process.env.LIVE_PULL_TIMEOUT_MS || "10000", 10);
 
 // Server-initiated requests this client handles natively. The set MUST mirror
-// the four methods both production proxies (ansible-language-server/lsp-proxy.js,
+// the four methods both production proxies (bash-language-server/lsp-proxy.js,
 // regal-lsp/lsp-proxy.js) auto-respond to — these are the requests Claude Code's
 // real client handles, so the test must too. Any other server-initiated request
 // is replied with JSON-RPC -32601 ("method not found"), matching what Claude

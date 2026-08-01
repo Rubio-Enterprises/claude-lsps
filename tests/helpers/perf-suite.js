@@ -61,16 +61,6 @@ const TARGETS = [
     timeout: 15000,
   },
   {
-    plugin: "ansible-language-server",
-    binary: "ansible-language-server",
-    subdir: "ansible",
-    includes: ["broken.yml", "ansible.cfg"],
-    file: "broken.yml",
-    publishes: true,
-    timeout: 15000,
-    env: { ANSIBLE_NOCOWS: "1" },
-  },
-  {
     plugin: "regal-lsp",
     binary: "regal",
     subdir: "regal",

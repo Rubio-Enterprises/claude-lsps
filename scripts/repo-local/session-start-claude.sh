@@ -31,14 +31,12 @@ binaries=(
   vtsls
   cue
   regal
-  ansible-language-server
 )
 
 installers=(
   pyright/hooks/check-pyright.sh
   bash-language-server/hooks/check-bash-language-server.sh
   vtsls/hooks/check-vtsls.sh
-  ansible-language-server/hooks/check-ansible-language-server.sh
   cue-lsp/hooks/check-cue.sh
   regal-lsp/hooks/check-regal.sh
 )

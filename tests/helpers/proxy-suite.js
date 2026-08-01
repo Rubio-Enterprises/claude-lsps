@@ -21,7 +21,7 @@ const { ROOT_DIR, TMP_DIR, TESTS_DIR } = requireEnv();
 // All plugins carry byte-identical copies of the unified proxy (enforced by
 // consistency/proxy-copies-identical); scenarios spread across three copies so
 // the by-hash-merged coverage gate sees the union of all exercised paths.
-const ANSIBLE_PROXY = path.join(ROOT_DIR, "ansible-language-server", "lsp-proxy.js");
+const BASH_PROXY = path.join(ROOT_DIR, "bash-language-server", "lsp-proxy.js");
 const REGAL_PROXY = path.join(ROOT_DIR, "regal-lsp", "lsp-proxy.js");
 const PYRIGHT_PROXY = path.join(ROOT_DIR, "pyright", "lsp-proxy.js");
 const STUB = path.join(TESTS_DIR, "helpers", "stub-server.js");
@@ -48,7 +48,7 @@ async function waitForHandshake(proxy, logDir) {
 async function passthrough(setProxy) {
   const dir = wd("passthrough");
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig(),
     stubEnv: { STUB_LOG_DIR: dir, STUB_HOVER_RESULT: "1" },
   });
@@ -85,7 +85,7 @@ async function passthrough(setProxy) {
 async function blockedRequest(setProxy) {
   const dir = wd("blocked-req");
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig({ blocked: ["textDocument/references"] }),
     stubEnv: { STUB_LOG_DIR: dir },
   });
@@ -131,7 +131,7 @@ async function blockedRequest(setProxy) {
 async function blockedNotification(setProxy) {
   const dir = wd("blocked-notif");
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig({ blocked: ["textDocument/references"] }),
     stubEnv: { STUB_LOG_DIR: dir },
   });
@@ -194,7 +194,7 @@ async function autoAckMethod(method, setProxy) {
       ? Array.isArray(m.result) && m.result.length === 2 && m.result.every((x) => x === null)
       : m.result === null;
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig(),
     stubEnv: { STUB_LOG_DIR: dir, STUB_EMIT: JSON.stringify([serverReq]) },
   });
@@ -247,7 +247,7 @@ async function serverRequestForwardedWhenNotAutoAcked(setProxy) {
     params: { type: 3, message: "pick one", actions: [] },
   };
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig(),
     stubEnv: { STUB_LOG_DIR: dir, STUB_EMIT: JSON.stringify([serverReq]) },
   });
@@ -273,7 +273,7 @@ async function serverRequestForwardedWhenNotAutoAcked(setProxy) {
 async function splitBuffer(setProxy) {
   const dir = wd("split");
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig(),
     stubEnv: { STUB_LOG_DIR: dir, STUB_HOVER_RESULT: "1", STUB_RESPONSE_CHUNKED: "1" },
   });
@@ -314,7 +314,7 @@ async function splitBuffer(setProxy) {
 async function malformedHeaderForwarded(setProxy) {
   const dir = wd("malformed-header");
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig(),
     stubEnv: { STUB_LOG_DIR: dir },
   });
@@ -338,7 +338,7 @@ async function malformedHeaderForwarded(setProxy) {
 async function unparseableBodyForwarded(setProxy) {
   const dir = wd("unparseable-body");
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig({ blocked: ["textDocument/references"] }),
     stubEnv: { STUB_LOG_DIR: dir },
   });
@@ -376,7 +376,7 @@ async function serverToClientByteIdentical(setProxy) {
   };
   const expected = Buffer.concat([frameOf(notif), frameOf(terminator)]);
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig(),
     stubEnv: { STUB_EMIT: JSON.stringify([notif, terminator]) },
   });
@@ -394,7 +394,7 @@ async function serverToClientByteIdentical(setProxy) {
 
 // Framing parity for regal-lsp/lsp-proxy.js: identical pass-through behavior.
 // Without this, a future divergence between the two proxies would slip past
-// the suite (proxy tests target ANSIBLE_PROXY, warmup tests target REGAL_PROXY
+// the suite (proxy tests target BASH_PROXY, warmup tests target REGAL_PROXY
 // but only exercise the warmup-specific code paths).
 async function regalPassthroughParity(setProxy) {
   const dir = wd("regal-passthrough");
@@ -469,7 +469,7 @@ async function signalForwarded(sig, setProxy) {
   const dir = wd(`signal-${sig.toLowerCase()}`);
   const sigLog = path.join(dir, "signals.log");
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig(),
     stubEnv: { STUB_LOG_DIR: dir, STUB_SIGNAL_LOG: sigLog },
   });
@@ -486,7 +486,7 @@ async function signalForwarded(sig, setProxy) {
 
 async function childExitCodePropagated(setProxy) {
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig(),
     stubEnv: { STUB_EXIT_ON_METHOD: "$/please-exit", STUB_EXIT_CODE: "42" },
   });
@@ -503,7 +503,7 @@ async function stdinEofTerminatesChild(setProxy) {
   const dir = wd("stdin-eof");
   const sigLog = path.join(dir, "signals.log");
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     config: proxyConfig(),
     stubEnv: { STUB_LOG_DIR: dir, STUB_SIGNAL_LOG: sigLog },
   });
@@ -527,7 +527,7 @@ async function runProxyExpectFailure(args, { stdin = "ignore" } = {}) {
 }
 
 async function configMissing() {
-  const { code, stderr } = await runProxyExpectFailure([ANSIBLE_PROXY]);
+  const { code, stderr } = await runProxyExpectFailure([BASH_PROXY]);
   assert(code !== 0, `expected non-zero exit; got ${code}`);
   assert(
     /Usage:/.test(stderr) && /--config/.test(stderr),
@@ -537,7 +537,7 @@ async function configMissing() {
 
 async function configUnreadable() {
   const { code, stderr } = await runProxyExpectFailure([
-    ANSIBLE_PROXY,
+    BASH_PROXY,
     "--config",
     "/no/such/file.json",
   ]);
@@ -549,7 +549,7 @@ async function configEmptyServer() {
   const dir = wd("empty-server");
   const cfg = path.join(dir, "proxy.json");
   fs.writeFileSync(cfg, JSON.stringify({ server: [], blocked: [] }));
-  const { code, stderr } = await runProxyExpectFailure([ANSIBLE_PROXY, "--config", cfg]);
+  const { code, stderr } = await runProxyExpectFailure([BASH_PROXY, "--config", cfg]);
   assert(code !== 0, `expected non-zero exit; got ${code}`);
   assert(/non-empty array/i.test(stderr), `expected non-empty-array message; got: ${stderr}`);
 }
@@ -564,7 +564,7 @@ async function childSpawnError() {
       blocked: [],
     }),
   );
-  const { code, stderr } = await runProxyExpectFailure([ANSIBLE_PROXY, "--config", cfg], {
+  const { code, stderr } = await runProxyExpectFailure([BASH_PROXY, "--config", cfg], {
     stdin: "pipe",
   });
   assert(code !== 0, `expected non-zero exit on spawn ENOENT; got ${code}`);
@@ -995,7 +995,7 @@ async function syncTracksWarmupOpens(setProxy) {
 // signal (exit code null); the proxy must report that as success, not 1.
 async function stdinEofExitCodeZero(setProxy) {
   const proxy = spawnProxy({
-    proxyJs: ANSIBLE_PROXY,
+    proxyJs: BASH_PROXY,
     // Inert server with no signal handler — dies by SIGTERM with code=null.
     config: { server: ["node", "-e", "setInterval(() => {}, 1000)"], blocked: [] },
   });

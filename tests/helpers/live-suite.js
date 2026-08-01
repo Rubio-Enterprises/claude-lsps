@@ -401,39 +401,6 @@ const scenarios = {
       sp,
     ),
 
-  // ansible-language-server: through the proxy. Push diagnostics.
-  "ansible-clean": (sp) =>
-    runStandard(
-      {
-        pluginName: "ansible-language-server",
-        fixturesSubdir: "ansible",
-        includes: ["clean.yml", "ansible.cfg"],
-        primaryFile: "clean.yml",
-        expectZero: true,
-        scenarioTag: "ansible-clean",
-        extraEnv: { ANSIBLE_NOCOWS: "1" },
-        diagTimeoutMs: 15000,
-      },
-      sp,
-    ),
-  // ansible-language-server flags semantic errors only when ansible-lint is
-  // installed; without it, the LS still catches raw YAML syntax errors via
-  // yaml-language-server integration. broken.yml has an unclosed flow seq.
-  "ansible-broken": (sp) =>
-    runStandard(
-      {
-        pluginName: "ansible-language-server",
-        fixturesSubdir: "ansible",
-        includes: ["broken.yml", "ansible.cfg"],
-        primaryFile: "broken.yml",
-        expectMatch: /flow|sequence|indent|expected|sufficiently/i,
-        scenarioTag: "ansible-broken",
-        extraEnv: { ANSIBLE_NOCOWS: "1" },
-        diagTimeoutMs: 15000,
-      },
-      sp,
-    ),
-
   // regal-lsp: through the proxy. The proxy's warmup walks the workspace and
   // sends didOpen for every .rego file, so we MUST NOT send our own didOpen
   // (would be a spec violation — open-after-open is undefined) — pass

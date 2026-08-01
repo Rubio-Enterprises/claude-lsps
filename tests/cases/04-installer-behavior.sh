@@ -4,7 +4,6 @@ source "$TESTS_DIR/helpers/mock-bin.sh"
 
 _meta_binary() {
   case "$1" in
-  ansible-language-server) echo "ansible-language-server" ;;
   bash-language-server) echo "bash-language-server" ;;
   cue-lsp) echo "cue" ;;
   pyright) echo "pyright-langserver" ;;
@@ -294,20 +293,17 @@ _test_node_missing_fails() {
 
 tc_install_node_missing_cue() { _test_node_missing_fails cue-lsp; }
 
-tc_install_noop_ansible() { _test_binary_present_noop ansible-language-server; }
 tc_install_noop_bash() { _test_binary_present_noop bash-language-server; }
 tc_install_noop_cue() { _test_binary_present_noop cue-lsp; }
 tc_install_noop_pyright() { _test_binary_present_noop pyright; }
 tc_install_noop_regal() { _test_binary_present_noop regal-lsp; }
 tc_install_noop_vtsls() { _test_binary_present_noop vtsls; }
 
-tc_install_brew_ansible() { _test_primary_install_brew ansible-language-server ansible-language-server ansible-language-server; }
 tc_install_brew_bash() { _test_primary_install_brew bash-language-server bash-language-server bash-language-server; }
 tc_install_brew_cue() { _test_primary_install_brew cue-lsp cue-lang/tap/cue cue; }
 tc_install_brew_pyright() { _test_primary_install_brew pyright pyright pyright-langserver; }
 tc_install_brew_vtsls() { _test_primary_install_brew vtsls vtsls vtsls; }
 
-tc_install_npm_ansible() { _test_primary_install_npm ansible-language-server "@ansible/ansible-language-server" ansible-language-server; }
 tc_install_npm_bash() { _test_primary_install_npm bash-language-server bash-language-server bash-language-server; }
 tc_install_npm_pyright() { _test_primary_install_npm pyright pyright pyright-langserver; }
 tc_install_npm_vtsls() { _test_primary_install_npm vtsls "@vtsls/language-server" vtsls; }
@@ -317,12 +313,10 @@ tc_install_binary_regal() { _test_regal_binary_install; }
 
 tc_install_binary_regal_curl_fails() { _test_binary_download_failure regal-lsp; }
 
-tc_install_npm_fail_ansible() { _test_npm_failure_propagates ansible-language-server; }
 tc_install_npm_fail_bash() { _test_npm_failure_propagates bash-language-server; }
 tc_install_npm_fail_pyright() { _test_npm_failure_propagates pyright; }
 tc_install_npm_fail_vtsls() { _test_npm_failure_propagates vtsls; }
 
-tc_install_absent_ansible() { _test_all_absent_fails ansible-language-server; }
 tc_install_absent_bash() { _test_all_absent_fails bash-language-server; }
 tc_install_absent_pyright() { _test_all_absent_fails pyright; }
 tc_install_absent_vtsls() { _test_all_absent_fails vtsls; }
@@ -363,12 +357,12 @@ tc_install_darwin_regal() {
 
 tc_install_mkdir_lock_fallback() {
   local sbx
-  sbx=$(new_sandbox "mkdir-lock-ansible")
+  sbx=$(new_sandbox "mkdir-lock-bash")
   local log="$sbx/install.log"
   : >"$log"
   remove_flock "$sbx/bin"
-  make_install_mock "$sbx/bin" brew "$log" --target=ansible-language-server
-  if ! _run_installer "$sbx" ansible-language-server >"$sbx/out.log" 2>&1; then
+  make_install_mock "$sbx/bin" brew "$log" --target=bash-language-server
+  if ! _run_installer "$sbx" bash-language-server >"$sbx/out.log" 2>&1; then
     echo "mkdir-lock fallback exited non-zero:"
     cat "$sbx/out.log"
     return 1
@@ -397,12 +391,12 @@ tc_install_mkdir_lock_fallback() {
 
 tc_install_failure_propagates() {
   local sbx
-  sbx=$(new_sandbox "fail-ansible")
+  sbx=$(new_sandbox "fail-bash")
   local log="$sbx/install.log"
   : >"$log"
   make_install_mock "$sbx/bin" brew "$log" --exit=1
   local rc=0
-  _run_installer "$sbx" ansible-language-server >"$sbx/out.log" 2>&1 || rc=$?
+  _run_installer "$sbx" bash-language-server >"$sbx/out.log" 2>&1 || rc=$?
   if ((rc == 0)); then
     echo "expected non-zero exit on install failure; got 0"
     cat "$sbx/out.log"
@@ -417,12 +411,12 @@ tc_install_failure_propagates() {
 
 tc_install_post_check_missing_binary() {
   local sbx
-  sbx=$(new_sandbox "no-binary-after-ansible")
+  sbx=$(new_sandbox "no-binary-after-bash")
   local log="$sbx/install.log"
   : >"$log"
   make_install_mock "$sbx/bin" brew "$log"
   local rc=0
-  _run_installer "$sbx" ansible-language-server >"$sbx/out.log" 2>&1 || rc=$?
+  _run_installer "$sbx" bash-language-server >"$sbx/out.log" 2>&1 || rc=$?
   if ((rc == 0)); then
     echo "expected non-zero exit when binary missing post-install; got 0"
     cat "$sbx/out.log"
@@ -436,20 +430,17 @@ tc_install_post_check_missing_binary() {
 }
 
 register_test "installer/node-missing-cue" tc_install_node_missing_cue
-register_test "installer/noop-ansible" tc_install_noop_ansible
 register_test "installer/noop-bash" tc_install_noop_bash
 register_test "installer/noop-cue" tc_install_noop_cue
 register_test "installer/noop-pyright" tc_install_noop_pyright
 register_test "installer/noop-regal" tc_install_noop_regal
 register_test "installer/noop-vtsls" tc_install_noop_vtsls
 
-register_test "installer/brew-ansible" tc_install_brew_ansible
 register_test "installer/brew-bash" tc_install_brew_bash
 register_test "installer/brew-cue" tc_install_brew_cue
 register_test "installer/brew-pyright" tc_install_brew_pyright
 register_test "installer/brew-vtsls" tc_install_brew_vtsls
 
-register_test "installer/npm-ansible" tc_install_npm_ansible
 register_test "installer/npm-bash" tc_install_npm_bash
 register_test "installer/npm-pyright" tc_install_npm_pyright
 register_test "installer/npm-vtsls" tc_install_npm_vtsls
@@ -459,12 +450,10 @@ register_test "installer/binary-regal" tc_install_binary_regal
 
 register_test "installer/binary-regal-curl-fails" tc_install_binary_regal_curl_fails
 
-register_test "installer/npm-fail-ansible" tc_install_npm_fail_ansible
 register_test "installer/npm-fail-bash" tc_install_npm_fail_bash
 register_test "installer/npm-fail-pyright" tc_install_npm_fail_pyright
 register_test "installer/npm-fail-vtsls" tc_install_npm_fail_vtsls
 
-register_test "installer/absent-ansible" tc_install_absent_ansible
 register_test "installer/absent-bash" tc_install_absent_bash
 register_test "installer/absent-pyright" tc_install_absent_pyright
 register_test "installer/absent-vtsls" tc_install_absent_vtsls
