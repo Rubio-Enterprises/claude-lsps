@@ -35,9 +35,16 @@ Drive the proxy (regal) — blocked-method interception, server-request auto-ack
 node .claude/skills/run-lsp-proxy/driver.mjs --plugin regal-lsp
 ```
 
-Each run prints the client↔proxy conversation, then a checklist. Expected tail:
-`✅ PASS — 8/8 checks` (regal). Exit code is
-0 only if every check passed. The driver is self-contained — no server to install,
+Each run prints the client↔proxy conversation, then a checklist. Exit code is
+0 only if every check passed.
+
+**Known failing check (pre-existing, not a regression):** `server-initiated
+workspace/configuration auto-acked` fails, so the current tail is
+`❌ FAIL — 7/8 checks` (regal). This reproduces on an unmodified checkout and
+predates the removal of the ansible plugin — it is a real gap between the
+driver's expectation and the proxy's auto-ack behavior, not a broken setup.
+Treat 7/8 as the current baseline; investigate the auto-ack path (not your
+environment) if you intend to fix it. The driver is self-contained — no server to install,
 no ports, no cleanup; it creates its own temp workspace and stub log under `/tmp`.
 
 What each run proves against the running proxy:
