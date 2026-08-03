@@ -75,7 +75,6 @@
     "pyright@claude-lsps": true,
     "regal-lsp@claude-lsps": true,
     "rubio-standards@rubio": true,
-    "security-guidance@claude-plugins-official": true,
     "session-report@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true,
