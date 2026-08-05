@@ -1,7 +1,7 @@
 # lefthook.yml — git hooks orchestration. Thin remotes STUB: the hook bodies
 # live once in `standards`' `lefthook/*.yml` and are fetched at hook time from
 # the `stable` channel (canary-ring repos resolve `canary` via their own stub —
-# not templated here). This replaces the per-archetype hook rendering that used
+# not templated here). This replaces the per-repo hook rendering that used
 # to bake every hook into this file. See standards `lefthook/README.md`.
 #
 # Hook activation note: lefthook installs into .git/hooks/ by default. If a
