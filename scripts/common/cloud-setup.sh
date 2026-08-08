@@ -114,14 +114,82 @@ if [ -z "$repo_root" ] || ! cd -- "$repo_root"; then
   exit 0
 fi
 
-echo "cloud-setup: building claude-lsps environment cache (epoch ${CACHE_EPOCH:-unset})" >&2
+# --- Smoke mode (CI parity check; CLOUD_SETUP_SMOKE) -------------------------
+# This script is NON-FATAL BY CONTRACT: a Setup script that exits non-zero
+# blocks the cloud session from starting, so every step below swallows its own
+# failure and the script always ends in `exit 0`. That contract also makes the
+# script UNTESTABLE by exit code — the bare-`command -v` node fallback failed on
+# EVERY snapshot build of EVERY has_embedded_web consumer and still exited 0,
+# visible only as one line in a build log nobody reads.
+#
+# CLOUD_SETUP_SMOKE inverts the contract FOR CI ONLY. Every step still runs to
+# completion (no `set -e`, no early abort — a smoke run must report ALL
+# failures, not just the first); failures are recorded and re-raised as a
+# non-zero exit at the very end. Two levels:
+#
+#   CLOUD_SETUP_SMOKE=warm  cache warm + repo-local only. The template render
+#                           canary's per-shape check: a freshly-rendered fixture
+#                           has no dependencies, so bootstrapping its toolchain
+#                           would be one mise install per matrix row for no
+#                           signal. Asserts the script parses and its control
+#                           flow runs clean on Linux.
+#   CLOUD_SETUP_SMOKE=1     the above PLUS the pinned toolchain bootstrap. The
+#                           consumer-side job, run against the repo's real
+#                           manifests — without the toolchain, `command -v uv`
+#                           is false and every warm step no-ops, making the
+#                           smoke vacuous.
+#
+# Skipped at BOTH levels (cloud-only, and their absence is not a repo defect):
+# apt, the marketplace credential helper + pre-seed, plugin-cache
+# materialization, workflow seeding, and the snapshot drift fingerprint. They
+# need root, GH_PAT, and the `claude` CLI — none of which a CI runner has, or
+# should have. What smoke covers is where a repo actually breaks: the toolchain
+# bootstrap, the archetype cache warm, and scripts/repo-local/cloud-setup.sh.
+#
+# With CLOUD_SETUP_SMOKE unset the cloud path is untouched, down to the bytes:
+# __warn emits exactly the `cloud-setup: <x> failed (non-fatal)` line it
+# replaced, and __smoke_check_failed emits nothing at all.
+__smoke="${CLOUD_SETUP_SMOKE:-}"
+__smoke_failures=""
+# Non-fatal step failure. Cloud-mode output is byte-identical to the inline
+# `echo` lines this replaced, so a snapshot log reads exactly as it always has.
+__warn() {
+  echo "cloud-setup: $1 failed (non-fatal)" >&2
+  if [ -n "$__smoke" ]; then
+    __smoke_failures="${__smoke_failures}${__smoke_failures:+; }$1"
+  fi
+  return 0
+}
+# Smoke-only assertion failure: silent and inert in cloud mode, and inert at the
+# `warm` level too (which deliberately runs without a toolchain, so a missing
+# tool there is expected rather than a defect).
+# Defined on every render shape (the skeleton is uniform), but every call site
+# is archetype-conditional (go/rust/python-root warms), so a shape rendering
+# none of them — swift-only, ts/js-only, python-nested — defines it uncalled.
+# shellcheck disable=SC2317,SC2329  # call sites are render-shape-conditional; on some shapes none renders
+__smoke_check_failed() {
+  if [ -z "$__smoke" ] || [ "$__smoke" = "warm" ]; then
+    return 0
+  fi
+  echo "cloud-setup: SMOKE CHECK FAILED — $1" >&2
+  __smoke_failures="${__smoke_failures}${__smoke_failures:+; }$1"
+  return 0
+}
+
+if [ -n "$__smoke" ]; then
+  echo "cloud-setup: SMOKE ($__smoke) — claude-lsps on $(uname -s)/$(uname -m); cloud-only sections skipped" >&2
+else
+  echo "cloud-setup: building claude-lsps environment cache (epoch ${CACHE_EPOCH:-unset})" >&2
+fi
 
 # --- Marketplace SSH->HTTPS rewrite (early; helper registered after apt) -----
 # Rewrite git@github.com: SSH-form marketplace sources to HTTPS so the runtime
 # credential helper (registered AFTER the apt step below, once `jq` is installed
 # to parse the carrier and scope the helper per-repo) can authenticate them.
-# Idempotent; non-fatal.
-git config --global url."https://github.com/".insteadOf "git@github.com:" || true
+# Idempotent; non-fatal. Skipped in smoke mode: a CI runner's global git config
+# is shared with the checkout steps, and no marketplace clone happens there.
+[ -n "$__smoke" ] ||
+  git config --global url."https://github.com/".insteadOf "git@github.com:" || true
 
 # apt (root-only — cannot live in the portable hook), GUARDED: jq is the only
 # apt dependency — it parses the committed .claude/settings.json so the
@@ -137,7 +205,7 @@ git config --global url."https://github.com/".insteadOf "git@github.com:" || tru
 # exits non-zero blocks the session from starting): on failure the credential
 # helper degrades to its global fallback and the pre-seed no-ops.
 apt_pid=""
-if ! command -v jq >/dev/null 2>&1; then
+if [ -z "$__smoke" ] && ! command -v jq >/dev/null 2>&1; then
   (
     export DEBIAN_FRONTEND=noninteractive
     apt-get update && apt-get install -y --no-install-recommends jq
@@ -159,7 +227,14 @@ fi
 # the snapshot build, not a live session: it must skip here because the
 # marketplace pre-seed section below has not run yet at this point.
 # Guarded so a greenfield render with no hook yet no-ops.
-if [ -f scripts/common/session-start-claude.sh ]; then
+#
+# Smoke mode runs this at the `1` level and skips it at `warm`. Note its exit
+# code proves nothing either way: the hook is abort-proof by contract (§6.1 —
+# every step `|| true`, always `exit 0`), so a failed mise install surfaces only
+# as stderr chatter. What the smoke actually gets from running it is the PATH it
+# leaves behind — the warm steps below need the toolchain it installs, and the
+# `__smoke_check_failed` guards there report the tools it failed to provide.
+if [ -f scripts/common/session-start-claude.sh ] && [ "$__smoke" != "warm" ]; then
   CLAUDE_CODE_REMOTE=true CLOUD_SETUP_BUILD=1 GITHUB_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-${GH_PAT:-}}}" \
     bash scripts/common/session-start-claude.sh || true
 fi
@@ -192,9 +267,12 @@ __mkt_helper='!f(){ echo username=x-access-token; echo "password=${GH_PAT:-${GH_
 # marketplace. (The pre-seed needs the marketplace NAME — it is the on-disk
 # clone dir and the registry key — not just the repo, so extract pairs first,
 # then derive the unique repo list for the helper loop.)
+# Smoke mode leaves both empty, which is what switches the whole marketplace
+# surface off: the helper loop below, the pre-seed section, and (via the plugin
+# cache it would have populated) workflow seeding all key on these being set.
 __mkt_pairs=""
 __mkt_repos=""
-if command -v jq >/dev/null 2>&1 && [ -f .claude/settings.json ]; then
+if [ -z "$__smoke" ] && command -v jq >/dev/null 2>&1 && [ -f .claude/settings.json ]; then
   __mkt_pairs="$(jq -r '
     (.extraKnownMarketplaces // {})
     | to_entries[]
@@ -210,7 +288,7 @@ if [ -n "$__mkt_repos" ]; then
     git config --global "credential.https://github.com/${__repo}.git.helper" "$__mkt_helper" || true
   done
   echo "cloud-setup: scoped marketplace credential helper to: $(printf '%s' "$__mkt_repos" | tr '\n' ' ')" >&2
-else
+elif [ -z "$__smoke" ]; then
   # Degraded path: no jq or no github marketplaces in the carrier. Use a single
   # global helper so a private clone is never left unauthenticated. A read-only
   # GH_PAT here could shadow the working-repo token for git WRITES — acceptable
@@ -308,7 +386,19 @@ EOF
   # Code version expects instead of mimicking its on-disk format. Idempotent
   # ("already installed" no-ops); per-plugin non-fatal with a 60s cap; only
   # plugins whose marketplace seeded OK are attempted — the rest are already
-  # reported by the marketplace summary below.
+  # reported by the marketplace summary below. Scope MUST be user, not
+  # project: project scope keys the install record to THIS build's repo root
+  # as projectPath, but a multi-repo cloud session (extra repos attached via
+  # "Add repos") checks the repos out under a parent directory and launches
+  # with cwd = that parent — no project record matches, and EVERY plugin is
+  # dropped at startup as "plugin-cache-miss" despite a fully seeded cache
+  # (observed live 2026-08: 24 installed, 0 loaded). User scope applies in
+  # any session cwd and records the enable state in the user settings
+  # ($HOME/.claude/settings.json, read in every session), which multi-repo
+  # sessions also need: the carrier's project settings are not the session's
+  # project settings there. User scope also leaves the repo carrier
+  # untouched (project scope rewrote it cosmetically and needed a
+  # git-checkout restore here).
   if command -v claude >/dev/null 2>&1; then
     while IFS= read -r __mkt_plugin; do
       [ -n "$__mkt_plugin" ] || continue
@@ -316,15 +406,11 @@ EOF
       *" ${__mkt_plugin##*@} "*) ;;
       *) continue ;;
       esac
-      timeout 60 claude plugin install "$__mkt_plugin" --scope project </dev/null >/dev/null 2>&1 ||
+      timeout 60 claude plugin install "$__mkt_plugin" --scope user </dev/null >/dev/null 2>&1 ||
         __mkt_bad="$__mkt_bad $__mkt_plugin(install)"
     done <<EOF
 $(jq -r '(.enabledPlugins // {}) | to_entries[] | select(.value == true) | .key' .claude/settings.json 2>/dev/null)
 EOF
-    # A project-scope install rewrites the carrier cosmetically (key
-    # reordering); the enable entries already exist in it, so restore the
-    # committed bytes to keep the snapshot's working tree clean.
-    git checkout -- .claude/settings.json 2>/dev/null || true
   else
     echo "cloud-setup: claude CLI not on PATH at build time; plugin caches not materialized (plugins will not load)" >&2
   fi
@@ -359,7 +445,10 @@ __wf_cache="$HOME/.claude/plugins/cache"
 __wf_dst="$HOME/.claude/workflows"
 __wf_seeded=""
 __wf_skipped=""
-if [ -d "$__wf_cache" ]; then
+# Explicitly off in smoke mode: a self-hosted runner may carry a real
+# ~/.claude/plugins/cache from another job, and seeding into the runner's home
+# from a CI check would be a side effect well outside this check's remit.
+if [ -z "$__smoke" ] && [ -d "$__wf_cache" ]; then
   for __wf_marker in "$__wf_cache"/*/*/.claude-plugin/seed-workflows \
     "$__wf_cache"/*/*/*/.claude-plugin/seed-workflows; do
     [ -f "$__wf_marker" ] || continue
@@ -398,20 +487,39 @@ fi
 # build caches here. All steps are non-fatal: a hiccup must not block the cache
 # build (the SessionStart hook / test runner installs on demand if anything
 # ends up missing).
+#
+# EVERY warm step is gated on its COMMITTED MANIFEST (go.mod, Cargo.toml,
+# pyproject.toml, requirements.txt, a lockfile), never on `command -v` alone.
+# A facet says the repo COULD carry that stack; only the manifest says this
+# checkout actually does. Keying on PATH instead is what made the node fallback
+# run `pnpm install` at a manifest-less root on every snapshot build, and it is
+# why a freshly-rendered repo — whose manifests are consumer-owned and so absent
+# until the consumer writes them — would otherwise fail its own first build.
+# Absent manifest = nothing to warm, silently. Tool missing WITH a manifest
+# present = a real defect, reported by __smoke_check_failed in smoke mode.
 # Node/TS: warm node_modules so it lands in the
-# snapshot. Key the package manager off the COMMITTED lockfile, never PATH
-# order: an unconditional pnpm-first preference minted a stray pnpm-lock.yaml
-# into an npm repo's snapshot, tripping the stop hook's untracked-files check
-# in every session. Prefer the frozen-lockfile install; fall back to a plain
-# install when no lockfile is committed on this branch.
+# snapshot. EVERY branch is keyed off a COMMITTED file, never PATH order.
+#
+# Both halves of that rule were learned from the same defect class. First, an
+# unconditional pnpm-first preference minted a stray pnpm-lock.yaml into an npm
+# repo's snapshot, tripping the stop hook's untracked-files check in every
+# session — fixed by keying the two lockfile branches. But the bare
+# `command -v` fallbacks survived that fix and reintroduced it from the other
+# side: the cloud base image ships pnpm, so the fallback fired on PATH alone and
+#   * a repo with NO root manifest ran `pnpm install` at the repo root and
+#     FAILED on every snapshot build — guaranteed, for every has_embedded_web
+#     consumer, whose web project is nested by definition;
+#   * a repo WITH a manifest but no committed lockfile minted one into the
+#     snapshot — the original bug, via the other branch.
+# So there is no bare fallback any more. A manifest with no committed lockfile
+# is a conformance defect (the NPM-LOCKFILE-PRESENT audit rule), not something
+# to paper over by installing here.
 if [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
-  (npm ci || npm install) >/dev/null 2>&1 || echo "cloud-setup: npm install failed (non-fatal)" >&2
+  (npm ci || npm install) >/dev/null 2>&1 || __warn "npm install"
 elif [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
-  (pnpm install --frozen-lockfile || pnpm install) >/dev/null 2>&1 || echo "cloud-setup: pnpm install failed (non-fatal)" >&2
-elif command -v pnpm >/dev/null 2>&1; then
-  pnpm install >/dev/null 2>&1 || echo "cloud-setup: pnpm install failed (non-fatal)" >&2
-elif command -v npm >/dev/null 2>&1; then
-  npm install >/dev/null 2>&1 || echo "cloud-setup: npm install failed (non-fatal)" >&2
+  (pnpm install --frozen-lockfile || pnpm install) >/dev/null 2>&1 || __warn "pnpm install"
+elif [ -f package.json ]; then
+  echo "cloud-setup: package.json with no committed lockfile; skipping the node warm (a plain install would mint an untracked lockfile into the snapshot)" >&2
 fi
 
 # --- Repo-local additions (scripts/repo-local/cloud-setup.sh) ----------------
@@ -419,8 +527,12 @@ fi
 # cloud setup (extra apt packages, bespoke prefetch, a dockerd warm, ...) runs
 # HERE, after the template-owned work above, with the same non-fatal contract.
 # Absent the file this is a zero-cost no-op.
+# Deliberately RUNS in smoke mode: the repo-owned half is the whole point of a
+# per-consumer cloud-parity check — it is the one part of the chain the template
+# cannot see, and the part most likely to assume something only the cloud image
+# has.
 if [ -f scripts/repo-local/cloud-setup.sh ]; then
-  bash scripts/repo-local/cloud-setup.sh || echo "cloud-setup: scripts/repo-local/cloud-setup.sh failed (non-fatal)" >&2
+  bash scripts/repo-local/cloud-setup.sh || __warn "scripts/repo-local/cloud-setup.sh"
 fi
 
 # --- Drift fingerprint for the SessionStart hook ----------------------------
@@ -445,11 +557,24 @@ fi
 # that is an accepted divergence only because the standards repo basename IS
 # `standards` and it has no copier project_name.)
 marker_dir="${XDG_CACHE_HOME:-$HOME/.cache}/$(basename "$repo_root")"
-if mkdir -p "$marker_dir" 2>/dev/null; then
+# Not written in smoke mode: there is no snapshot to fingerprint, and a stale
+# marker left in a runner's home would make a later session's drift NOTE lie.
+if [ -z "$__smoke" ] && mkdir -p "$marker_dir" 2>/dev/null; then
   {
     printf 'epoch=%s\n' "${CACHE_EPOCH:-unset}"
     printf 'sha256=%s\n' "$(cat scripts/cloud-setup-shim.sh scripts/common/cloud-setup.sh 2>/dev/null | sha256sum | awk '{print $1}')"
   } >"$marker_dir/cloud-setup.built" 2>/dev/null || true
+fi
+
+# Smoke mode is the ONLY path that may exit non-zero. The cloud path below keeps
+# the abort-proof contract unconditionally.
+if [ -n "$__smoke" ]; then
+  if [ -n "$__smoke_failures" ]; then
+    echo "cloud-setup: SMOKE FAILED ($__smoke) — $__smoke_failures" >&2
+    exit 1
+  fi
+  echo "cloud-setup: smoke OK ($__smoke)" >&2
+  exit 0
 fi
 
 echo "cloud-setup: complete." >&2
