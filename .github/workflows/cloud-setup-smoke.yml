@@ -1,0 +1,78 @@
+# cloud-setup smoke: runs THIS repo's Claude Code on the web setup chain —
+# scripts/cloud-setup-shim.sh -> scripts/common/cloud-setup.sh ->
+# scripts/repo-local/cloud-setup.sh — on a Linux runner, so a defect that would
+# break the cloud environment surfaces on the PR that introduces it instead of
+# in a snapshot build log nobody reads.
+#
+# WHY A CONSUMER-SIDE JOB EXISTS AT ALL
+# -------------------------------------
+# The standards render canary already smokes the chain against FRESHLY RENDERED
+# fixtures, which covers the template's own half. It cannot cover two things
+# that only exist here: this repo's REAL manifests (the canary's fixtures carry
+# none — manifests are consumer-owned via `_skip_if_exists`), and
+# `scripts/repo-local/cloud-setup.sh`, the repo-owned tail of the chain that the
+# template cannot see. Those are exactly where a consumer's cloud environment
+# actually breaks.
+#
+# The chain is ABORT-PROOF BY CONTRACT: a Setup script that exits non-zero
+# blocks the cloud session from starting, so every step swallows its own failure
+# and the script always ends in `exit 0`. `CLOUD_SETUP_SMOKE` inverts that for CI
+# only — steps still all run, but failures are recorded and re-raised as a
+# non-zero exit at the end. Without it there is no exit code to check, which is
+# how a PATH-keyed node fallback ran `pnpm install` at a manifest-less repo root
+# on every snapshot build of every has_embedded_web consumer, reported success,
+# and went unnoticed for months (template/v1.55.56).
+#
+# NOT A REQUIRED CHECK, and it cannot become one while it is paths-filtered: a
+# run that never reports would block the merge forever ("Expected — waiting for
+# status"). Promoting it later means moving this call into standards.yml's
+# unconditional job set first.
+
+name: cloud-setup smoke
+# `on:` is quoted to satisfy `yaml[truthy]` (yamllint + ansible-lint): without
+# quotes, YAML 1.1 parsers fold `on` into the boolean `On`. GitHub Actions
+# resolves the key by name regardless, and actionlint accepts both forms.
+"on":
+  pull_request:
+    # Paths-filtered on purpose. This job cold-bootstraps the pinned toolchain
+    # and warms the archetype cache on a HOSTED x64 runner (the reusable departs
+    # from the arm64 glue pool because the cloud environment is x64), so running
+    # it on every PR would be the most expensive check in the repo for no signal.
+    # Only setup-relevant inputs can change its outcome.
+    paths:
+      # The chain itself — shim, template-owned core, and the repo-owned tail.
+      - "scripts/**"
+      # The toolchain the chain bootstraps before warming anything.
+      - ".mise.toml"
+      - ".tool-versions"
+      # This caller, so a change to the wiring smoke-tests itself.
+      - ".github/workflows/cloud-setup-smoke.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "pnpm-lock.yaml"
+  # Manual trigger: a snapshot-build failure report is otherwise unreproducible
+  # without pushing a no-op commit, and the paths filter above cannot cover
+  # every real input (a change in the cloud base image, for one).
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  # Supersede an in-flight run when a newer commit lands on the same PR.
+  # `github.workflow` namespaces the group to this file, so it never cancels the
+  # repo's other workflows. cancel-in-progress is gated to pull_request so a
+  # manual dispatch is never cancelled by one.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  cloud-setup-smoke:
+    # The reusable probes for a smoke-capable core before it runs anything and
+    # no-ops with a notice when this repo has not re-rendered yet, so this call
+    # is safe from the moment it lands.
+    # The rendered pin is 121 chars — one over the org's 120 floor, on EVERY
+    # consumer, because the sha is always 40 and this filename is 6 chars
+    # longer than the next-longest reusable (secret-scan.yml renders to 115).
+    # Neither half is droppable: the sha must stay full-length, and the `# vN`
+    # trailing comment is the fleet's pin convention that Renovate's
+    # helpers:pinGitHubActionDigests reads to track the major line.
+    # yamllint disable-line rule:line-length
+    uses: Rubio-Enterprises/.github/.github/workflows/cloud-setup-smoke.yml@cc88cf563c5cb7a2712966802307d0b08ac7377c # v3
