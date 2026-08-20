@@ -18,12 +18,6 @@
         "repo": "Rubio-Enterprises/claude-workflows"
       }
     },
-    "mattpocock-skills": {
-      "source": {
-        "source": "github",
-        "repo": "Rubio-Enterprises/mattpocock-skills"
-      }
-    },
     "playwright-skills": {
       "source": {
         "source": "github",
@@ -51,8 +45,7 @@
     "code-modernization@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
     "cue-lsp@claude-lsps": true,
-    "hookify@claude-plugins-official": true,
-    "mattpocock-skills@mattpocock-skills": true,
+    "mattpocock-skills@claude-plugins-official": true,
     "playground@claude-plugins-official": true,
     "playwright-skills@playwright-skills": true,
     "pyright@claude-lsps": true,
