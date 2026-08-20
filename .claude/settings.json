@@ -18,18 +18,6 @@
         "repo": "Rubio-Enterprises/claude-workflows"
       }
     },
-    "devenv-skills": {
-      "source": {
-        "source": "github",
-        "repo": "Rubio-Enterprises/devenv-skills"
-      }
-    },
-    "infra-skills": {
-      "source": {
-        "source": "github",
-        "repo": "Rubio-Enterprises/infra-skills"
-      }
-    },
     "mattpocock-skills": {
       "source": {
         "source": "github",
@@ -63,9 +51,7 @@
     "code-modernization@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
     "cue-lsp@claude-lsps": true,
-    "devenv@devenv-skills": true,
     "hookify@claude-plugins-official": true,
-    "infra-skills@infra-skills": true,
     "mattpocock-skills@mattpocock-skills": true,
     "playground@claude-plugins-official": true,
     "playwright-skills@playwright-skills": true,
