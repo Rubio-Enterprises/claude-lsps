@@ -4,12 +4,12 @@
 # not templated here). This replaces the per-repo hook rendering that used
 # to bake every hook into this file. See standards `lefthook/README.md`.
 #
-# Hook activation note: lefthook installs into .git/hooks/ by default. If a
-# developer's global `core.hooksPath` points at a dispatcher (the org's
-# chezmoi-managed ~/.config/git/hooks pattern), the dispatcher delegates to the
-# per-repo lefthook binary. No repo-side `core.hooksPath` override is required —
-# repo-local `.githooks/` directories are banned by `check.sh` to keep the
-# dispatcher path canonical across the fleet.
+# Hook activation note: lefthook installs into this repository's Git hooks
+# directory by default. The template's `.mise.toml` runs `lefthook install`
+# through its `postinstall` hook after `mise install`, so a fresh clone gets
+# per-repo hooks without `mise activate` or any `core.hooksPath` override.
+# Repo-local `.githooks/` directories remain banned by `check.sh`: lefthook's
+# own per-repo installation is the fleet's single hook path.
 #
 # Network-first with lefthook's own cached-copy offline fallback
 # (`.git/info/lefthook-remotes/`); the local standards clone is the emergency
