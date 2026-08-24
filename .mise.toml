@@ -70,6 +70,14 @@ node = "22.12.0"
 # check ."`). Consumers who don't want Biome can delete biome.json; `_skip_if_exists`
 # keeps it from coming back on `copier update`.
 "npm:@biomejs/biome"       = "2.5.5"
+
+# Git hooks are per-repo via lefthook since dotfiles commit 2ea15ce
+# decommissioned the global ~/.config/git/hooks dispatcher. Nothing else runs
+# `lefthook install`, so a fresh clone silently has no hooks. `postinstall`
+# runs after `mise install` without requiring `mise activate`; unlike `enter`,
+# it therefore activates hooks for developers who never activate mise.
+[hooks]
+postinstall = "mise exec -- lefthook install"
 # TS archetypes: tasks delegate to package.json scripts (the consumer owns
 # package.json per Pattern A/D / _skip_if_exists). The audit Layer B JSON
 # Schema enforces that lint, test, e2e exist in scripts; this contract makes
