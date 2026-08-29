@@ -17,7 +17,8 @@
 # without polluting the developer's global tool surface).
 "aqua:koalaman/shellcheck" = "0.11.0"
 "aqua:mvdan/sh"            = "3.13.1"   # shfmt
-"npm:markdownlint-cli2"    = "0.23.1"
+# 2026-08-28: remove this exact fastq exclude once the selected fastq release publishes SLSA provenance.
+"npm:markdownlint-cli2" = { version = "0.23.1", trust_policy_excludes = ["fastq@1.20.2"] }
 "npm:prettier"             = "3.9.6"
 "pipx:yamllint"            = "1.38.0"
 # lefthook binary itself. The lint-hooks CI job runs `mise exec -- lefthook
