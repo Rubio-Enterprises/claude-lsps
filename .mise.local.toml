@@ -1,0 +1,3 @@
+[tasks.lint]
+description = "Checks JavaScript with Biome"
+run = ["biome check ."]
