@@ -37,7 +37,7 @@ pre-commit:
     shellcheck:
       run: shellcheck --severity=warning {staged_files}
       exclude:
-        - 'tests/fixtures/**' # PROBE: prettier rewrites the quotes
+        - "tests/fixtures/**"
     shfmt:
       exclude:
         - "tests/fixtures/**"
