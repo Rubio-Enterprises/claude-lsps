@@ -13,15 +13,15 @@
 //
 // Exit code 0 = every assertion passed. Non-zero = something is wrong.
 
-import { spawn } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { spawn } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, "..", "..", ".."); // .claude/skills/run-lsp-proxy -> repo root
-const STUB = join(REPO, "tests", "helpers", "stub-server.js");
+const REPO = resolve(HERE, '..', '..', '..'); // .claude/skills/run-lsp-proxy -> repo root
+const STUB = join(REPO, 'tests', 'helpers', 'stub-server.js');
 
 // ---------------------------------------------------------------------------
 // Args
@@ -31,15 +31,15 @@ function opt(name, def) {
   const i = argv.indexOf(name);
   return i !== -1 && argv[i + 1] ? argv[i + 1] : def;
 }
-const PLUGIN = opt("--plugin", "regal-lsp");
-const LIVE = argv.includes("--live");
+const PLUGIN = opt('--plugin', 'regal-lsp');
+const LIVE = argv.includes('--live');
 const PLUGIN_DIR = join(REPO, PLUGIN);
-const PROXY = join(PLUGIN_DIR, "lsp-proxy.js");
+const PROXY = join(PLUGIN_DIR, 'lsp-proxy.js');
 
 // ---------------------------------------------------------------------------
 // LSP framing
 // ---------------------------------------------------------------------------
-const DELIM = Buffer.from("\r\n\r\n");
+const DELIM = Buffer.from('\r\n\r\n');
 const CL_RE = /^content-length:\s*(\d+)\s*$/im;
 function frame(obj) {
   const body = Buffer.from(JSON.stringify(obj));
@@ -53,7 +53,7 @@ function makeParser(onMessage) {
     while (true) {
       const di = buf.indexOf(DELIM);
       if (di === -1) return;
-      const m = CL_RE.exec(buf.subarray(0, di).toString("ascii"));
+      const m = CL_RE.exec(buf.subarray(0, di).toString('ascii'));
       if (!m) {
         buf = Buffer.alloc(0);
         return;
@@ -64,7 +64,7 @@ function makeParser(onMessage) {
       const body = buf.subarray(start, end);
       buf = buf.subarray(end);
       try {
-        onMessage(JSON.parse(body.toString("utf8")));
+        onMessage(JSON.parse(body.toString('utf8')));
       } catch {
         /* ignore */
       }
@@ -75,25 +75,25 @@ function makeParser(onMessage) {
 // ---------------------------------------------------------------------------
 // Build a warmup root (only matters for regal): a dir with .rego files.
 // ---------------------------------------------------------------------------
-const workRoot = mkdtempSync(join(tmpdir(), "lsp-proxy-drive-"));
-writeFileSync(join(workRoot, "policy.rego"), "package a\nallow = true\n");
-writeFileSync(join(workRoot, "extra.rego"), "package b\ndeny = false\n");
-writeFileSync(join(workRoot, "notrego.txt"), "ignore me\n");
+const workRoot = mkdtempSync(join(tmpdir(), 'lsp-proxy-drive-'));
+writeFileSync(join(workRoot, 'policy.rego'), 'package a\nallow = true\n');
+writeFileSync(join(workRoot, 'extra.rego'), 'package b\ndeny = false\n');
+writeFileSync(join(workRoot, 'notrego.txt'), 'ignore me\n');
 const rootUri = pathToFileURL(workRoot).href;
 
 // ---------------------------------------------------------------------------
 // Effective proxy config: reuse the plugin's real blocked/warmup lists, but
 // (unless --live) swap the server for the bundled stub.
 // ---------------------------------------------------------------------------
-const realConfig = JSON.parse(readFileSync(join(PLUGIN_DIR, "proxy.json"), "utf8"));
-const stubLog = mkdtempSync(join(tmpdir(), "lsp-proxy-stublog-"));
+const realConfig = JSON.parse(readFileSync(join(PLUGIN_DIR, 'proxy.json'), 'utf8'));
+const stubLog = mkdtempSync(join(tmpdir(), 'lsp-proxy-stublog-'));
 const cfg = { blocked: realConfig.blocked, warmup: realConfig.warmup };
 if (LIVE) {
   cfg.server = realConfig.server;
 } else {
-  cfg.server = ["node", STUB];
+  cfg.server = ['node', STUB];
 }
-const cfgPath = join(stubLog, "effective-proxy.json");
+const cfgPath = join(stubLog, 'effective-proxy.json');
 writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
 
 // The stub is configured entirely by env vars (see stub-server.js header):
@@ -106,11 +106,11 @@ writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
 const stubEnv = LIVE
   ? {}
   : {
-      STUB_AUTO_INIT: "1",
-      STUB_HOVER_RESULT: "1",
+      STUB_AUTO_INIT: '1',
+      STUB_HOVER_RESULT: '1',
       STUB_LOG_DIR: stubLog,
       STUB_EMIT: JSON.stringify([
-        { jsonrpc: "2.0", id: 9001, method: "workspace/configuration", params: { items: [] } },
+        { jsonrpc: '2.0', id: 9001, method: 'workspace/configuration', params: { items: [] } },
       ]),
     };
 
@@ -119,26 +119,26 @@ const stubEnv = LIVE
 // ---------------------------------------------------------------------------
 console.log(`▶ plugin      : ${PLUGIN}`);
 console.log(`▶ proxy       : ${PROXY}`);
-console.log(`▶ server      : ${LIVE ? cfg.server.join(" ") + "  (LIVE)" : "stub-server.js"}`);
-console.log(`▶ blocked     : ${cfg.blocked.join(", ")}`);
-console.log(`▶ warmup      : ${cfg.warmup ? cfg.warmup.extensions.join(",") : "(none)"}`);
+console.log(`▶ server      : ${LIVE ? cfg.server.join(' ') + '  (LIVE)' : 'stub-server.js'}`);
+console.log(`▶ blocked     : ${cfg.blocked.join(', ')}`);
+console.log(`▶ warmup      : ${cfg.warmup ? cfg.warmup.extensions.join(',') : '(none)'}`);
 console.log(`▶ workRoot    : ${workRoot}`);
-console.log("");
+console.log('');
 
-const proxy = spawn("node", [PROXY, "--config", cfgPath], {
-  stdio: ["pipe", "pipe", "inherit"],
+const proxy = spawn('node', [PROXY, '--config', cfgPath], {
+  stdio: ['pipe', 'pipe', 'inherit'],
   env: { ...process.env, ...stubEnv },
 });
 
 const fromServerToClient = []; // messages the proxy forwarded to us (the client)
 const feed = makeParser((msg) => {
   fromServerToClient.push(msg);
-  const tag = msg.id !== undefined ? `id=${msg.id}` : "notif";
+  const tag = msg.id !== undefined ? `id=${msg.id}` : 'notif';
   console.log(
-    `  ← proxy→client  ${tag} ${msg.method || (msg.result !== undefined ? "result" : "error")}`,
+    `  ← proxy→client  ${tag} ${msg.method || (msg.result !== undefined ? 'result' : 'error')}`,
   );
 });
-proxy.stdout.on("data", feed);
+proxy.stdout.on('data', feed);
 
 function send(obj) {
   const label = obj.id !== undefined ? `id=${obj.id} ${obj.method}` : obj.method;
@@ -163,39 +163,39 @@ function waitForId(id, timeout = 4000) {
 }
 
 // Blocked method declared in regal-lsp/proxy.json:
-const BLOCKED_METHOD = "textDocument/references";
+const BLOCKED_METHOD = 'textDocument/references';
 
 const results = [];
 function check(name, ok, detail) {
   results.push({ name, ok });
-  console.log(`  ${ok ? "✓" : "✗"} ${name}${detail ? "  — " + detail : ""}`);
+  console.log(`  ${ok ? '✓' : '✗'} ${name}${detail ? '  — ' + detail : ''}`);
 }
 
 async function main() {
-  console.log("── conversation ──");
+  console.log('── conversation ──');
   send({
-    jsonrpc: "2.0",
+    jsonrpc: '2.0',
     id: 1,
-    method: "initialize",
+    method: 'initialize',
     params: { processId: process.pid, rootUri, capabilities: {} },
   });
   const initResp = await waitForId(1);
   check(
-    "initialize forwarded & answered",
+    'initialize forwarded & answered',
     !!(initResp.result && initResp.result.capabilities),
-    "got capabilities",
+    'got capabilities',
   );
 
-  send({ jsonrpc: "2.0", method: "initialized", params: {} });
+  send({ jsonrpc: '2.0', method: 'initialized', params: {} });
   await wait(300); // let regal warmup fire (setImmediate → didOpen burst)
 
   // Blocked request → proxy must synthesize {result:null} itself; server must NOT see it.
   send({
-    jsonrpc: "2.0",
+    jsonrpc: '2.0',
     id: 2,
     method: BLOCKED_METHOD,
     params: {
-      textDocument: { uri: rootUri + "/x" },
+      textDocument: { uri: rootUri + '/x' },
       position: { line: 0, character: 0 },
       context: { includeDeclaration: true },
     },
@@ -209,16 +209,16 @@ async function main() {
 
   // Non-blocked request → forwarded, real (stub) response round-trips back.
   send({
-    jsonrpc: "2.0",
+    jsonrpc: '2.0',
     id: 3,
-    method: "textDocument/hover",
-    params: { textDocument: { uri: rootUri + "/x" }, position: { line: 0, character: 0 } },
+    method: 'textDocument/hover',
+    params: { textDocument: { uri: rootUri + '/x' }, position: { line: 0, character: 0 } },
   });
   if (!LIVE) {
     const hoverResp = await waitForId(3);
     check(
-      "non-blocked hover forwarded & answered",
-      hoverResp.result && hoverResp.result.contents === "hover-result",
+      'non-blocked hover forwarded & answered',
+      hoverResp.result && hoverResp.result.contents === 'hover-result',
       JSON.stringify(hoverResp.result),
     );
   }
@@ -228,9 +228,9 @@ async function main() {
   if (!LIVE) {
     let recv = [];
     try {
-      recv = readFileSync(join(stubLog, "recv.jsonl"), "utf8")
+      recv = readFileSync(join(stubLog, 'recv.jsonl'), 'utf8')
         .trim()
-        .split("\n")
+        .split('\n')
         .filter(Boolean)
         .map((l) => JSON.parse(l));
     } catch {
@@ -241,54 +241,54 @@ async function main() {
     check(
       `server never saw ${BLOCKED_METHOD}`,
       !serverSawBlocked,
-      serverSawBlocked ? "LEAKED to server" : "intercepted at proxy",
+      serverSawBlocked ? 'LEAKED to server' : 'intercepted at proxy',
     );
 
     const serverGotAck = recv.some(
       (m) => m.id === 9001 && m.result === null && m.method === undefined,
     );
     check(
-      "server-initiated workspace/configuration auto-acked",
+      'server-initiated workspace/configuration auto-acked',
       serverGotAck,
-      serverGotAck ? "ack reached server" : "no ack seen",
+      serverGotAck ? 'ack reached server' : 'no ack seen',
     );
 
-    const clientSawConfig = fromServerToClient.some((m) => m.method === "workspace/configuration");
+    const clientSawConfig = fromServerToClient.some((m) => m.method === 'workspace/configuration');
     check(
-      "client shielded from workspace/configuration",
+      'client shielded from workspace/configuration',
       !clientSawConfig,
-      clientSawConfig ? "leaked to client" : "never forwarded",
+      clientSawConfig ? 'leaked to client' : 'never forwarded',
     );
 
     if (cfg.warmup) {
       const opened = recv
-        .filter((m) => m.method === "textDocument/didOpen")
+        .filter((m) => m.method === 'textDocument/didOpen')
         .map((m) => m.params.textDocument.uri);
-      const regoOpened = opened.filter((u) => u.endsWith(".rego"));
+      const regoOpened = opened.filter((u) => u.endsWith('.rego'));
       check(
-        "warmup opened all .rego files",
+        'warmup opened all .rego files',
         regoOpened.length === 2,
         `${regoOpened.length} didOpen (.rego)`,
       );
-      const openedTxt = opened.some((u) => u.endsWith(".txt"));
+      const openedTxt = opened.some((u) => u.endsWith('.txt'));
       check(
-        "warmup skipped non-.rego files",
+        'warmup skipped non-.rego files',
         !openedTxt,
-        openedTxt ? "opened a .txt" : "extension filter held",
+        openedTxt ? 'opened a .txt' : 'extension filter held',
       );
     }
   }
 
   // Clean shutdown: closing stdin makes the proxy SIGTERM its child and exit.
-  console.log("── shutdown ──");
+  console.log('── shutdown ──');
   proxy.stdin.end();
   await wait(150);
-  if (!proxy.killed) proxy.kill("SIGTERM");
+  if (!proxy.killed) proxy.kill('SIGTERM');
 }
 
 const HARD_TIMEOUT = setTimeout(() => {
-  console.error("\n✗ hard timeout — proxy did not complete the conversation");
-  proxy.kill("SIGKILL");
+  console.error('\n✗ hard timeout — proxy did not complete the conversation');
+  proxy.kill('SIGKILL');
   process.exit(2);
 }, 15000);
 
@@ -296,9 +296,9 @@ main()
   .then(() => {
     clearTimeout(HARD_TIMEOUT);
     const failed = results.filter((r) => !r.ok);
-    console.log("");
+    console.log('');
     console.log(
-      `${failed.length === 0 ? "✅ PASS" : "❌ FAIL"} — ${results.length - failed.length}/${results.length} checks`,
+      `${failed.length === 0 ? '✅ PASS' : '❌ FAIL'} — ${results.length - failed.length}/${results.length} checks`,
     );
     process.exit(failed.length === 0 ? 0 : 1);
   })
@@ -306,7 +306,7 @@ main()
     clearTimeout(HARD_TIMEOUT);
     console.error(`\n✗ driver error: ${err.message}`);
     try {
-      proxy.kill("SIGKILL");
+      proxy.kill('SIGKILL');
     } catch {
       /* ignore */
     }

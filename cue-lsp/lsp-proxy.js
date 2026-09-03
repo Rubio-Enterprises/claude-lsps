@@ -60,25 +60,25 @@
 //
 // Node stdlib only, per repo convention.
 
-const { spawn } = require("node:child_process");
-const { readFileSync, readdirSync, statSync } = require("node:fs");
-const { resolve, join, extname } = require("node:path");
-const { fileURLToPath, pathToFileURL } = require("node:url");
+const { spawn } = require('node:child_process');
+const { readFileSync, readdirSync, statSync } = require('node:fs');
+const { resolve, join, extname } = require('node:path');
+const { fileURLToPath, pathToFileURL } = require('node:url');
 
 // ---------------------------------------------------------------------------
 // Load configuration
 // ---------------------------------------------------------------------------
 
-const configIdx = process.argv.indexOf("--config");
+const configIdx = process.argv.indexOf('--config');
 if (configIdx === -1 || !process.argv[configIdx + 1]) {
-  process.stderr.write("Usage: lsp-proxy --config <path-to-proxy.json>\n");
+  process.stderr.write('Usage: lsp-proxy --config <path-to-proxy.json>\n');
   process.exit(1);
 }
 
 const configPath = resolve(process.argv[configIdx + 1]);
 let config;
 try {
-  config = JSON.parse(readFileSync(configPath, "utf8"));
+  config = JSON.parse(readFileSync(configPath, 'utf8'));
 } catch (err) {
   process.stderr.write(`[lsp-proxy] Failed to read config: ${err.message}\n`);
   process.exit(1);
@@ -103,7 +103,7 @@ const LOG_PREFIX = `[lsp-proxy:${SERVER_CMD}]`;
 // LSP message framing helpers
 // ---------------------------------------------------------------------------
 
-const HEADER_DELIM = Buffer.from("\r\n\r\n");
+const HEADER_DELIM = Buffer.from('\r\n\r\n');
 const CONTENT_LENGTH_RE = /^content-length:\s*(\d+)\s*$/im;
 
 function writeMessage(stream, body) {
@@ -117,7 +117,7 @@ function writeMessage(stream, body) {
 // ---------------------------------------------------------------------------
 
 const child = spawn(SERVER_CMD, SERVER_ARGS, {
-  stdio: ["pipe", "pipe", "inherit"],
+  stdio: ['pipe', 'pipe', 'inherit'],
 });
 
 // Expected-shutdown tracking: stdin EOF and forwarded signals SIGTERM the
@@ -137,7 +137,7 @@ const openDocs = new Map();
 
 function toPath(uri) {
   try {
-    return uri && uri.startsWith("file:") ? fileURLToPath(uri) : null;
+    return uri && uri.startsWith('file:') ? fileURLToPath(uri) : null;
   } catch {
     return null;
   }
@@ -176,9 +176,9 @@ function sameStat(a, b) {
 function trackOpen(uri, text, version, languageId) {
   const p = toPath(uri);
   openDocs.set(uri, {
-    version: typeof version === "number" ? version : 1,
-    text: text != null ? text : "",
-    languageId: languageId || "plaintext",
+    version: typeof version === 'number' ? version : 1,
+    text: text != null ? text : '',
+    languageId: languageId || 'plaintext',
     path: p,
     stat: p ? statOf(p) : null,
     pending: false,
@@ -205,7 +205,7 @@ function reconcileClientChange(msg, rawMessage) {
   let sawIncremental = false;
   if (Array.isArray(changes)) {
     for (const c of changes) {
-      if (c && c.range === undefined && typeof c.text === "string") {
+      if (c && c.range === undefined && typeof c.text === 'string') {
         knownText = c.text; // full replacement: buffer known from here on
       } else {
         knownText = null; // incremental on top: buffer unknown again
@@ -235,13 +235,13 @@ function reconcileClientChange(msg, rawMessage) {
     st.closed = false;
     st.missing = false;
     st.pending = false;
-    st.version = Math.max(typeof td.version === "number" ? td.version : 0, st.version + 1);
+    st.version = Math.max(typeof td.version === 'number' ? td.version : 0, st.version + 1);
     st.stat = st.path ? statOf(st.path) : null;
     writeMessage(
       child.stdin,
       JSON.stringify({
-        jsonrpc: "2.0",
-        method: "textDocument/didOpen",
+        jsonrpc: '2.0',
+        method: 'textDocument/didOpen',
         params: {
           textDocument: {
             uri: td.uri,
@@ -258,7 +258,7 @@ function reconcileClientChange(msg, rawMessage) {
     return null;
   }
 
-  const clientV = typeof td.version === "number" ? td.version : null;
+  const clientV = typeof td.version === 'number' ? td.version : null;
   if (clientV !== null && clientV > st.version) {
     st.version = clientV;
     return rawMessage;
@@ -314,8 +314,8 @@ function pollOpenDocs() {
       writeMessage(
         child.stdin,
         JSON.stringify({
-          jsonrpc: "2.0",
-          method: "textDocument/didClose",
+          jsonrpc: '2.0',
+          method: 'textDocument/didClose',
           params: { textDocument: { uri } },
         }),
       );
@@ -336,7 +336,7 @@ function pollOpenDocs() {
     st.pending = false;
     let text;
     try {
-      text = readFileSync(st.path, "utf8");
+      text = readFileSync(st.path, 'utf8');
     } catch {
       continue;
     }
@@ -349,8 +349,8 @@ function pollOpenDocs() {
       writeMessage(
         child.stdin,
         JSON.stringify({
-          jsonrpc: "2.0",
-          method: "textDocument/didOpen",
+          jsonrpc: '2.0',
+          method: 'textDocument/didOpen',
           params: {
             textDocument: { uri, languageId: st.languageId, version: st.version, text },
           },
@@ -369,8 +369,8 @@ function pollOpenDocs() {
     writeMessage(
       child.stdin,
       JSON.stringify({
-        jsonrpc: "2.0",
-        method: "textDocument/didChange",
+        jsonrpc: '2.0',
+        method: 'textDocument/didChange',
         params: {
           textDocument: { uri, version: st.version },
           contentChanges: [{ text }],
@@ -380,8 +380,8 @@ function pollOpenDocs() {
     writeMessage(
       child.stdin,
       JSON.stringify({
-        jsonrpc: "2.0",
-        method: "textDocument/didSave",
+        jsonrpc: '2.0',
+        method: 'textDocument/didSave',
         params: { textDocument: { uri } },
       }),
     );
@@ -453,15 +453,15 @@ function warmupServer(rootDir) {
 
   // Map extensions to languageIds
   const extToLang = {
-    ".rego": "rego",
-    ".py": "python",
-    ".ts": "typescript",
-    ".js": "javascript",
-    ".cue": "cue",
-    ".sh": "shellscript",
-    ".yml": "yaml",
-    ".yaml": "yaml",
-    ".swift": "swift",
+    '.rego': 'rego',
+    '.py': 'python',
+    '.ts': 'typescript',
+    '.js': 'javascript',
+    '.cue': 'cue',
+    '.sh': 'shellscript',
+    '.yml': 'yaml',
+    '.yaml': 'yaml',
+    '.swift': 'swift',
   };
 
   let version = 0;
@@ -474,7 +474,7 @@ function warmupServer(rootDir) {
 
     let content;
     try {
-      content = readFileSync(filePath, "utf8");
+      content = readFileSync(filePath, 'utf8');
     } catch {
       continue; // Unreadable file — skip.
     }
@@ -483,8 +483,8 @@ function warmupServer(rootDir) {
     const languageId = extToLang[ext] || ext.slice(1);
 
     const notification = JSON.stringify({
-      jsonrpc: "2.0",
-      method: "textDocument/didOpen",
+      jsonrpc: '2.0',
+      method: 'textDocument/didOpen',
       params: {
         textDocument: {
           uri,
@@ -516,17 +516,17 @@ let initializeResponseSeen = false;
 // ---------------------------------------------------------------------------
 
 const SERVER_REQUESTS_AUTO_RESPOND = new Set([
-  "client/registerCapability",
-  "client/unregisterCapability",
-  "workspace/configuration",
-  "window/workDoneProgress/create",
+  'client/registerCapability',
+  'client/unregisterCapability',
+  'workspace/configuration',
+  'window/workDoneProgress/create',
 ]);
 
 // workspace/configuration's spec-correct response is one entry per
 // params.items element ("use defaults" = null each). A bare null here breaks
 // servers that index into the array (pyright, vtsls).
 function autoAckResult(msg) {
-  if (msg.method === "workspace/configuration") {
+  if (msg.method === 'workspace/configuration') {
     const items = msg.params && Array.isArray(msg.params.items) ? msg.params.items : [];
     return items.map(() => null);
   }
@@ -535,7 +535,7 @@ function autoAckResult(msg) {
 
 let serverBuffer = Buffer.alloc(0);
 
-child.stdout.on("data", (chunk) => {
+child.stdout.on('data', (chunk) => {
   serverBuffer = Buffer.concat([serverBuffer, chunk]);
   drainServerBuffer();
 });
@@ -545,7 +545,7 @@ function drainServerBuffer() {
     const delimIdx = serverBuffer.indexOf(HEADER_DELIM);
     if (delimIdx === -1) return;
 
-    const header = serverBuffer.subarray(0, delimIdx).toString("ascii");
+    const header = serverBuffer.subarray(0, delimIdx).toString('ascii');
     const match = CONTENT_LENGTH_RE.exec(header);
     if (!match) {
       process.stdout.write(serverBuffer);
@@ -565,7 +565,7 @@ function drainServerBuffer() {
 
     let msg;
     try {
-      msg = JSON.parse(bodyBytes.toString("utf8"));
+      msg = JSON.parse(bodyBytes.toString('utf8'));
     } catch {
       process.stdout.write(rawMessage);
       continue;
@@ -573,7 +573,7 @@ function drainServerBuffer() {
 
     // Auto-respond to server-initiated requests the client can't handle.
     if (msg.id !== undefined && msg.method && SERVER_REQUESTS_AUTO_RESPOND.has(msg.method)) {
-      const ack = JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: autoAckResult(msg) });
+      const ack = JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: autoAckResult(msg) });
       writeMessage(child.stdin, ack);
       continue;
     }
@@ -589,12 +589,12 @@ function drainServerBuffer() {
   }
 }
 
-child.on("error", (err) => {
+child.on('error', (err) => {
   process.stderr.write(`${LOG_PREFIX} child error: ${err.message}\n`);
   process.exit(1);
 });
 
-child.on("exit", (code) => {
+child.on('exit', (code) => {
   if (pollTimer) clearInterval(pollTimer);
   process.exit(code ?? (shuttingDown ? 0 : 1));
 });
@@ -606,15 +606,15 @@ child.on("exit", (code) => {
 
 let buffer = Buffer.alloc(0);
 
-process.stdin.on("data", (chunk) => {
+process.stdin.on('data', (chunk) => {
   buffer = Buffer.concat([buffer, chunk]);
   drainBuffer();
 });
 
-process.stdin.on("end", () => {
+process.stdin.on('end', () => {
   shuttingDown = true;
   if (pollTimer) clearInterval(pollTimer);
-  child.kill("SIGTERM");
+  child.kill('SIGTERM');
 });
 
 function drainBuffer() {
@@ -622,7 +622,7 @@ function drainBuffer() {
     const delimIdx = buffer.indexOf(HEADER_DELIM);
     if (delimIdx === -1) return;
 
-    const header = buffer.subarray(0, delimIdx).toString("ascii");
+    const header = buffer.subarray(0, delimIdx).toString('ascii');
     const match = CONTENT_LENGTH_RE.exec(header);
     if (!match) {
       child.stdin.write(buffer);
@@ -642,14 +642,14 @@ function drainBuffer() {
 
     let msg;
     try {
-      msg = JSON.parse(bodyBytes.toString("utf8"));
+      msg = JSON.parse(bodyBytes.toString('utf8'));
     } catch {
       child.stdin.write(rawMessage);
       continue;
     }
 
     // Capture rootUri from the initialize request.
-    if (msg.method === "initialize" && msg.params) {
+    if (msg.method === 'initialize' && msg.params) {
       rootUri = msg.params.rootUri || msg.params.rootPath || null;
       process.stderr.write(`${LOG_PREFIX} rootUri: ${rootUri}\n`);
     }
@@ -660,7 +660,7 @@ function drainBuffer() {
     // (deleted file) is swallowed rather than closed twice.
     const td = msg.params && msg.params.textDocument;
     let outFrame = rawMessage;
-    if (msg.method === "textDocument/didOpen" && td && td.uri) {
+    if (msg.method === 'textDocument/didOpen' && td && td.uri) {
       const st = openDocs.get(td.uri);
       if (st && !st.closed) {
         // The server already has this document open (warmup got there first,
@@ -670,9 +670,9 @@ function drainBuffer() {
         // becomes authoritative without a double open. (A proxy-CLOSED entry
         // falls through to the normal open below — the server really does
         // consider it closed.)
-        st.text = td.text != null ? td.text : "";
+        st.text = td.text != null ? td.text : '';
         st.languageId = td.languageId || st.languageId;
-        st.version = Math.max(typeof td.version === "number" ? td.version : 0, st.version + 1);
+        st.version = Math.max(typeof td.version === 'number' ? td.version : 0, st.version + 1);
         st.stat = st.path ? statOf(st.path) : null;
         st.pending = false;
         st.missing = false;
@@ -680,8 +680,8 @@ function drainBuffer() {
         writeMessage(
           child.stdin,
           JSON.stringify({
-            jsonrpc: "2.0",
-            method: "textDocument/didChange",
+            jsonrpc: '2.0',
+            method: 'textDocument/didChange',
             params: {
               textDocument: { uri: td.uri, version: st.version },
               contentChanges: [{ text: st.text }],
@@ -695,23 +695,23 @@ function drainBuffer() {
       } else {
         trackOpen(td.uri, td.text, td.version, td.languageId);
       }
-    } else if (msg.method === "textDocument/didChange" && td && td.uri && SYNC) {
+    } else if (msg.method === 'textDocument/didChange' && td && td.uri && SYNC) {
       outFrame = reconcileClientChange(msg, rawMessage);
-    } else if (msg.method === "textDocument/didClose" && td && td.uri) {
+    } else if (msg.method === 'textDocument/didClose' && td && td.uri) {
       const st = openDocs.get(td.uri);
       openDocs.delete(td.uri);
       if (st && st.closed) outFrame = null;
     }
 
     // After "initialized" notification, trigger warmup.
-    if (msg.method === "initialized" && initializeResponseSeen && rootUri && WARMUP) {
+    if (msg.method === 'initialized' && initializeResponseSeen && rootUri && WARMUP) {
       // Forward the initialized notification first.
       child.stdin.write(rawMessage);
 
       // Then trigger warmup asynchronously (setImmediate lets the event loop
       // flush the initialized notification to the server before we send
       // the didOpen burst).
-      const rootDir = rootUri.startsWith("file://") ? fileURLToPath(rootUri) : rootUri;
+      const rootDir = rootUri.startsWith('file://') ? fileURLToPath(rootUri) : rootUri;
       setImmediate(() => warmupServer(rootDir));
       continue;
     }
@@ -720,7 +720,7 @@ function drainBuffer() {
     if (msg.method && BLOCKED_METHODS.has(msg.method)) {
       if (msg.id !== undefined) {
         const response = JSON.stringify({
-          jsonrpc: "2.0",
+          jsonrpc: '2.0',
           id: msg.id,
           result: null,
         });
@@ -739,7 +739,7 @@ function drainBuffer() {
 // Signal forwarding
 // ---------------------------------------------------------------------------
 
-for (const sig of ["SIGTERM", "SIGINT"]) {
+for (const sig of ['SIGTERM', 'SIGINT']) {
   process.on(sig, () => {
     shuttingDown = true;
     if (pollTimer) clearInterval(pollTimer);

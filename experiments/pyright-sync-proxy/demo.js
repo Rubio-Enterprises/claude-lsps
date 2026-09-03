@@ -19,27 +19,27 @@
 //
 // Node stdlib only; reuses the repo's test LspClient for the wire handshake.
 
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
-const { pathToFileURL } = require("node:url");
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
-const { LspClient } = require("../../tests/helpers/lsp-client.js");
+const { LspClient } = require('../../tests/helpers/lsp-client.js');
 
-const PROXY_JS = path.join(__dirname, "lsp-proxy.js");
-const PROXY_JSON = path.join(__dirname, "proxy.json");
+const PROXY_JS = path.join(__dirname, 'lsp-proxy.js');
+const PROXY_JSON = path.join(__dirname, 'proxy.json');
 const BROKEN = 'x: int = "not an int"\nprint(x)\n';
-const FIXED = "x: int = 5\nprint(x)\n";
+const FIXED = 'x: int = 5\nprint(x)\n';
 const PYRIGHTCONFIG = JSON.stringify(
-  { include: ["."], pythonVersion: "3.11", reportGeneralTypeIssues: "error" },
+  { include: ['.'], pythonVersion: '3.11', reportGeneralTypeIssues: 'error' },
   null,
   2,
 );
 
 function makeWorkdir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pyright-sync-demo-"));
-  fs.writeFileSync(path.join(dir, "broken.py"), BROKEN);
-  fs.writeFileSync(path.join(dir, "pyrightconfig.json"), PYRIGHTCONFIG);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pyright-sync-demo-'));
+  fs.writeFileSync(path.join(dir, 'broken.py'), BROKEN);
+  fs.writeFileSync(path.join(dir, 'pyrightconfig.json'), PYRIGHTCONFIG);
   return dir;
 }
 
@@ -50,7 +50,7 @@ function makeWorkdir() {
 // didChange, then another disk-only edit).
 async function run({ label, command, args, hybrid = false }) {
   const dir = makeWorkdir();
-  const filePath = path.join(dir, "broken.py");
+  const filePath = path.join(dir, 'broken.py');
   const fileUri = pathToFileURL(filePath).href;
   const rootUri = pathToFileURL(dir).href;
   const client = new LspClient({ command, args, cwd: dir });
@@ -67,14 +67,14 @@ async function run({ label, command, args, hybrid = false }) {
   try {
     await client.initialize({ rootUri });
 
-    client.didOpen({ uri: fileUri, languageId: "python", text: BROKEN });
+    client.didOpen({ uri: fileUri, languageId: 'python', text: BROKEN });
     const errDiags = await client.waitForDiagnostics({
       uri: fileUri,
-      mode: "push",
+      mode: 'push',
       timeout: 15000,
     });
     result.opened = errDiags.map((d) => d.message);
-    if (errDiags.length === 0) throw new Error("expected an error on open, got none");
+    if (errDiags.length === 0) throw new Error('expected an error on open, got none');
 
     // Phase 2 — the fix: disk write, NO didChange.
     let baseSeq = client.publishSeq(fileUri);
@@ -131,14 +131,14 @@ async function run({ label, command, args, hybrid = false }) {
 
 async function main() {
   const control = await run({
-    label: "CONTROL   (direct pyright)",
-    command: "pyright-langserver",
-    args: ["--stdio"],
+    label: 'CONTROL   (direct pyright)',
+    command: 'pyright-langserver',
+    args: ['--stdio'],
   });
   const treatment = await run({
-    label: "TREATMENT (sync proxy)",
-    command: "node",
-    args: [PROXY_JS, "--config", PROXY_JSON],
+    label: 'TREATMENT (sync proxy)',
+    command: 'node',
+    args: [PROXY_JS, '--config', PROXY_JSON],
     hybrid: true,
   });
 
@@ -149,23 +149,23 @@ async function main() {
     const n = r.afterDiskFix.length;
     return (
       `${r.label}: opened→${err} error(s); after disk fix → ${n} diag(s)` +
-      (n === 0 ? ` CLEARED in ${r.refreshMs}ms` : " (still present)")
+      (n === 0 ? ` CLEARED in ${r.refreshMs}ms` : ' (still present)')
     );
   };
 
-  console.log("");
+  console.log('');
   console.log(line(control));
   console.log(line(treatment));
-  console.log("");
+  console.log('');
 
   const h = treatment;
   console.log(
     `HYBRID    (sync proxy): client didChange → ` +
-      `${h.afterClientEdit === null ? "NO publish" : `${h.afterClientEdit.length} diag(s)`}; ` +
+      `${h.afterClientEdit === null ? 'NO publish' : `${h.afterClientEdit.length} diag(s)`}; ` +
       `then disk-only fix → ` +
-      `${h.afterHybridFix === null ? "NO re-publish (proxy went deaf)" : `${h.afterHybridFix.length} diag(s)`}`,
+      `${h.afterHybridFix === null ? 'NO re-publish (proxy went deaf)' : `${h.afterHybridFix.length} diag(s)`}`,
   );
-  console.log("");
+  console.log('');
 
   // Expectations: control stays stale; treatment clears; hybrid phase shows the
   // client's own edit landing AND the subsequent disk-only fix still syncing.
@@ -177,20 +177,20 @@ async function main() {
 
   const problems = [];
   if (!controlStale)
-    problems.push("control unexpectedly refreshed (pyright watched disk on its own?)");
-  if (!treatmentFixed) problems.push("treatment did NOT clear the error via the proxy");
+    problems.push('control unexpectedly refreshed (pyright watched disk on its own?)');
+  if (!treatmentFixed) problems.push('treatment did NOT clear the error via the proxy');
   if (!clientEditLanded)
-    problems.push("client-driven didChange did not produce the expected error");
+    problems.push('client-driven didChange did not produce the expected error');
   if (!hybridFixed)
-    problems.push("disk-only fix AFTER a client didChange did not sync (back-off regression)");
+    problems.push('disk-only fix AFTER a client didChange did not sync (back-off regression)');
 
   if (problems.length) {
-    console.log("DEMO FAILED:");
+    console.log('DEMO FAILED:');
     for (const p of problems) console.log(`  - ${p}`);
     process.exit(1);
   }
   console.log(
-    "DEMO PASSED — disk-only edits sync through the proxy, including after client didChanges.",
+    'DEMO PASSED — disk-only edits sync through the proxy, including after client didChanges.',
   );
   process.exit(0);
 }
