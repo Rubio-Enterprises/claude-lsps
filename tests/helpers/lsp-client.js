@@ -11,16 +11,16 @@
 //
 // Hand-rolled with Node stdlib only per repo convention.
 
-const { spawn } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
-const HEADER_DELIM = Buffer.from("\r\n\r\n");
+const HEADER_DELIM = Buffer.from('\r\n\r\n');
 const CL_RE = /^content-length:\s*(\d+)\s*$/im;
 
-const PUSH_QUIET_MS = parseInt(process.env.LIVE_QUIET_MS || "500", 10);
-const PUSH_TIMEOUT_MS = parseInt(process.env.LIVE_TIMEOUT_MS || "5000", 10);
-const PULL_TIMEOUT_MS = parseInt(process.env.LIVE_PULL_TIMEOUT_MS || "10000", 10);
+const PUSH_QUIET_MS = parseInt(process.env.LIVE_QUIET_MS || '500', 10);
+const PUSH_TIMEOUT_MS = parseInt(process.env.LIVE_TIMEOUT_MS || '5000', 10);
+const PULL_TIMEOUT_MS = parseInt(process.env.LIVE_PULL_TIMEOUT_MS || '10000', 10);
 
 // Server-initiated requests this client handles natively. The set MUST mirror
 // the four methods the production proxy auto-responds to (every plugin ships a
@@ -31,15 +31,15 @@ const PULL_TIMEOUT_MS = parseInt(process.env.LIVE_PULL_TIMEOUT_MS || "10000", 10
 // Code's subset client does in production. Auto-acking *more* than this would
 // hide protocol gaps the live suite is supposed to catch.
 const SERVER_REQUEST_AUTOACKS = {
-  "client/registerCapability": () => null,
-  "client/unregisterCapability": () => null,
-  "window/workDoneProgress/create": () => null,
+  'client/registerCapability': () => null,
+  'client/unregisterCapability': () => null,
+  'window/workDoneProgress/create': () => null,
   // workspace/configuration's spec-correct response is an array of length
   // params.items.length. The production proxies reply with a single null,
   // which is spec-violating but works for the servers they wrap; the test
   // client keeps the spec-compliant shape so pyright/vtsls direct-spawn
   // scenarios don't trip on the proxy bug. (See PR review finding E3.)
-  "workspace/configuration": (p) => (p && p.items ? p.items.map(() => null) : []),
+  'workspace/configuration': (p) => (p && p.items ? p.items.map(() => null) : []),
 };
 
 const DEFAULT_CAPS = {
@@ -104,20 +104,20 @@ class LspClient {
     this.child = spawn(this.command, this.args, {
       cwd: this.cwd,
       env: this.env,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ['pipe', 'pipe', 'pipe'],
       detached: true,
     });
-    this.child.stdout.on("data", (chunk) => this._onStdoutData(chunk));
+    this.child.stdout.on('data', (chunk) => this._onStdoutData(chunk));
     // Swallow stdin 'error' events (EPIPE after the child exits) so they
     // don't propagate to the test runner as uncaughtException.
-    this.child.stdin.on("error", () => {});
+    this.child.stdin.on('error', () => {});
     if (this.captureStderr) {
-      this.child.stderr.on("data", (chunk) => this._stderrChunks.push(chunk));
+      this.child.stderr.on('data', (chunk) => this._stderrChunks.push(chunk));
     } else {
       this.child.stderr.pipe(process.stderr);
     }
     this.exited = new Promise((resolve) => {
-      this.child.on("exit", (code, signal) => {
+      this.child.on('exit', (code, signal) => {
         // Reject any in-flight requests so callers see "process died" instead
         // of "request timed out" 15s later.
         for (const p of this._pending.values()) {
@@ -132,7 +132,7 @@ class LspClient {
         resolve({ code, signal });
       });
     });
-    this.child.on("error", (err) => {
+    this.child.on('error', (err) => {
       for (const p of this._pending.values()) {
         clearTimeout(p.timer);
         p.reject(err);
@@ -142,7 +142,7 @@ class LspClient {
   }
 
   stderr() {
-    return Buffer.concat(this._stderrChunks).toString("utf8");
+    return Buffer.concat(this._stderrChunks).toString('utf8');
   }
 
   _onStdoutData(chunk) {
@@ -150,7 +150,7 @@ class LspClient {
     while (true) {
       const di = this._buffer.indexOf(HEADER_DELIM);
       if (di === -1) return;
-      const header = this._buffer.subarray(0, di).toString("ascii");
+      const header = this._buffer.subarray(0, di).toString('ascii');
       const m = CL_RE.exec(header);
       if (!m) {
         // Protocol violation: header block without Content-Length. We can't
@@ -173,7 +173,7 @@ class LspClient {
       this._buffer = this._buffer.subarray(messageEnd);
       let msg;
       try {
-        msg = JSON.parse(body.toString("utf8"));
+        msg = JSON.parse(body.toString('utf8'));
       } catch {
         continue;
       }
@@ -198,10 +198,10 @@ class LspClient {
       if (msg.id !== undefined && msg.method) {
         const handler = SERVER_REQUEST_AUTOACKS[msg.method];
         if (handler) {
-          this._send({ jsonrpc: "2.0", id: msg.id, result: handler(msg.params) });
+          this._send({ jsonrpc: '2.0', id: msg.id, result: handler(msg.params) });
         } else {
           this._send({
-            jsonrpc: "2.0",
+            jsonrpc: '2.0',
             id: msg.id,
             error: { code: -32601, message: `Method not found: ${msg.method}` },
           });
@@ -209,7 +209,7 @@ class LspClient {
         return;
       }
       // Server-initiated notification.
-      if (msg.method === "textDocument/publishDiagnostics") {
+      if (msg.method === 'textDocument/publishDiagnostics') {
         const uri = msg.params && msg.params.uri;
         if (!uri) return;
         this._diagsByUri.set(uri, (msg.params && msg.params.diagnostics) || []);
@@ -238,7 +238,7 @@ class LspClient {
   }
 
   notify(method, params) {
-    this._send({ jsonrpc: "2.0", method, params });
+    this._send({ jsonrpc: '2.0', method, params });
   }
 
   request(method, params, { timeout = PULL_TIMEOUT_MS } = {}) {
@@ -249,7 +249,7 @@ class LspClient {
         reject(new Error(`request timed out: ${method} (id=${id}, ${timeout}ms)`));
       }, timeout);
       this._pending.set(id, { resolve, reject, timer });
-      this._send({ jsonrpc: "2.0", id, method, params });
+      this._send({ jsonrpc: '2.0', id, method, params });
     });
   }
 
@@ -260,25 +260,25 @@ class LspClient {
     initializationOptions,
     settings = {},
   }) {
-    const wf = workspaceFolders || (rootUri ? [{ uri: rootUri, name: "fixture" }] : null);
+    const wf = workspaceFolders || (rootUri ? [{ uri: rootUri, name: 'fixture' }] : null);
     const result = await this.request(
-      "initialize",
+      'initialize',
       {
         processId: process.pid,
         rootUri: rootUri || null,
         capabilities,
-        clientInfo: { name: "claude-lsps-live-test", version: "0" },
+        clientInfo: { name: 'claude-lsps-live-test', version: '0' },
         workspaceFolders: wf,
         initializationOptions,
       },
       { timeout: 15000 },
     );
     this._serverCaps = result.capabilities || {};
-    this.notify("initialized", {});
+    this.notify('initialized', {});
     // Pyright (and many others) sit idle after `initialized` until they see
     // workspace/didChangeConfiguration. Sending an empty settings object is
     // harmless for servers that don't care and unblocks the ones that do.
-    this.notify("workspace/didChangeConfiguration", { settings });
+    this.notify('workspace/didChangeConfiguration', { settings });
     return result;
   }
 
@@ -297,7 +297,7 @@ class LspClient {
 
   didOpen({ uri, languageId, text, version = 1 }) {
     this._docVersions.set(uri, version);
-    this.notify("textDocument/didOpen", {
+    this.notify('textDocument/didOpen', {
       textDocument: { uri, languageId, version, text },
     });
   }
@@ -312,7 +312,7 @@ class LspClient {
   didChange({ uri, text, version }) {
     const v = version ?? (this._docVersions.get(uri) || 1) + 1;
     this._docVersions.set(uri, v);
-    this.notify("textDocument/didChange", {
+    this.notify('textDocument/didChange', {
       textDocument: { uri, version: v },
       contentChanges: [{ text }],
     });
@@ -338,21 +338,21 @@ class LspClient {
   //   wait for the refresh instead of returning the stale cached diagnostics.
   async waitForDiagnostics({
     uri,
-    mode = "auto",
+    mode = 'auto',
     quietMs,
     timeout,
     requirePublish = true,
     afterSeq = null,
   } = {}) {
-    const resolved = mode === "auto" ? (this.hasPullDiagnostics() ? "pull" : "push") : mode;
-    if (resolved === "pull") {
+    const resolved = mode === 'auto' ? (this.hasPullDiagnostics() ? 'pull' : 'push') : mode;
+    if (resolved === 'pull') {
       const r = await this.request(
-        "textDocument/diagnostic",
+        'textDocument/diagnostic',
         { textDocument: { uri } },
         { timeout: timeout ?? PULL_TIMEOUT_MS },
       );
       if (!r) return [];
-      if (r.kind === "full") return r.items || [];
+      if (r.kind === 'full') return r.items || [];
       // "unchanged" on a first-ever pull (we didn't send previousResultId)
       // means the server isn't actually answering — fail loud rather than
       // silently treating it as "no diagnostics".
@@ -426,10 +426,10 @@ class LspClient {
   // NODE_V8_COVERAGE on clean exit (the 99-coverage gate depends on this).
   async shutdown({ graceMs = 3000 } = {}) {
     try {
-      await this.request("shutdown", null, { timeout: 2000 });
+      await this.request('shutdown', null, { timeout: 2000 });
     } catch {}
     try {
-      this.notify("exit", null);
+      this.notify('exit', null);
     } catch {}
     try {
       this.child.stdin.end();
@@ -451,9 +451,9 @@ class LspClient {
       } catch {}
       return false;
     };
-    pgKill("SIGTERM");
+    pgKill('SIGTERM');
     await Promise.race([this.exited, sleep(500)]);
-    if (this.child.exitCode === null) pgKill("SIGKILL");
+    if (this.child.exitCode === null) pgKill('SIGKILL');
   }
 }
 
@@ -461,12 +461,12 @@ class LspClient {
 // resolved spawn parameters. Takes the first language entry; multi-entry
 // .lsp.json would need explicit selection.
 function parseLspJson(pluginDir) {
-  const raw = JSON.parse(fs.readFileSync(path.join(pluginDir, ".lsp.json"), "utf8"));
+  const raw = JSON.parse(fs.readFileSync(path.join(pluginDir, '.lsp.json'), 'utf8'));
   const keys = Object.keys(raw);
   if (keys.length === 0) throw new Error(`${pluginDir}/.lsp.json has no language entries`);
   if (keys.length > 1) {
     throw new Error(
-      `${pluginDir}/.lsp.json has multiple language entries (${keys.join(", ")}); ` +
+      `${pluginDir}/.lsp.json has multiple language entries (${keys.join(', ')}); ` +
         `live-suite needs explicit selection`,
     );
   }

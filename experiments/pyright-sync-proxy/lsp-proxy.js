@@ -42,22 +42,22 @@
 //
 // Node stdlib only, per repo convention.
 
-const { spawn } = require("node:child_process");
-const { readFileSync, statSync } = require("node:fs");
-const { resolve } = require("node:path");
-const { fileURLToPath } = require("node:url");
+const { spawn } = require('node:child_process');
+const { readFileSync, statSync } = require('node:fs');
+const { resolve } = require('node:path');
+const { fileURLToPath } = require('node:url');
 
 // -- Config ------------------------------------------------------------------
 
-const configIdx = process.argv.indexOf("--config");
+const configIdx = process.argv.indexOf('--config');
 if (configIdx === -1 || !process.argv[configIdx + 1]) {
-  process.stderr.write("Usage: lsp-proxy --config <path-to-proxy.json>\n");
+  process.stderr.write('Usage: lsp-proxy --config <path-to-proxy.json>\n');
   process.exit(1);
 }
 const configPath = resolve(process.argv[configIdx + 1]);
 let config;
 try {
-  config = JSON.parse(readFileSync(configPath, "utf8"));
+  config = JSON.parse(readFileSync(configPath, 'utf8'));
 } catch (err) {
   process.stderr.write(`[pyright-sync] Failed to read config: ${err.message}\n`);
   process.exit(1);
@@ -73,7 +73,7 @@ const POLL_MS = Math.max(50, (config.sync && config.sync.pollMs) || 300);
 
 // -- Framing -----------------------------------------------------------------
 
-const HEADER_DELIM = Buffer.from("\r\n\r\n");
+const HEADER_DELIM = Buffer.from('\r\n\r\n');
 const CONTENT_LENGTH_RE = /^content-length:\s*(\d+)\s*$/im;
 
 function writeMessage(stream, obj) {
@@ -94,7 +94,7 @@ const open = new Map();
 
 function toPath(uri) {
   try {
-    return uri.startsWith("file:") ? fileURLToPath(uri) : null;
+    return uri.startsWith('file:') ? fileURLToPath(uri) : null;
   } catch {
     return null;
   }
@@ -115,14 +115,14 @@ function sameStat(a, b) {
 
 // -- Spawn pyright; server→client is a transparent raw pipe ------------------
 
-const child = spawn(SERVER_CMD, SERVER_ARGS, { stdio: ["pipe", "pipe", "inherit"] });
+const child = spawn(SERVER_CMD, SERVER_ARGS, { stdio: ['pipe', 'pipe', 'inherit'] });
 child.stdout.pipe(process.stdout);
 
-child.on("error", (err) => {
+child.on('error', (err) => {
   process.stderr.write(`[pyright-sync] child error: ${err.message}\n`);
   process.exit(1);
 });
-child.on("exit", (code) => {
+child.on('exit', (code) => {
   clearInterval(pollTimer);
   process.exit(code ?? 1);
 });
@@ -131,20 +131,20 @@ child.on("exit", (code) => {
 
 let buffer = Buffer.alloc(0);
 
-process.stdin.on("data", (chunk) => {
+process.stdin.on('data', (chunk) => {
   buffer = Buffer.concat([buffer, chunk]);
   drainClient();
 });
-process.stdin.on("end", () => {
+process.stdin.on('end', () => {
   clearInterval(pollTimer);
-  child.kill("SIGTERM");
+  child.kill('SIGTERM');
 });
 
 function drainClient() {
   while (true) {
     const delimIdx = buffer.indexOf(HEADER_DELIM);
     if (delimIdx === -1) return;
-    const header = buffer.subarray(0, delimIdx).toString("ascii");
+    const header = buffer.subarray(0, delimIdx).toString('ascii');
     const match = CONTENT_LENGTH_RE.exec(header);
     if (!match) {
       // Unrecoverable header: forward what we have and reset (mirrors the
@@ -164,7 +164,7 @@ function drainClient() {
 
     let msg = null;
     try {
-      msg = JSON.parse(bodyBytes.toString("utf8"));
+      msg = JSON.parse(bodyBytes.toString('utf8'));
     } catch {
       /* forward raw */
     }
@@ -178,12 +178,12 @@ function drainClient() {
 function observe(msg) {
   const td = msg.params && msg.params.textDocument;
   switch (msg.method) {
-    case "textDocument/didOpen": {
+    case 'textDocument/didOpen': {
       if (!td || !td.uri) return;
       const p = toPath(td.uri);
       open.set(td.uri, {
-        version: typeof td.version === "number" ? td.version : 1,
-        text: td.text != null ? td.text : "",
+        version: typeof td.version === 'number' ? td.version : 1,
+        text: td.text != null ? td.text : '',
         path: p,
         stat: p ? statOf(p) : null,
         pending: false,
@@ -191,7 +191,7 @@ function observe(msg) {
       });
       break;
     }
-    case "textDocument/didChange": {
+    case 'textDocument/didChange': {
       // Mirror the client's edit into our buffer model and keep watching disk.
       // (Claude Code didChanges its own Edit-tool writes but never syncs
       // out-of-band disk edits, so permanent deferral would reopen the stale
@@ -199,13 +199,13 @@ function observe(msg) {
       if (!td || !td.uri) return;
       const st = open.get(td.uri);
       if (!st) return;
-      if (typeof td.version === "number" && td.version > st.version) {
+      if (typeof td.version === 'number' && td.version > st.version) {
         st.version = td.version;
       }
       const changes = msg.params.contentChanges;
       if (!Array.isArray(changes)) return;
       for (const c of changes) {
-        if (c && c.range === undefined && typeof c.text === "string") {
+        if (c && c.range === undefined && typeof c.text === 'string') {
           st.text = c.text; // full-document replacement
         } else if (!st.unsyncable) {
           // Incremental edit — buffer no longer reconstructable from taps.
@@ -217,7 +217,7 @@ function observe(msg) {
       }
       break;
     }
-    case "textDocument/didClose": {
+    case 'textDocument/didClose': {
       if (td && td.uri) open.delete(td.uri);
       break;
     }
@@ -256,7 +256,7 @@ function pollOpenFiles() {
     st.pending = false;
     let text;
     try {
-      text = readFileSync(st.path, "utf8");
+      text = readFileSync(st.path, 'utf8');
     } catch {
       continue;
     }
@@ -265,8 +265,8 @@ function pollOpenFiles() {
     st.version += 1;
     st.text = text;
     writeMessage(child.stdin, {
-      jsonrpc: "2.0",
-      method: "textDocument/didChange",
+      jsonrpc: '2.0',
+      method: 'textDocument/didChange',
       params: {
         textDocument: { uri, version: st.version },
         contentChanges: [{ text }],
@@ -278,7 +278,7 @@ function pollOpenFiles() {
 
 // -- Signals -----------------------------------------------------------------
 
-for (const sig of ["SIGTERM", "SIGINT"]) {
+for (const sig of ['SIGTERM', 'SIGINT']) {
   process.on(sig, () => {
     clearInterval(pollTimer);
     child.kill(sig);

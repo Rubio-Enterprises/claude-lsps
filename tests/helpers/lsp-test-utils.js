@@ -1,8 +1,8 @@
-const { spawn } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
-const HEADER_DELIM = Buffer.from("\r\n\r\n");
+const HEADER_DELIM = Buffer.from('\r\n\r\n');
 const CL_RE = /^content-length:\s*(\d+)\s*$/im;
 
 function requireEnv() {
@@ -10,7 +10,7 @@ function requireEnv() {
   const TMP_DIR = process.env.TMP_DIR;
   const TESTS_DIR = process.env.TESTS_DIR;
   if (!ROOT_DIR || !TMP_DIR || !TESTS_DIR) {
-    console.error("ROOT_DIR/TMP_DIR/TESTS_DIR must be exported");
+    console.error('ROOT_DIR/TMP_DIR/TESTS_DIR must be exported');
     process.exit(2);
   }
   return { ROOT_DIR, TMP_DIR, TESTS_DIR };
@@ -31,7 +31,7 @@ function parseFrames(buf) {
   while (i < buf.length) {
     const di = buf.indexOf(HEADER_DELIM, i);
     if (di === -1) break;
-    const header = buf.subarray(i, di).toString("ascii");
+    const header = buf.subarray(i, di).toString('ascii');
     const m = CL_RE.exec(header);
     if (!m) break;
     const cl = parseInt(m[1], 10);
@@ -40,7 +40,7 @@ function parseFrames(buf) {
     if (buf.length < end) break;
     out.push({
       raw: buf.subarray(i, end),
-      body: JSON.parse(buf.subarray(start, end).toString("utf8")),
+      body: JSON.parse(buf.subarray(start, end).toString('utf8')),
       header,
       contentLength: cl,
     });
@@ -65,14 +65,14 @@ async function waitFor(predicate, { timeout = 4000, interval = 20 } = {}) {
 }
 
 function newWorkdir(rootTmp, tag) {
-  const parent = path.join(rootTmp, "wd");
+  const parent = path.join(rootTmp, 'wd');
   fs.mkdirSync(parent, { recursive: true });
   return fs.mkdtempSync(path.join(parent, `${tag}-`));
 }
 
 function readJsonLines(file) {
   if (!fs.existsSync(file)) return [];
-  return fs.readFileSync(file, "utf8").split("\n").filter(Boolean).map(JSON.parse);
+  return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map(JSON.parse);
 }
 
 function assert(cond, msg) {
@@ -82,28 +82,28 @@ function assert(cond, msg) {
 function spawnProxy({ proxyJs, config, configPath, stubEnv = {} }) {
   let cfg = configPath;
   if (!cfg) {
-    cfg = path.join(fs.mkdtempSync(path.join(process.env.TMP_DIR, "cfg-")), "proxy.json");
+    cfg = path.join(fs.mkdtempSync(path.join(process.env.TMP_DIR, 'cfg-')), 'proxy.json');
   }
   if (config !== undefined) fs.writeFileSync(cfg, JSON.stringify(config));
 
   const env = { ...process.env, ...stubEnv };
-  const child = spawn(process.execPath, [proxyJs, "--config", cfg], {
-    stdio: ["pipe", "pipe", "pipe"],
+  const child = spawn(process.execPath, [proxyJs, '--config', cfg], {
+    stdio: ['pipe', 'pipe', 'pipe'],
     env,
   });
   const stdoutChunks = [];
   const stderrChunks = [];
-  child.stdout.on("data", (b) => stdoutChunks.push(b));
-  child.stderr.on("data", (b) => stderrChunks.push(b));
+  child.stdout.on('data', (b) => stdoutChunks.push(b));
+  child.stderr.on('data', (b) => stderrChunks.push(b));
   const exited = new Promise((resolve) => {
-    child.on("exit", (code, signal) => resolve({ code, signal }));
+    child.on('exit', (code, signal) => resolve({ code, signal }));
   });
   return {
     child,
     stdoutBuf: () => Buffer.concat(stdoutChunks),
     stderrBuf: () => Buffer.concat(stderrChunks),
-    stdout: () => Buffer.concat(stdoutChunks).toString("utf8"),
-    stderr: () => Buffer.concat(stderrChunks).toString("utf8"),
+    stdout: () => Buffer.concat(stdoutChunks).toString('utf8'),
+    stderr: () => Buffer.concat(stderrChunks).toString('utf8'),
     exited,
   };
 }
@@ -116,11 +116,11 @@ function spawnProxy({ proxyJs, config, configPath, stubEnv = {} }) {
 async function _killGracefully(child, graceMs = 750) {
   if (!child || child.killed) return;
   try {
-    child.kill("SIGTERM");
+    child.kill('SIGTERM');
   } catch {}
   const exited = new Promise((resolve) => {
     if (child.exitCode !== null) return resolve();
-    child.once("exit", () => resolve());
+    child.once('exit', () => resolve());
   });
   let timer;
   const timeout = new Promise((resolve) => {
@@ -130,7 +130,7 @@ async function _killGracefully(child, graceMs = 750) {
   clearTimeout(timer);
   if (child.exitCode === null && !child.killed) {
     try {
-      child.kill("SIGKILL");
+      child.kill('SIGKILL');
     } catch {}
   }
 }
@@ -138,7 +138,7 @@ async function _killGracefully(child, graceMs = 750) {
 function dispatch(scenarios, name) {
   if (!name || !scenarios[name]) {
     console.error(`unknown scenario: ${name}`);
-    console.error("available:", Object.keys(scenarios).join(", "));
+    console.error('available:', Object.keys(scenarios).join(', '));
     process.exit(2);
   }
   // Track every proxy a scenario spawns (some may chain multiple) so cleanup

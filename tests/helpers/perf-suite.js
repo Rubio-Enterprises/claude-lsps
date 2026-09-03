@@ -16,16 +16,16 @@
 // reports median / min. Driven by tests/perf.sh. Node stdlib only, per repo
 // convention.
 
-const fs = require("node:fs");
-const path = require("node:path");
-const { pathToFileURL } = require("node:url");
+const fs = require('node:fs');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
-const { requireEnv, newWorkdir, sleep } = require("./lsp-test-utils.js");
-const { LspClient, parseLspJson, wireLanguageIdFor } = require("./lsp-client.js");
+const { requireEnv, newWorkdir, sleep } = require('./lsp-test-utils.js');
+const { LspClient, parseLspJson, wireLanguageIdFor } = require('./lsp-client.js');
 
 const { ROOT_DIR, TMP_DIR, TESTS_DIR } = requireEnv();
-const FIXTURES = path.join(TESTS_DIR, "fixtures");
-const ITERS = Math.max(1, parseInt(process.env.PERF_ITERS || "3", 10));
+const FIXTURES = path.join(TESTS_DIR, 'fixtures');
+const ITERS = Math.max(1, parseInt(process.env.PERF_ITERS || '3', 10));
 
 // One target per server. `publishes:false` servers (cue lsp v0.16 exposes the
 // transport but no diagnostic provider) report ready only. `viaWarmup` targets
@@ -33,56 +33,56 @@ const ITERS = Math.max(1, parseInt(process.env.PERF_ITERS || "3", 10));
 // on our behalf, and open-after-open is a spec violation Regal reacts badly to.
 const TARGETS = [
   {
-    plugin: "bash-language-server",
-    binary: "bash-language-server",
-    subdir: "bash",
-    includes: ["broken.sh"],
-    file: "broken.sh",
+    plugin: 'bash-language-server',
+    binary: 'bash-language-server',
+    subdir: 'bash',
+    includes: ['broken.sh'],
+    file: 'broken.sh',
     publishes: true,
     timeout: 8000,
   },
   {
-    plugin: "pyright",
-    binary: "pyright-langserver",
-    subdir: "pyright",
-    includes: ["broken.py", "pyrightconfig.json"],
-    file: "broken.py",
+    plugin: 'pyright',
+    binary: 'pyright-langserver',
+    subdir: 'pyright',
+    includes: ['broken.py', 'pyrightconfig.json'],
+    file: 'broken.py',
     publishes: true,
     timeout: 15000,
-    refresh: { fixedText: "x: int = 5\nprint(x)\n" },
+    refresh: { fixedText: 'x: int = 5\nprint(x)\n' },
   },
   {
-    plugin: "vtsls",
-    binary: "vtsls",
-    subdir: "vtsls",
-    includes: ["broken.ts", "tsconfig.json"],
-    file: "broken.ts",
+    plugin: 'vtsls',
+    binary: 'vtsls',
+    subdir: 'vtsls',
+    includes: ['broken.ts', 'tsconfig.json'],
+    file: 'broken.ts',
     publishes: true,
     timeout: 15000,
   },
   {
-    plugin: "regal-lsp",
-    binary: "regal",
-    subdir: "regal",
-    includes: ["broken.rego", ".regal"],
-    file: "broken.rego",
+    plugin: 'regal-lsp',
+    binary: 'regal',
+    subdir: 'regal',
+    includes: ['broken.rego', '.regal'],
+    file: 'broken.rego',
     publishes: true,
     viaWarmup: true,
     timeout: 12000,
   },
   {
-    plugin: "cue-lsp",
-    binary: "cue",
-    subdir: "cue",
-    includes: ["clean.cue", "cue.mod"],
-    file: "clean.cue",
+    plugin: 'cue-lsp',
+    binary: 'cue',
+    subdir: 'cue',
+    includes: ['clean.cue', 'cue.mod'],
+    file: 'clean.cue',
     publishes: false,
     timeout: 6000,
   },
 ];
 
 function onPath(bin) {
-  for (const d of (process.env.PATH || "").split(path.delimiter)) {
+  for (const d of (process.env.PATH || '').split(path.delimiter)) {
     if (!d) continue;
     try {
       fs.accessSync(path.join(d, bin), fs.constants.X_OK);
@@ -131,7 +131,7 @@ async function measureOnce(t, iter) {
     if (t.publishes) {
       const openAt = t.viaWarmup ? warmupBaseline : Date.now();
       if (!t.viaWarmup) {
-        const text = fs.readFileSync(path.join(dir, t.file), "utf8");
+        const text = fs.readFileSync(path.join(dir, t.file), 'utf8');
         client.didOpen({ uri: fileUri, languageId: wireLanguageIdFor(parsed, t.file), text });
       }
       const pub = await client.waitForPublish({ uri: fileUri, timeout: t.timeout });
@@ -152,7 +152,7 @@ async function measureOnce(t, iter) {
       // No diagnostics to wait for; give the server the same analysis window so
       // "ready" reflects a settled server, then confirm it survived.
       await sleep(Math.min(1500, t.timeout));
-      if (!client.isAlive()) throw new Error("server exited before the analysis window elapsed");
+      if (!client.isAlive()) throw new Error('server exited before the analysis window elapsed');
     }
   } finally {
     try {
@@ -167,7 +167,7 @@ const median = (xs) => {
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 };
-const cell = (xs) => (xs.length ? `${median(xs)} / ${Math.min(...xs)}` : "—");
+const cell = (xs) => (xs.length ? `${median(xs)} / ${Math.min(...xs)}` : '—');
 
 async function main() {
   const rows = [];
@@ -187,19 +187,19 @@ async function main() {
         if (r.ready != null) ready.push(r.ready);
         if (r.firstDiag != null) firstDiag.push(r.firstDiag);
         if (r.refresh != null) refresh.push(r.refresh);
-        process.stderr.write(".");
+        process.stderr.write('.');
       } catch (e) {
         err = e && e.message ? e.message : String(e);
-        process.stderr.write("x");
+        process.stderr.write('x');
       }
     }
-    process.stderr.write("\n");
+    process.stderr.write('\n');
     rows.push({
       plugin: t.plugin,
       ready,
       firstDiag,
       refresh,
-      note: t.publishes ? null : "no publish",
+      note: t.publishes ? null : 'no publish',
       err,
     });
   }
@@ -208,22 +208,22 @@ async function main() {
   const W = Math.max(...TARGETS.map((t) => t.plugin.length), 6);
   const pad = (s) => String(s).padEnd(W);
   const col = (s) => String(s).padStart(18);
-  console.log("");
+  console.log('');
   console.log(`LSP diagnostics latency  (median / min ms over ${ITERS} cold spawns)`);
-  console.log("");
-  console.log(`${pad("plugin")}${col("ready")}${col("first-diag")}${col("change→refresh")}`);
-  console.log("-".repeat(W + 18 * 3));
+  console.log('');
+  console.log(`${pad('plugin')}${col('ready')}${col('first-diag')}${col('change→refresh')}`);
+  console.log('-'.repeat(W + 18 * 3));
   for (const r of rows) {
     if (r.skipped) {
-      console.log(`${pad(r.plugin)}${col("skipped")}   (${r.skipped})`);
+      console.log(`${pad(r.plugin)}${col('skipped')}   (${r.skipped})`);
       continue;
     }
     const diag = r.note ? r.note : cell(r.firstDiag);
-    let line = `${pad(r.plugin)}${col(cell(r.ready))}${col(diag)}${col(r.refresh && r.refresh.length ? cell(r.refresh) : "—")}`;
+    let line = `${pad(r.plugin)}${col(cell(r.ready))}${col(diag)}${col(r.refresh && r.refresh.length ? cell(r.refresh) : '—')}`;
     if (r.err) line += `   ! ${r.err}`;
     console.log(line);
   }
-  console.log("");
+  console.log('');
 }
 
 main()

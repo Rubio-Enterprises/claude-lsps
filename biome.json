@@ -27,7 +27,7 @@
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "javascript": {
     "formatter": {
-      "quoteStyle": "double",
+      "quoteStyle": "single",
       "semicolons": "always",
       "trailingCommas": "all"
     }

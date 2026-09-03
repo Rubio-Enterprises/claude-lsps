@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 // Usage: node coverage-check.js [--threshold=80]
 
-const crypto = require("node:crypto");
-const fs = require("node:fs");
-const path = require("node:path");
-const { fileURLToPath } = require("node:url");
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const { fileURLToPath } = require('node:url');
 
 const ROOT_DIR = process.env.ROOT_DIR;
 const COV_DIR = process.env.NODE_V8_COVERAGE;
 if (!ROOT_DIR || !COV_DIR) {
-  console.error("ROOT_DIR and NODE_V8_COVERAGE must be set");
+  console.error('ROOT_DIR and NODE_V8_COVERAGE must be set');
   process.exit(2);
 }
 
@@ -18,7 +18,7 @@ if (!ROOT_DIR || !COV_DIR) {
 // at 0%.
 const TARGETS = fs
   .readdirSync(ROOT_DIR)
-  .map((d) => path.join(ROOT_DIR, d, "lsp-proxy.js"))
+  .map((d) => path.join(ROOT_DIR, d, 'lsp-proxy.js'))
   .filter((p) => fs.existsSync(p))
   // Realpath both sides so macOS' /private/var <-> /var mapping in V8 URLs
   // doesn't cause us to miss a file's coverage entries.
@@ -34,11 +34,11 @@ function loadCoverageFiles() {
   if (!fs.existsSync(COV_DIR)) return [];
   return fs
     .readdirSync(COV_DIR)
-    .filter((f) => f.endsWith(".json"))
+    .filter((f) => f.endsWith('.json'))
     .map((f) => {
       const full = path.join(COV_DIR, f);
       try {
-        return JSON.parse(fs.readFileSync(full, "utf8"));
+        return JSON.parse(fs.readFileSync(full, 'utf8'));
       } catch (err) {
         // A corrupt coverage file would otherwise silently lower the count
         // and could make a 79% gate pass spuriously. Log loudly.
@@ -50,7 +50,7 @@ function loadCoverageFiles() {
 }
 
 function urlToPath(url) {
-  const p = url.startsWith("file://") ? fileURLToPath(url) : url;
+  const p = url.startsWith('file://') ? fileURLToPath(url) : url;
   // Normalize via realpath so /private/var-vs-/var on macOS doesn't cause a
   // miss against TARGETS (which are already realpath-ed above).
   try {
@@ -66,7 +66,7 @@ function urlToPath(url) {
 // inner branches that never ran). Across entries from different subprocess
 // runs, covered always wins.
 function computeCoverage(sourcePath, entries) {
-  const source = fs.readFileSync(sourcePath, "utf8");
+  const source = fs.readFileSync(sourcePath, 'utf8');
   const len = source.length;
   const state = new Uint8Array(len);
 
@@ -103,7 +103,7 @@ function computeCoverage(sourcePath, entries) {
   let i = 0;
   while (i <= len) {
     let end = i;
-    while (end < len && source[end] !== "\n") end++;
+    while (end < len && source[end] !== '\n') end++;
     let hasCovered = false,
       hasUncovered = false;
     for (let j = i; j < end; j++) {
@@ -140,7 +140,7 @@ function main() {
   const byFile = new Map();
   for (const cov of all) {
     for (const result of cov.result || []) {
-      const p = urlToPath(result.url || "");
+      const p = urlToPath(result.url || '');
       if (!targetSet.has(p)) continue;
       if (!byFile.has(p)) byFile.set(p, []);
       byFile.get(p).push(result);
@@ -156,7 +156,7 @@ function main() {
   // the gate here.
   const groups = new Map(); // hash -> [target, ...]
   for (const target of TARGETS) {
-    const h = crypto.createHash("sha256").update(fs.readFileSync(target)).digest("hex");
+    const h = crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
     if (!groups.has(h)) groups.set(h, []);
     groups.get(h).push(target);
   }
@@ -168,7 +168,7 @@ function main() {
     const label =
       members.length === 1
         ? path.relative(ROOT_DIR, members[0])
-        : `${members.length} identical copies (${members.map((t) => path.relative(ROOT_DIR, t)).join(", ")})`;
+        : `${members.length} identical copies (${members.map((t) => path.relative(ROOT_DIR, t)).join(', ')})`;
     if (entries.length === 0) {
       lines.push(`  ${label}: NO DATA`);
       pass = false;
@@ -178,16 +178,16 @@ function main() {
       members[0],
       entries,
     );
-    const status = percent >= threshold ? "ok" : "FAIL";
+    const status = percent >= threshold ? 'ok' : 'FAIL';
     lines.push(
       `  ${label}: ${percent.toFixed(1)}% ` +
         `(${coveredLines} covered / ${coveredLines + uncoveredLines} executable) [${status}]`,
     );
     if (percent < threshold) {
       pass = false;
-      const sample = uncoveredLineNums.slice(0, 15).join(", ");
+      const sample = uncoveredLineNums.slice(0, 15).join(', ');
       const more =
-        uncoveredLineNums.length > 15 ? ` ...(+${uncoveredLineNums.length - 15} more)` : "";
+        uncoveredLineNums.length > 15 ? ` ...(+${uncoveredLineNums.length - 15} more)` : '';
       lines.push(`      uncovered lines: ${sample}${more}`);
     }
   }

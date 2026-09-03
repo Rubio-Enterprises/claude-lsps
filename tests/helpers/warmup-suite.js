@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const fs = require("node:fs");
-const path = require("node:path");
-const { pathToFileURL } = require("node:url");
+const fs = require('node:fs');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
 const {
   requireEnv,
@@ -14,11 +14,11 @@ const {
   assert,
   spawnProxy,
   dispatch,
-} = require("./lsp-test-utils.js");
+} = require('./lsp-test-utils.js');
 
 const { ROOT_DIR, TMP_DIR, TESTS_DIR } = requireEnv();
-const REGAL_PROXY = path.join(ROOT_DIR, "regal-lsp", "lsp-proxy.js");
-const STUB = path.join(TESTS_DIR, "helpers", "stub-server.js");
+const REGAL_PROXY = path.join(ROOT_DIR, 'regal-lsp', 'lsp-proxy.js');
+const STUB = path.join(TESTS_DIR, 'helpers', 'stub-server.js');
 
 const wd = (tag) => newWorkdir(TMP_DIR, tag);
 
@@ -36,55 +36,55 @@ function writeRegoTree(root, layout) {
 async function driveInitialize(proxy, rootDir) {
   proxy.child.stdin.write(
     frameOf({
-      jsonrpc: "2.0",
+      jsonrpc: '2.0',
       id: 1,
-      method: "initialize",
+      method: 'initialize',
       params: { rootUri: pathToFileURL(rootDir).href },
     }),
   );
   await waitFor(() => parseFrames(proxy.stdoutBuf()).some((f) => f.body.id === 1));
   proxy.child.stdin.write(
     frameOf({
-      jsonrpc: "2.0",
-      method: "initialized",
+      jsonrpc: '2.0',
+      method: 'initialized',
       params: {},
     }),
   );
 }
 
 function regalConfig(extra = {}) {
-  return { server: ["node", STUB], blocked: [], ...extra };
+  return { server: ['node', STUB], blocked: [], ...extra };
 }
 
 function setupTree(tag, layout) {
   const dir = wd(tag);
-  const stubLog = path.join(dir, "stub");
+  const stubLog = path.join(dir, 'stub');
   fs.mkdirSync(stubLog, { recursive: true });
-  const tree = path.join(dir, "tree");
+  const tree = path.join(dir, 'tree');
   fs.mkdirSync(tree, { recursive: true });
   writeRegoTree(tree, layout);
   return { dir, stubLog, tree };
 }
 
 async function warmupOpensRegoFiles(setProxy) {
-  const { dir, stubLog, tree } = setupTree("rego-tree", {
-    "policy.rego": "package a",
-    "sub/sub.rego": "package b",
-    "node_modules/lib.rego": "package skip",
-    "vendor/v.rego": "package skip",
-    ".git/g.rego": "package skip",
-    ".venv/v2.rego": "package skip",
-    ".claude/c.rego": "package skip",
-    "other.txt": "skip me",
+  const { dir, stubLog, tree } = setupTree('rego-tree', {
+    'policy.rego': 'package a',
+    'sub/sub.rego': 'package b',
+    'node_modules/lib.rego': 'package skip',
+    'vendor/v.rego': 'package skip',
+    '.git/g.rego': 'package skip',
+    '.venv/v2.rego': 'package skip',
+    '.claude/c.rego': 'package skip',
+    'other.txt': 'skip me',
   });
-  const cfg = path.join(dir, "proxy.json");
+  const cfg = path.join(dir, 'proxy.json');
   fs.writeFileSync(
     cfg,
     JSON.stringify(
       regalConfig({
         warmup: {
-          extensions: [".rego"],
-          exclude: ["node_modules", ".git", "vendor", ".venv", ".claude"],
+          extensions: ['.rego'],
+          exclude: ['node_modules', '.git', 'vendor', '.venv', '.claude'],
         },
       }),
     ),
@@ -93,7 +93,7 @@ async function warmupOpensRegoFiles(setProxy) {
   const proxy = spawnProxy({
     proxyJs: REGAL_PROXY,
     configPath: cfg,
-    stubEnv: { STUB_LOG_DIR: stubLog, STUB_AUTO_INIT: "1" },
+    stubEnv: { STUB_LOG_DIR: stubLog, STUB_AUTO_INIT: '1' },
   });
   setProxy(proxy);
 
@@ -106,24 +106,24 @@ async function warmupOpensRegoFiles(setProxy) {
     timeout: 8000,
   });
 
-  const msgs = readJsonLines(path.join(stubLog, "recv.jsonl"));
-  const idxInitialized = msgs.findIndex((m) => m.method === "initialized");
-  const opens = msgs.filter((m) => m.method === "textDocument/didOpen");
+  const msgs = readJsonLines(path.join(stubLog, 'recv.jsonl'));
+  const idxInitialized = msgs.findIndex((m) => m.method === 'initialized');
+  const opens = msgs.filter((m) => m.method === 'textDocument/didOpen');
   assert(idxInitialized !== -1, "stub never saw 'initialized'");
   // Match exclusions against the path RELATIVE to the warmup root, one whole
   // segment at a time. The absolute path can legitimately contain an excluded
   // name (this repo is checked out under .claude/worktrees/, so every URI holds
   // "/.claude/"), which a substring match on the full URI would false-positive.
   const treeUri = pathToFileURL(tree).href;
-  const excludedNames = ["node_modules", "vendor", ".git", ".venv", ".claude"];
+  const excludedNames = ['node_modules', 'vendor', '.git', '.venv', '.claude'];
   for (const o of opens) {
     const uri = o.params.textDocument.uri;
     assert(
-      o.params.textDocument.languageId === "rego",
+      o.params.textDocument.languageId === 'rego',
       `didOpen languageId not 'rego': ${JSON.stringify(o.params.textDocument)}`,
     );
     assert(uri.startsWith(`${treeUri}/`), `didOpen uri not under warmup root ${treeUri}: ${uri}`);
-    const relSegments = uri.slice(treeUri.length + 1).split("/");
+    const relSegments = uri.slice(treeUri.length + 1).split('/');
     for (const excluded of excludedNames) {
       assert(
         !relSegments.includes(excluded),
@@ -133,9 +133,9 @@ async function warmupOpensRegoFiles(setProxy) {
   }
   assert(
     opens.length === 2,
-    `expected 2 didOpen, got ${opens.length}: ${opens.map((o) => o.params.textDocument.uri).join(", ")}`,
+    `expected 2 didOpen, got ${opens.length}: ${opens.map((o) => o.params.textDocument.uri).join(', ')}`,
   );
-  const idxFirstOpen = msgs.findIndex((m) => m.method === "textDocument/didOpen");
+  const idxFirstOpen = msgs.findIndex((m) => m.method === 'textDocument/didOpen');
   assert(
     idxInitialized < idxFirstOpen,
     "didOpen burst occurred before 'initialized' was forwarded",
@@ -146,17 +146,17 @@ async function warmupOpensRegoFiles(setProxy) {
 }
 
 async function warmupEmptyTree(setProxy) {
-  const { dir, stubLog, tree } = setupTree("empty-tree", {
-    "a.txt": "x",
+  const { dir, stubLog, tree } = setupTree('empty-tree', {
+    'a.txt': 'x',
   });
-  const cfg = path.join(dir, "proxy.json");
+  const cfg = path.join(dir, 'proxy.json');
   fs.writeFileSync(
     cfg,
     JSON.stringify(
       regalConfig({
         warmup: {
-          extensions: [".rego"],
-          exclude: ["node_modules", ".git", "vendor", ".venv", ".claude"],
+          extensions: ['.rego'],
+          exclude: ['node_modules', '.git', 'vendor', '.venv', '.claude'],
         },
       }),
     ),
@@ -165,7 +165,7 @@ async function warmupEmptyTree(setProxy) {
   const proxy = spawnProxy({
     proxyJs: REGAL_PROXY,
     configPath: cfg,
-    stubEnv: { STUB_LOG_DIR: stubLog, STUB_AUTO_INIT: "1" },
+    stubEnv: { STUB_LOG_DIR: stubLog, STUB_AUTO_INIT: '1' },
   });
   setProxy(proxy);
 
@@ -174,13 +174,13 @@ async function warmupEmptyTree(setProxy) {
   // After the "no files found" sentinel, drive a sentinel notification and
   // wait for it at the stub. Anything the proxy was going to emit for warmup
   // would already be there.
-  proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "$/test-sentinel", params: {} }));
+  proxy.child.stdin.write(frameOf({ jsonrpc: '2.0', method: '$/test-sentinel', params: {} }));
   await waitFor(() =>
-    readJsonLines(path.join(stubLog, "recv.jsonl")).some((m) => m.method === "$/test-sentinel"),
+    readJsonLines(path.join(stubLog, 'recv.jsonl')).some((m) => m.method === '$/test-sentinel'),
   );
 
-  const opens = readJsonLines(path.join(stubLog, "recv.jsonl")).filter(
-    (m) => m.method === "textDocument/didOpen",
+  const opens = readJsonLines(path.join(stubLog, 'recv.jsonl')).filter(
+    (m) => m.method === 'textDocument/didOpen',
   );
   assert(opens.length === 0, `expected zero didOpen on empty tree, got ${opens.length}`);
 
@@ -189,33 +189,33 @@ async function warmupEmptyTree(setProxy) {
 }
 
 async function warmupAbsentNoOpen(setProxy) {
-  const { dir, stubLog, tree } = setupTree("no-warmup", {
-    "policy.rego": "package a",
-    "sub/sub.rego": "package b",
+  const { dir, stubLog, tree } = setupTree('no-warmup', {
+    'policy.rego': 'package a',
+    'sub/sub.rego': 'package b',
   });
-  const cfg = path.join(dir, "proxy.json");
+  const cfg = path.join(dir, 'proxy.json');
   fs.writeFileSync(cfg, JSON.stringify(regalConfig()));
 
   const proxy = spawnProxy({
     proxyJs: REGAL_PROXY,
     configPath: cfg,
-    stubEnv: { STUB_LOG_DIR: stubLog, STUB_AUTO_INIT: "1" },
+    stubEnv: { STUB_LOG_DIR: stubLog, STUB_AUTO_INIT: '1' },
   });
   setProxy(proxy);
 
   await driveInitialize(proxy, tree);
   await waitFor(() =>
-    readJsonLines(path.join(stubLog, "recv.jsonl")).some((m) => m.method === "initialized"),
+    readJsonLines(path.join(stubLog, 'recv.jsonl')).some((m) => m.method === 'initialized'),
   );
   // Sentinel: after a known notification reaches the stub, any warmup the
   // proxy was going to send would already be visible.
-  proxy.child.stdin.write(frameOf({ jsonrpc: "2.0", method: "$/test-sentinel", params: {} }));
+  proxy.child.stdin.write(frameOf({ jsonrpc: '2.0', method: '$/test-sentinel', params: {} }));
   await waitFor(() =>
-    readJsonLines(path.join(stubLog, "recv.jsonl")).some((m) => m.method === "$/test-sentinel"),
+    readJsonLines(path.join(stubLog, 'recv.jsonl')).some((m) => m.method === '$/test-sentinel'),
   );
 
-  const msgs = readJsonLines(path.join(stubLog, "recv.jsonl"));
-  const opens = msgs.filter((m) => m.method === "textDocument/didOpen");
+  const msgs = readJsonLines(path.join(stubLog, 'recv.jsonl'));
+  const opens = msgs.filter((m) => m.method === 'textDocument/didOpen');
   assert(opens.length === 0, `expected zero didOpen with no warmup config; got ${opens.length}`);
   assert(
     !/warmup:/.test(proxy.stderr()),
@@ -227,21 +227,21 @@ async function warmupAbsentNoOpen(setProxy) {
 }
 
 async function warmupMultiExtension(setProxy) {
-  const { dir, stubLog, tree } = setupTree("multi-ext", {
-    "a.rego": "package a",
-    "b.py": "x = 1",
-    "c.ts": "const x = 1;",
-    "d.swift": "let x = 1",
-    "e.foo": "bar",
+  const { dir, stubLog, tree } = setupTree('multi-ext', {
+    'a.rego': 'package a',
+    'b.py': 'x = 1',
+    'c.ts': 'const x = 1;',
+    'd.swift': 'let x = 1',
+    'e.foo': 'bar',
   });
-  const cfg = path.join(dir, "proxy.json");
+  const cfg = path.join(dir, 'proxy.json');
   fs.writeFileSync(
     cfg,
     JSON.stringify(
       regalConfig({
         warmup: {
-          extensions: [".rego", ".py", ".ts", ".swift", ".foo"],
-          exclude: ["node_modules", ".git", "vendor"],
+          extensions: ['.rego', '.py', '.ts', '.swift', '.foo'],
+          exclude: ['node_modules', '.git', 'vendor'],
         },
       }),
     ),
@@ -250,7 +250,7 @@ async function warmupMultiExtension(setProxy) {
   const proxy = spawnProxy({
     proxyJs: REGAL_PROXY,
     configPath: cfg,
-    stubEnv: { STUB_LOG_DIR: stubLog, STUB_AUTO_INIT: "1" },
+    stubEnv: { STUB_LOG_DIR: stubLog, STUB_AUTO_INIT: '1' },
   });
   setProxy(proxy);
 
@@ -263,23 +263,23 @@ async function warmupMultiExtension(setProxy) {
     timeout: 8000,
   });
 
-  const opens = readJsonLines(path.join(stubLog, "recv.jsonl")).filter(
-    (m) => m.method === "textDocument/didOpen",
+  const opens = readJsonLines(path.join(stubLog, 'recv.jsonl')).filter(
+    (m) => m.method === 'textDocument/didOpen',
   );
   assert(
     opens.length === 5,
-    `expected exactly 5 didOpen, got ${opens.length}: ${opens.map((o) => o.params.textDocument.uri).join(", ")}`,
+    `expected exactly 5 didOpen, got ${opens.length}: ${opens.map((o) => o.params.textDocument.uri).join(', ')}`,
   );
   const langByFile = {};
   for (const o of opens) {
     langByFile[path.basename(o.params.textDocument.uri)] = o.params.textDocument.languageId;
   }
   const expected = {
-    "a.rego": "rego",
-    "b.py": "python",
-    "c.ts": "typescript",
-    "d.swift": "swift",
-    "e.foo": "foo",
+    'a.rego': 'rego',
+    'b.py': 'python',
+    'c.ts': 'typescript',
+    'd.swift': 'swift',
+    'e.foo': 'foo',
   };
   for (const [file, lang] of Object.entries(expected)) {
     assert(
@@ -294,10 +294,10 @@ async function warmupMultiExtension(setProxy) {
 
 dispatch(
   {
-    "files-opened": warmupOpensRegoFiles,
-    "empty-tree": warmupEmptyTree,
-    "no-warmup-section": warmupAbsentNoOpen,
-    "multi-extension": warmupMultiExtension,
+    'files-opened': warmupOpensRegoFiles,
+    'empty-tree': warmupEmptyTree,
+    'no-warmup-section': warmupAbsentNoOpen,
+    'multi-extension': warmupMultiExtension,
   },
   process.argv[2],
 );

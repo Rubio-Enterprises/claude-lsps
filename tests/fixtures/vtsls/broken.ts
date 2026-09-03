@@ -1,1 +1,1 @@
-export const x: number = "not a number";
+export const x: number = 'not a number';

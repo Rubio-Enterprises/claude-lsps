@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
-const fs = require("node:fs");
-const path = require("node:path");
-const { pathToFileURL } = require("node:url");
+const fs = require('node:fs');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
-const { requireEnv, newWorkdir, dispatch } = require("./lsp-test-utils.js");
-const { LspClient, parseLspJson, wireLanguageIdFor } = require("./lsp-client.js");
+const { requireEnv, newWorkdir, dispatch } = require('./lsp-test-utils.js');
+const { LspClient, parseLspJson, wireLanguageIdFor } = require('./lsp-client.js');
 
 const { ROOT_DIR, TMP_DIR, TESTS_DIR } = requireEnv();
-const FIXTURES = path.join(TESTS_DIR, "fixtures");
+const FIXTURES = path.join(TESTS_DIR, 'fixtures');
 
 // Copy a curated subset of a fixture directory into a fresh workdir, so each
 // scenario gets an isolated workspace. We never use tests/fixtures/ as the
@@ -62,16 +62,16 @@ async function runStandard(spec, setProxy) {
 
   let diags = [];
   let aliveAfterWait = false;
-  let stderrSnapshot = "";
+  let stderrSnapshot = '';
   try {
     await client.initialize({ rootUri });
     if (!viaWarmup) {
-      const text = fs.readFileSync(path.join(dir, primaryFile), "utf8");
+      const text = fs.readFileSync(path.join(dir, primaryFile), 'utf8');
       client.didOpen({ uri: fileUri, languageId: wireLanguageIdFor(parsed, primaryFile), text });
     }
     diags = await client.waitForDiagnostics({
       uri: fileUri,
-      mode: diagMode || "auto",
+      mode: diagMode || 'auto',
       timeout: diagTimeoutMs,
       quietMs: diagQuietMs,
       requirePublish: requirePublish !== false,
@@ -91,7 +91,7 @@ async function runStandard(spec, setProxy) {
   if (requirePublish === false && !aliveAfterWait) {
     throw new Error(
       `server exited before the diagnostics window elapsed (crash?)` +
-        (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : ""),
+        (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : ''),
     );
   }
 
@@ -102,8 +102,8 @@ async function runStandard(spec, setProxy) {
           diags
             .slice(0, 5)
             .map((d) => `  - ${d.message}`)
-            .join("\n") +
-          (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : ""),
+            .join('\n') +
+          (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : ''),
       );
     }
   }
@@ -111,17 +111,17 @@ async function runStandard(spec, setProxy) {
     if (diags.length === 0) {
       throw new Error(
         `expected ≥1 diagnostic matching ${expectMatch}, got 0` +
-          (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : ""),
+          (stderrSnapshot ? `\n--- server stderr ---\n${stderrSnapshot.slice(-1500)}` : ''),
       );
     }
-    const messages = diags.map((d) => d.message || "").join(" | ");
+    const messages = diags.map((d) => d.message || '').join(' | ');
     if (!expectMatch.test(messages)) {
       throw new Error(
         `expected diagnostic to match ${expectMatch}, got:\n` +
           diags
             .slice(0, 5)
             .map((d) => `  - ${d.message}`)
-            .join("\n"),
+            .join('\n'),
       );
     }
   }
@@ -132,27 +132,27 @@ async function runStandard(spec, setProxy) {
 const scenarios = {
   // bash-language-server uses tree-sitter + shellcheck. Syntax errors are
   // surfaced via push diagnostics.
-  "bash-clean": (sp) =>
+  'bash-clean': (sp) =>
     runStandard(
       {
-        pluginName: "bash-language-server",
-        fixturesSubdir: "bash",
-        includes: ["clean.sh"],
-        primaryFile: "clean.sh",
+        pluginName: 'bash-language-server',
+        fixturesSubdir: 'bash',
+        includes: ['clean.sh'],
+        primaryFile: 'clean.sh',
         expectZero: true,
-        scenarioTag: "bash-clean",
+        scenarioTag: 'bash-clean',
       },
       sp,
     ),
-  "bash-broken": (sp) =>
+  'bash-broken': (sp) =>
     runStandard(
       {
-        pluginName: "bash-language-server",
-        fixturesSubdir: "bash",
-        includes: ["broken.sh"],
-        primaryFile: "broken.sh",
+        pluginName: 'bash-language-server',
+        fixturesSubdir: 'bash',
+        includes: ['broken.sh'],
+        primaryFile: 'broken.sh',
         expectMatch: /syntax|expected|parse|unexpected/i,
-        scenarioTag: "bash-broken",
+        scenarioTag: 'bash-broken',
       },
       sp,
     ),
@@ -160,28 +160,28 @@ const scenarios = {
   // pyright does NOT advertise diagnosticProvider (no pull support); it pushes
   // publishDiagnostics, including an empty array for clean files — so
   // pyright-clean is a real assertion (waits for the empty publish).
-  "pyright-clean": (sp) =>
+  'pyright-clean': (sp) =>
     runStandard(
       {
-        pluginName: "pyright",
-        fixturesSubdir: "pyright",
-        includes: ["clean.py", "pyrightconfig.json"],
-        primaryFile: "clean.py",
+        pluginName: 'pyright',
+        fixturesSubdir: 'pyright',
+        includes: ['clean.py', 'pyrightconfig.json'],
+        primaryFile: 'clean.py',
         expectZero: true,
-        scenarioTag: "pyright-clean",
+        scenarioTag: 'pyright-clean',
         diagTimeoutMs: 15000,
       },
       sp,
     ),
-  "pyright-broken": (sp) =>
+  'pyright-broken': (sp) =>
     runStandard(
       {
-        pluginName: "pyright",
-        fixturesSubdir: "pyright",
-        includes: ["broken.py", "pyrightconfig.json"],
-        primaryFile: "broken.py",
+        pluginName: 'pyright',
+        fixturesSubdir: 'pyright',
+        includes: ['broken.py', 'pyrightconfig.json'],
+        primaryFile: 'broken.py',
         expectMatch: /not assignable|incompatible|assignment/i,
-        scenarioTag: "pyright-broken",
+        scenarioTag: 'pyright-broken',
         diagTimeoutMs: 15000,
       },
       sp,
@@ -194,15 +194,15 @@ const scenarios = {
   // an EMPTY set. This proves diagnostics are version-driven: in real usage,
   // "stale errors after a fix" is the client failing to send didChange, not a
   // pyright bug. Also prints [perf] latencies for open→diag and change→refresh.
-  "pyright-refresh": async (setProxy) => {
-    const dir = prepWorkdir("pyright-refresh", path.join(FIXTURES, "pyright"), [
-      "broken.py",
-      "pyrightconfig.json",
+  'pyright-refresh': async (setProxy) => {
+    const dir = prepWorkdir('pyright-refresh', path.join(FIXTURES, 'pyright'), [
+      'broken.py',
+      'pyrightconfig.json',
     ]);
-    const fileUri = pathToFileURL(path.join(dir, "broken.py")).href;
+    const fileUri = pathToFileURL(path.join(dir, 'broken.py')).href;
     const rootUri = pathToFileURL(dir).href;
 
-    const pluginDir = path.join(ROOT_DIR, "pyright");
+    const pluginDir = path.join(ROOT_DIR, 'pyright');
     const parsed = parseLspJson(pluginDir);
     const client = new LspClient({ command: parsed.command, args: parsed.args, cwd: dir });
     await client.start();
@@ -210,36 +210,36 @@ const scenarios = {
 
     try {
       await client.initialize({ rootUri });
-      const brokenText = fs.readFileSync(path.join(dir, "broken.py"), "utf8");
+      const brokenText = fs.readFileSync(path.join(dir, 'broken.py'), 'utf8');
 
       // Phase 1 — open the broken file; expect the assignment type error.
       const openAt = Date.now();
       client.didOpen({
         uri: fileUri,
-        languageId: wireLanguageIdFor(parsed, "broken.py"),
+        languageId: wireLanguageIdFor(parsed, 'broken.py'),
         text: brokenText,
       });
       const errDiags = await client.waitForDiagnostics({
         uri: fileUri,
-        mode: "push",
+        mode: 'push',
         timeout: 15000,
       });
       const openLatency = Date.now() - openAt;
       if (errDiags.length === 0) {
         throw new Error(
-          "expected a type error on open, got 0 diagnostics" +
+          'expected a type error on open, got 0 diagnostics' +
             `\n--- server stderr ---\n${client.stderr().slice(-1500)}`,
         );
       }
       if (
-        !/not assignable|incompatible|assignment/i.test(errDiags.map((d) => d.message).join(" | "))
+        !/not assignable|incompatible|assignment/i.test(errDiags.map((d) => d.message).join(' | '))
       ) {
         throw new Error(
-          "diagnostics on open did not match the expected type error:\n" +
+          'diagnostics on open did not match the expected type error:\n' +
             errDiags
               .slice(0, 5)
               .map((d) => `  - ${d.message}`)
-              .join("\n"),
+              .join('\n'),
         );
       }
 
@@ -248,10 +248,10 @@ const scenarios = {
       // not the stale error diagnostics already cached for this URI.
       const baseSeq = client.publishSeq(fileUri);
       const changeAt = Date.now();
-      client.didChange({ uri: fileUri, text: "x: int = 5\nprint(x)\n" });
+      client.didChange({ uri: fileUri, text: 'x: int = 5\nprint(x)\n' });
       const fixedDiags = await client.waitForDiagnostics({
         uri: fileUri,
-        mode: "push",
+        mode: 'push',
         timeout: 15000,
         afterSeq: baseSeq,
       });
@@ -262,7 +262,7 @@ const scenarios = {
             fixedDiags
               .slice(0, 5)
               .map((d) => `  - ${d.message}`)
-              .join("\n"),
+              .join('\n'),
         );
       }
 
@@ -280,16 +280,16 @@ const scenarios = {
   // must notice the disk change and inject a didChange so pyright re-publishes
   // an empty set. Without the proxy this stays stale forever (proven by
   // experiments/lsp-wiretap/FINDINGS.md).
-  "pyright-disksync": async (setProxy) => {
-    const dir = prepWorkdir("pyright-disksync", path.join(FIXTURES, "pyright"), [
-      "broken.py",
-      "pyrightconfig.json",
+  'pyright-disksync': async (setProxy) => {
+    const dir = prepWorkdir('pyright-disksync', path.join(FIXTURES, 'pyright'), [
+      'broken.py',
+      'pyrightconfig.json',
     ]);
-    const filePath = path.join(dir, "broken.py");
+    const filePath = path.join(dir, 'broken.py');
     const fileUri = pathToFileURL(filePath).href;
     const rootUri = pathToFileURL(dir).href;
 
-    const pluginDir = path.join(ROOT_DIR, "pyright");
+    const pluginDir = path.join(ROOT_DIR, 'pyright');
     const parsed = parseLspJson(pluginDir);
     const client = new LspClient({ command: parsed.command, args: parsed.args, cwd: dir });
     await client.start();
@@ -299,17 +299,17 @@ const scenarios = {
       await client.initialize({ rootUri });
       client.didOpen({
         uri: fileUri,
-        languageId: wireLanguageIdFor(parsed, "broken.py"),
-        text: fs.readFileSync(filePath, "utf8"),
+        languageId: wireLanguageIdFor(parsed, 'broken.py'),
+        text: fs.readFileSync(filePath, 'utf8'),
       });
       const errDiags = await client.waitForDiagnostics({
         uri: fileUri,
-        mode: "push",
+        mode: 'push',
         timeout: 15000,
       });
       if (errDiags.length === 0) {
         throw new Error(
-          "expected a type error on open, got 0 diagnostics" +
+          'expected a type error on open, got 0 diagnostics' +
             `\n--- stderr ---\n${client.stderr().slice(-1500)}`,
         );
       }
@@ -317,7 +317,7 @@ const scenarios = {
       // The fix lands on disk only. No didChange from this client.
       const baseSeq = client.publishSeq(fileUri);
       const fixAt = Date.now();
-      fs.writeFileSync(filePath, "x: int = 5\nprint(x)\n");
+      fs.writeFileSync(filePath, 'x: int = 5\nprint(x)\n');
 
       const refreshed = await client.waitForPublish({
         uri: fileUri,
@@ -326,7 +326,7 @@ const scenarios = {
       });
       if (!refreshed) {
         throw new Error(
-          "no re-publish after disk-only fix — disk-sync did not inject" +
+          'no re-publish after disk-only fix — disk-sync did not inject' +
             `\n--- stderr ---\n${client.stderr().slice(-1500)}`,
         );
       }
@@ -336,7 +336,7 @@ const scenarios = {
             refreshed.diagnostics
               .slice(0, 5)
               .map((d) => `  - ${d.message}`)
-              .join("\n"),
+              .join('\n'),
         );
       }
       console.log(`[perf] pyright disk-fix→refresh=${refreshed.at - fixAt}ms`);
@@ -353,29 +353,29 @@ const scenarios = {
   // requirePublish: false (no publish is expected) and relies on the
   // runStandard liveness check + the vtsls-broken scenario to prove the server
   // is actually analyzing. Needs tsconfig.json for the project to load.
-  "vtsls-clean": (sp) =>
+  'vtsls-clean': (sp) =>
     runStandard(
       {
-        pluginName: "vtsls",
-        fixturesSubdir: "vtsls",
-        includes: ["clean.ts", "tsconfig.json"],
-        primaryFile: "clean.ts",
+        pluginName: 'vtsls',
+        fixturesSubdir: 'vtsls',
+        includes: ['clean.ts', 'tsconfig.json'],
+        primaryFile: 'clean.ts',
         expectZero: true,
-        scenarioTag: "vtsls-clean",
+        scenarioTag: 'vtsls-clean',
         requirePublish: false,
         diagTimeoutMs: 8000,
       },
       sp,
     ),
-  "vtsls-broken": (sp) =>
+  'vtsls-broken': (sp) =>
     runStandard(
       {
-        pluginName: "vtsls",
-        fixturesSubdir: "vtsls",
-        includes: ["broken.ts", "tsconfig.json"],
-        primaryFile: "broken.ts",
+        pluginName: 'vtsls',
+        fixturesSubdir: 'vtsls',
+        includes: ['broken.ts', 'tsconfig.json'],
+        primaryFile: 'broken.ts',
         expectMatch: /not assignable|Type 'string'/i,
-        scenarioTag: "vtsls-broken",
+        scenarioTag: 'vtsls-broken',
         diagTimeoutMs: 15000,
       },
       sp,
@@ -387,15 +387,15 @@ const scenarios = {
   // so we set requirePublish: false to let waitForDiagnostics return [] on
   // timeout without throwing. Re-add a `cue-broken` scenario (and drop the
   // requirePublish override) when upstream gains diagnostic support.
-  "cue-clean": (sp) =>
+  'cue-clean': (sp) =>
     runStandard(
       {
-        pluginName: "cue-lsp",
-        fixturesSubdir: "cue",
-        includes: ["clean.cue", "cue.mod"],
-        primaryFile: "clean.cue",
+        pluginName: 'cue-lsp',
+        fixturesSubdir: 'cue',
+        includes: ['clean.cue', 'cue.mod'],
+        primaryFile: 'clean.cue',
         expectZero: true,
-        scenarioTag: "cue-clean",
+        scenarioTag: 'cue-clean',
         requirePublish: false,
       },
       sp,
@@ -411,33 +411,33 @@ const scenarios = {
   // later with the configured rule levels applied. We need a quiet period
   // ≥ that gap so the second publish overwrites the first; 2000ms gives
   // comfortable headroom.
-  "regal-clean": (sp) =>
+  'regal-clean': (sp) =>
     runStandard(
       {
-        pluginName: "regal-lsp",
-        fixturesSubdir: "regal",
-        includes: ["clean.rego", ".regal"],
-        primaryFile: "clean.rego",
+        pluginName: 'regal-lsp',
+        fixturesSubdir: 'regal',
+        includes: ['clean.rego', '.regal'],
+        primaryFile: 'clean.rego',
         expectZero: true,
-        scenarioTag: "regal-clean",
+        scenarioTag: 'regal-clean',
         viaWarmup: true,
-        diagMode: "push",
+        diagMode: 'push',
         diagQuietMs: 2000,
         diagTimeoutMs: 12000,
       },
       sp,
     ),
-  "regal-broken": (sp) =>
+  'regal-broken': (sp) =>
     runStandard(
       {
-        pluginName: "regal-lsp",
-        fixturesSubdir: "regal",
-        includes: ["broken.rego", ".regal"],
-        primaryFile: "broken.rego",
+        pluginName: 'regal-lsp',
+        fixturesSubdir: 'regal',
+        includes: ['broken.rego', '.regal'],
+        primaryFile: 'broken.rego',
         expectMatch: /prefer.*==|equality|assignment|deprecated/i,
-        scenarioTag: "regal-broken",
+        scenarioTag: 'regal-broken',
         viaWarmup: true,
-        diagMode: "push",
+        diagMode: 'push',
         diagQuietMs: 2000,
         diagTimeoutMs: 12000,
       },
@@ -447,29 +447,29 @@ const scenarios = {
   // regal warmup: workspace contains BOTH files, but the client never sends
   // didOpen. If diagnostics arrive for broken.rego, it can only be because the
   // proxy's warmup walked the workspace and sent didOpen on our behalf.
-  "regal-warmup": async (setProxy) => {
-    const dir = prepWorkdir("regal-warmup", path.join(FIXTURES, "regal"), [
-      "clean.rego",
-      "broken.rego",
-      ".regal",
+  'regal-warmup': async (setProxy) => {
+    const dir = prepWorkdir('regal-warmup', path.join(FIXTURES, 'regal'), [
+      'clean.rego',
+      'broken.rego',
+      '.regal',
     ]);
-    const brokenUri = pathToFileURL(path.join(dir, "broken.rego")).href;
+    const brokenUri = pathToFileURL(path.join(dir, 'broken.rego')).href;
     const rootUri = pathToFileURL(dir).href;
 
-    const pluginDir = path.join(ROOT_DIR, "regal-lsp");
+    const pluginDir = path.join(ROOT_DIR, 'regal-lsp');
     const { command, args } = parseLspJson(pluginDir);
     const client = new LspClient({ command, args, cwd: dir });
     await client.start();
     setProxy(client);
 
     let diags = [];
-    let stderrSnapshot = "";
+    let stderrSnapshot = '';
     try {
       await client.initialize({ rootUri });
       // Critical: do NOT call client.didOpen. Warmup must drive indexing.
       diags = await client.waitForDiagnostics({
         uri: brokenUri,
-        mode: "push",
+        mode: 'push',
         quietMs: 2000,
         timeout: 12000,
       });
@@ -482,19 +482,19 @@ const scenarios = {
 
     if (diags.length === 0) {
       throw new Error(
-        "warmup did not produce diagnostics for broken.rego;\n" +
-          "proxy stderr (last 1500 chars):\n" +
+        'warmup did not produce diagnostics for broken.rego;\n' +
+          'proxy stderr (last 1500 chars):\n' +
           stderrSnapshot.slice(-1500),
       );
     }
-    const messages = diags.map((d) => d.message || "").join(" | ");
+    const messages = diags.map((d) => d.message || '').join(' | ');
     if (!/prefer.*==|equality|use-assignment|deprecated/i.test(messages)) {
       throw new Error(
         `warmup produced diagnostics but none matched expected pattern; got:\n` +
           diags
             .slice(0, 5)
             .map((d) => `  - ${d.message}`)
-            .join("\n"),
+            .join('\n'),
       );
     }
   },
