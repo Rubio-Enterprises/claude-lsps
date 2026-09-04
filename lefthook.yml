@@ -5,8 +5,8 @@
 # to bake every hook into this file. See standards `lefthook/README.md`.
 #
 # Hook activation note: lefthook installs into this repository's Git hooks
-# directory by default. The template's `.mise.toml` runs `lefthook install`
-# through its `postinstall` hook after `mise install`, so a fresh clone gets
+# directory by default. Outside CI, the template's `.mise.toml` postinstall hook
+# runs `lefthook install` after `mise install`, so a fresh developer clone gets
 # per-repo hooks without `mise activate` or any `core.hooksPath` override.
 # Repo-local `.githooks/` directories remain banned by `check.sh`: lefthook's
 # own per-repo installation is the fleet's single hook path.
