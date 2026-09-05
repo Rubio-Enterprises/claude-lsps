@@ -20,16 +20,24 @@
       "recommended": true,
       "suspicious": {
         "noExplicitAny": "error",
-        "noConsole": { "level": "warn", "options": { "allow": ["warn", "error"] } }
+        "noConsole": "off"
       },
       "style": {
         "useImportType": "error",
         "useNodejsImportProtocol": "error"
+      },
+      "complexity": {
+        "useOptionalChain": "off"
       }
     }
   },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
-
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "javascript": {
     "formatter": {
       "quoteStyle": "single",

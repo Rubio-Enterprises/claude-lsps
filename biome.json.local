@@ -1,0 +1,14 @@
+{
+  "linter": {
+    "rules": {
+      "complexity": {
+        // Deferred to the Phase E semantic-conversion sweep.
+        "useOptionalChain": "off"
+      },
+      "suspicious": {
+        // Proxy and driver console output is the tool interface.
+        "noConsole": "off"
+      }
+    }
+  }
+}
