@@ -29,13 +29,14 @@
 # Bump CACHE_EPOCH (e.g. 1 -> 2) and re-save this field to force an env-cache rebuild.
 CACHE_EPOCH=1
 export CACHE_EPOCH
-# PRIVATE marketplaces: export the org's shared read-only fine-grained PAT
-# here (one org-wide token — the block stays fleet-uniform). The
+# PRIVATE GitHub dependencies: export the org's shared read-only fine-grained
+# PAT here (one org-wide token — the block stays fleet-uniform). The
 # "Environment variables" field reaches SESSIONS only, never this setup run
 # (proven 2026-07: the build log printed "auth tokens present at build: NONE"
 # with GH_PAT set in that field), so this line is the only way the snapshot
-# build can clone private marketplace repos. Per the docs this field has the
-# SAME visibility as the env-vars field, so this is not a security downgrade.
+# build can clone private marketplace and Go-module repos. Per the docs this
+# field has the SAME visibility as the env-vars field, so this is not a
+# security downgrade.
 # Re-saving after editing this field rebuilds the cache automatically.
 export GH_PAT='github_pat_REPLACE_ME'
 for d in "${CLAUDE_PROJECT_DIR:-}" "$PWD"; do
@@ -72,35 +73,35 @@ CLOUD_SETUP_WEB_WRAPPER
 # cache can build; independent work runs in parallel below.
 #
 # Division of labour:
-#   * Only root/apt installs, the private-marketplace git credential helper,
-#     and snapshot-cacheable warming live here.
+#   * Only root/apt installs, private-dependency git credential helpers, and
+#     snapshot-cacheable warming live here.
 #   * Everything portable (the pinned mise toolchain) lives in
 #     scripts/common/session-start-claude.sh so it runs in BOTH local and
 #     cloud sessions. This script just calls that hook core so the toolchain
 #     lands in the snapshot; the per-session SessionStart hook then
 #     fast-paths to a no-op.
 #
-# PRIVATE marketplace auth (REQUIRED for PRIVATE org plugin bundles):
+# PRIVATE GitHub auth (REQUIRED for private org dependencies):
 #   Public org marketplaces (e.g. claude-lsps) install in cloud with NO token.
 #   PRIVATE in-org bundle marketplaces declared in .claude/settings.json —
-#   including rubio-standards@rubio now that standards is private — need
-#   GH_PAT, a fine-grained PAT (Rubio-Enterprises, Contents:Read on the
-#   private marketplace repos) EXPORTED IN THE "Setup script" WRAPPER above,
-#   NOT in the "Environment variables" field: env vars are injected into
-#   SESSIONS only, never into setup/snapshot builds — proven 2026-07 when the
-#   build diagnostic printed "auth tokens present at build: NONE" with GH_PAT
-#   set in that field — and the marketplace pre-seed clones run at BUILD
-#   time. Per the docs both fields share the same visibility ("Both
-#   environment variables and setup scripts are stored in the environment
-#   configuration, visible to anyone who can edit that environment"), so the
-#   wrapper placement is not a security downgrade. ONE shared,
-#   narrowly-scoped, read-only token reused across ALL cloud environments is
-#   sufficient. The per-marketplace-repo credential helper registered below
-#   reads it at CLONE time and is scoped so the read-only token only ever
-#   authenticates the marketplace clones, never the working repo. Do NOT put
-#   GH_PAT or GH_TOKEN in the env-vars field: GH_PAT there never reaches
-#   builds, and a user-set GH_TOKEN CLOBBERS the platform's session-injected
-#   working-repo-scoped token (observed live).
+#   including rubio-standards@rubio now that standards is private — and private
+#   Go module repos named by go.mod need GH_PAT, a fine-grained PAT
+#   (Rubio-Enterprises, Contents:Read on the private marketplace and Go-module
+#   repos) EXPORTED IN THE "Setup script" WRAPPER above, NOT in the
+#   "Environment variables" field: env vars are injected into SESSIONS only,
+#   never into setup/snapshot builds — proven 2026-07 when the build diagnostic
+#   printed "auth tokens present at build: NONE" with GH_PAT set in that field
+#   — and both marketplace pre-seed clones and Go module downloads run at BUILD
+#   time. Per the docs both fields share the same visibility ("Both environment
+#   variables and setup scripts are stored in the environment configuration,
+#   visible to anyone who can edit that environment"), so the wrapper placement
+#   is not a security downgrade. ONE shared, narrowly-scoped, read-only token
+#   reused across ALL cloud environments is sufficient. The per-repository
+#   credential helpers registered below read it at CLONE time and are scoped so
+#   the read-only token authenticates only those private dependency clones,
+#   never the working repo. Do NOT put GH_PAT or GH_TOKEN in the env-vars field:
+#   GH_PAT there never reaches builds, and a user-set GH_TOKEN CLOBBERS the
+#   platform's session-injected working-repo-scoped token (observed live).
 set -uo pipefail
 
 # Operate from the repo root regardless of the caller's cwd (the UI Setup script
@@ -142,9 +143,11 @@ fi
 # Skipped at BOTH levels (cloud-only, and their absence is not a repo defect):
 # apt, the marketplace credential helper + pre-seed, plugin-cache
 # materialization, workflow seeding, and the snapshot drift fingerprint. They
-# need root, GH_PAT, and the `claude` CLI — none of which a CI runner has, or
-# should have. What smoke covers is where a repo actually breaks: the toolchain
-# bootstrap, the archetype cache warm, and scripts/repo-local/cloud-setup.sh.
+# need root and/or the `claude` CLI. What smoke covers is where a repo actually
+# breaks: the toolchain bootstrap, the archetype cache warm, and
+# scripts/repo-local/cloud-setup.sh. The private-Go helper below is the narrow
+# exception: credentialed smoke can exercise the real module warm without
+# enabling marketplace setup.
 #
 # With CLOUD_SETUP_SMOKE unset the cloud path is untouched, down to the bytes:
 # __warn emits exactly the `cloud-setup: <x> failed (non-fatal)` line it
@@ -295,6 +298,108 @@ elif [ -z "$__smoke" ]; then
   # only as the fallback when per-repo scoping is impossible.
   git config --global credential.helper "$__mkt_helper" || true
   echo "cloud-setup: global marketplace credential helper (jq/carrier unavailable; unscoped fallback)" >&2
+fi
+
+# --- Private Go-module git credential helper (RUNTIME, repo-scoped) ----------
+# Keep org-owned modules off the public proxy and checksum database. Git still
+# needs credentials for their source repositories, so derive each repo from
+# go.mod rather than granting a github.com/Rubio-Enterprises prefix that would
+# also shadow the working repo's write token. Only replace TARGETS count:
+# replacing an org module with a local or public target needs no private clone.
+# require accepts both its block and single-line forms. A module may name a
+# package below the repository root, so scope to the first path segment after
+# the org. Register both bare and ".git" URLs for the same exact-match reason as
+# the marketplace loop above.
+export GOPRIVATE='github.com/Rubio-Enterprises/*'
+__go_repos=""
+# Marketplace setup stays off in smoke mode. This helper is different: the
+# credentialed smoke exports a per-run App token as GH_PAT so a real build can
+# be proven. Register there iff any supported token is present; an
+# uncredentialed smoke must not touch the runner's global git config.
+if [ -f go.mod ] &&
+  { [ -z "$__smoke" ] || [ -n "${GH_PAT:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}" ]; }; then
+  if ! __go_repos="$(
+    awk '
+      function emit(module, relative, parts) {
+        if (module !~ /^github[.]com\/Rubio-Enterprises\/[^\/[:space:]]+/) {
+          return
+        }
+        relative = substr(module, length("github.com/Rubio-Enterprises/") + 1)
+        split(relative, parts, "/")
+        print "Rubio-Enterprises/" parts[1]
+      }
+      function emit_replace_target(line, fields) {
+        if (line !~ /=>/) {
+          return
+        }
+        sub(/^.*=>[[:space:]]*/, "", line)
+        split(line, fields, /[[:space:]]+/)
+        emit(fields[1])
+      }
+      {
+        line = $0
+        sub(/[[:space:]]*\/\/.*/, "", line)
+        sub(/^[[:space:]]+/, "", line)
+        sub(/[[:space:]]+$/, "", line)
+        if (line == "") {
+          next
+        }
+        if (require_block) {
+          if (line == ")") {
+            require_block = 0
+            next
+          }
+          split(line, fields, /[[:space:]]+/)
+          emit(fields[1])
+          next
+        }
+        if (replace_block) {
+          if (line == ")") {
+            replace_block = 0
+            next
+          }
+          emit_replace_target(line)
+          next
+        }
+        if (line ~ /^require[[:space:]]+/) {
+          sub(/^require[[:space:]]+/, "", line)
+          if (line == "(") {
+            require_block = 1
+          } else {
+            split(line, fields, /[[:space:]]+/)
+            emit(fields[1])
+          }
+          next
+        }
+        if (line ~ /^replace[[:space:]]+/) {
+          sub(/^replace[[:space:]]+/, "", line)
+          if (line == "(") {
+            replace_block = 1
+          } else {
+            emit_replace_target(line)
+          }
+        }
+      }
+    ' go.mod | sort -u
+  )"; then
+    __go_repos=""
+    __warn "private Go module discovery"
+  fi
+fi
+if [ -n "$__go_repos" ]; then
+  __go_scope_failed=""
+  while IFS= read -r __repo; do
+    [ -z "$__repo" ] && continue
+    git config --global "credential.https://github.com/${__repo}.helper" "$__mkt_helper" ||
+      __go_scope_failed=1
+    git config --global "credential.https://github.com/${__repo}.git.helper" "$__mkt_helper" ||
+      __go_scope_failed=1
+  done <<<"$__go_repos"
+  if [ -n "$__go_scope_failed" ]; then
+    __warn "private Go module credential helper registration"
+  else
+    echo "cloud-setup: scoped private Go module credential helper to: $(printf '%s' "$__go_repos" | tr '\n' ' ')" >&2
+  fi
 fi
 
 # --- Marketplace pre-seed (WORKAROUND: cloud skips native marketplace sync) --

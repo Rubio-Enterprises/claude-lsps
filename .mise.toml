@@ -1,5 +1,19 @@
 # .mise.toml — task runner contract (§6.3: `mise run lint`, `mise run test`, `mise run e2e`, `mise run build`)
 # Backend-prefixed pins (`npm:`, `aqua:`, `github:`) live here, not in .tool-versions.
+#
+# THIS FILE IS TEMPLATE-OWNED AND RE-RENDERED ON EVERY `copier update`. It is not
+# in `_skip_if_exists`, so copier diff-applies it: anything you add here survives
+# only until the template touches the same region, at which point it is either
+# conflict-marked (and then swept to the canonical side by
+# normalize-mise-conflict-markers.sh) or dropped by `git apply --reject`. Both
+# reverts are silent — three fleet incidents were found months after the fact.
+#
+# Repo-owned tasks and pin overrides go in `.mise.local.toml`, which mise merges
+# additively and this template renders nowhere, so nothing there can be reverted.
+# Test-runner flags belong in that runner's own project config, never appended
+# to a task's `run` line.
+# The `MD-11` audit rule enforces this on every PR — see
+# skills/audit-standards/spec/all-repos.md "Template provenance of `.mise.toml`".
 
 [tools]
 # uv — declared FIRST because the `pipx:` pins below cannot install without it
