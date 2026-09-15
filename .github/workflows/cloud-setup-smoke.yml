@@ -64,6 +64,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  # The 120-minute fleet floor bounds execution on a wedged self-hosted runner
+  # (mac-dev-playbook#917); it never bounds queue time. The measured org-wide
+  # maximum executing job is 47 minutes, and any tighter per-class value is
+  # deliberate. Reusable callers cannot set timeout-minutes; the called
+  # Rubio-Enterprises/.github workflow owns the ceiling on its actual job.
   cloud-setup-smoke:
     # The reusable probes for a smoke-capable core before it runs anything and
     # no-ops with a notice when this repo has not re-rendered yet, so this call

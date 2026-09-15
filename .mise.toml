@@ -41,8 +41,8 @@ uv = "0.12.1"
 # package.json devDep, but Pattern E preserves the consumer's package.json
 # (`_skip_if_exists`), so the assumption broke. mise pinning is the consistent
 # audit-side contract — same as how gitleaks/conftest/check-jsonschema work.
-"npm:@commitlint/cli" = "21.2.1"
-"npm:@commitlint/config-conventional" = "21.2.0"
+"npm:@commitlint/cli" = "21.2.2"
+"npm:@commitlint/config-conventional" = "21.2.2"
 
 # Hook tools backing lefthook.yml. Universal across archetypes — every
 # archetype's lefthook runs markdownlint/yamllint/prettier and most run
@@ -50,7 +50,7 @@ uv = "0.12.1"
 # resolve these binaries on a fresh CI runner (and via `mise exec --` locally
 # without polluting the developer's global tool surface).
 "aqua:koalaman/shellcheck" = "0.11.0"
-"aqua:mvdan/sh"            = "3.13.1"   # shfmt
+"aqua:mvdan/sh"            = "3.14.0"   # shfmt
 # 2026-08-28: remove this exact fastq exclude once the selected fastq release publishes SLSA provenance.
 "npm:markdownlint-cli2" = { version = "0.23.1", trust_policy_excludes = ["fastq@1.20.2"] }
 "npm:prettier"             = "3.9.6"
@@ -61,7 +61,7 @@ uv = "0.12.1"
 # lefthook via Homebrew; pinning here keeps CI and the developer-laptop
 # parity. The audit-side .standards/.mise.toml does NOT pin lefthook because
 # audit.yml doesn't invoke it — only consumer-side lint-hooks does.
-"aqua:evilmartians/lefthook" = "2.1.10"
+"aqua:evilmartians/lefthook" = "2.1.12"
 # gitleaks here mirrors the audit-side pin in .standards/.mise.toml. The
 # lefthook pre-commit gitleaks hook invokes a bare `gitleaks git --staged`,
 # which needs the binary on PATH — the consumer-side lint-hooks CI job
@@ -70,14 +70,14 @@ uv = "0.12.1"
 # yq — used by the `_tasks` merge-yamllint.sh hook to deep-merge consumer-side
 # .yamllint.local into the template-rendered .yamllint at copier render time.
 # Pinning universally so consumers can rely on it for their own scripts too.
-"aqua:mikefarah/yq"          = "4.53.3"
+"aqua:mikefarah/yq"          = "4.53.6"
 # copier — the weekly copier-sync reusable workflow (.github/copier-sync.yml)
 # runs a bare `copier update`, bootstrapping tools via mise-action. The CI
 # runner image does not ship copier, so without this pin the sync job exits
 # 127 (command not found). Pinning here lands it on the mise PATH for both CI
 # and local `copier update` parity. The reusable workflow also installs copier
 # explicitly as belt-and-braces for consumers not yet re-rendered with this pin.
-"pipx:copier"                = "9.17.0"
+"pipx:copier"                = "9.18.1"
 # Node runtime pin — universal (P5-C unification). Every repo runs the
 # npm:-backend hook tools above (commitlint / markdownlint / prettier), so the
 # node runtime they require is pinned HERE for every repo. Previously most
@@ -104,7 +104,7 @@ node = "22.12.0"
 # want Biome alongside ESLint (e.g. super-productivity's `scripts.lint: "biome
 # check ."`). Consumers who don't want Biome can delete biome.jsonc; `_skip_if_exists`
 # keeps it from coming back on `copier update`.
-"npm:@biomejs/biome"       = "2.5.5"
+"npm:@biomejs/biome"       = "2.5.12"
 
 # Git hooks are per-repo via lefthook since dotfiles commit 2ea15ce retired the
 # global dispatcher. Local `mise install` activates them without `mise
