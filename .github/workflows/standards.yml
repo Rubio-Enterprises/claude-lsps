@@ -34,6 +34,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  # The 120-minute fleet floor bounds execution on a wedged self-hosted runner
+  # (mac-dev-playbook#917); it never bounds queue time. The measured org-wide
+  # maximum executing job is 47 minutes, and any tighter per-class value is
+  # deliberate. Reusable callers cannot set timeout-minutes; the called
+  # Rubio-Enterprises/.github workflows own the ceiling on their actual jobs.
   trufflehog:
     # schedule = weekly automated; workflow_dispatch = manual re-trigger for
     # incident response. Scope to trufflehog's OWN weekly cron so no other
