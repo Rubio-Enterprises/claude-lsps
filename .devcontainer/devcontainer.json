@@ -1,4 +1,4 @@
 {
   "name": "claude-lsps",
-  "image": "ghcr.io/rubio-enterprises/agent-workspace:main@sha256:f0f5deb88a73081db9512da04c880590d29591293aba496715f68c5b116da695"
+  "image": "ghcr.io/rubio-enterprises/agent-workspace:main@sha256:0488e55617fab067bdfb5d887f9b3f7860e44f31839cd59ab337fd24e695e9c2"
 }
