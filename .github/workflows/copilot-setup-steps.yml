@@ -2,7 +2,7 @@ name: Copilot Setup Steps
 
 # Public-repo override (rendered only when is_public=true). GitHub blocks
 # self-hosted runners on public repos, so the org-default Copilot runner
-# (labeled `code-quality`, self-hosted) would queue a public repo's review ~24h
+# (labeled `linux-x64`, self-hosted) would queue a public repo's review ~24h
 # and then cancel it. This file pins Copilot code review + coding agent to a
 # GitHub-hosted Ubuntu x64 runner (free for public repos) by declaring the
 # `copilot-setup-steps` job's `runs-on` — GitHub reads that to pick the runner.
