@@ -32,9 +32,10 @@
 # Declaring it here makes provisioning mise's job, so the workflow-level
 # setup-uv steps become belt-and-braces instead of load-bearing.
 #
-# Version tracks the pin the injected gates install (astral-sh/setup-uv v8.3.2
-# → uv 0.12.1); Renovate's mise manager bumps it here.
-uv = "0.12.1"
+# Keep this pin paired with any reviewed `python_version` answer bump: verify
+# the selected interpreter is downloadable with this exact uv before promoting.
+# The injected gates already use uv 0.12.15 (Rubio-Enterprises/.github#212).
+uv = "0.12.15"
 
 # commitlint via mise's npm: backend so the binary lands on PATH across every
 # archetype. Earlier the template assumed TS consumers carried commitlint as a
