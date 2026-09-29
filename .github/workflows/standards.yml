@@ -3,21 +3,13 @@ name: standards
 # quotes, YAML 1.1 parsers fold `on` into the boolean `On`. GitHub Actions
 # resolves the key by name regardless, and actionlint accepts both forms.
 #
-# The PR gates (audit, lint/format, secret-scan/gitleaks, pr-title, typecheck)
-# are NO LONGER rendered here — they are Required Governance Workflows injected
-# by org rulesets from `Rubio-Enterprises/.github`, resolved at the repo's
-# channel (`stable`, or `canary` for the canary ring); canonical non-E2E tests
-# gate through the repo-local test-gate.yml required status instead. The
-# copier-sync/copier-check jobs are gone too — the rendered residue now
-# propagates as auto-merged Renovate copier PRs. What remains here is the
-# irreducibly consumer-local surface: the scheduled tree-wide trufflehog scan,
-# the lefthook CI run (lint-hooks — the only CI enforcement for linters with no
-# config-path flag: golangci-lint, pyright, shellcheck, swiftformat, deno …;
-# its 4-linter overlap with the injected gate-lint-format is a known, accepted
-# cost), and (when the archetype has an e2e contract) the Playwright e2e job.
+# The org's required governance workflows own audit, lint/format, secret-scan,
+# PR title, and typecheck; test-gate.yml owns canonical non-E2E tests. This
+# workflow keeps the scheduled trufflehog scan, repo-local lint-hooks and E2E,
+# and default-branch cache seeding.
 "on":
   pull_request:
-    types: [opened, synchronize, reopened]
+  merge_group:
   schedule:
     # `0 9 * * 1` → weekly trufflehog (secret-scan tree-wide entropy scan).
     - cron: "0 9 * * 1"
@@ -46,15 +38,12 @@ jobs:
     if: >-
       github.event_name == 'schedule' && github.event.schedule == '0 9 * * 1'
       || github.event_name == 'workflow_dispatch'
-    uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@083a18b5fd4ae40bd54a67296c016fbf998ab7e5 # v3
+    uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@de8948b8bc94733b87b21e6b430e7a6079d6ad5b # v4
     with: { mode: trufflehog }
 
   lint-hooks:
-    # CI gate that runs lefthook commands across the full repo (not just staged
-    # diffs). Catches drift in hook-tool pins / PATH wiring that local commits
-    # would otherwise hit first. PR-only; push/schedule paths skip.
-    if: github.event_name == 'pull_request' && github.event.action != 'edited'
-    uses: Rubio-Enterprises/.github/.github/workflows/lint-hooks.yml@083a18b5fd4ae40bd54a67296c016fbf998ab7e5 # v3
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    uses: Rubio-Enterprises/.github/.github/workflows/lint-hooks.yml@de8948b8bc94733b87b21e6b430e7a6079d6ad5b # v4
     # secrets: inherit — the reusable workflow's private-Go-module mint step
     # (consumers setting GO_PRIVATE_MODULE_REPOS) reads the org secrets
     # STANDARDS_READER_APP_ID / STANDARDS_READER_APP_PRIVATE_KEY; a called
