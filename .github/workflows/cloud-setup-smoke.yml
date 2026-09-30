@@ -80,4 +80,4 @@ jobs:
     # trailing comment is the fleet's pin convention that Renovate's
     # helpers:pinGitHubActionDigests reads to track the major line.
     # yamllint disable-line rule:line-length
-    uses: Rubio-Enterprises/.github/.github/workflows/cloud-setup-smoke.yml@de8948b8bc94733b87b21e6b430e7a6079d6ad5b # v4
+    uses: Rubio-Enterprises/.github/.github/workflows/cloud-setup-smoke.yml@1eacdb6cd157fa224eeadaa710651c27e52d3063 # v4
