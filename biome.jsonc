@@ -2,7 +2,7 @@
 // Repo-specific changes: edit biome.json.local, then run `mise run lint-config`.
 // CI fails if this file doesn't match that rebuild.
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
   "files": {
     "includes": ["**/*", "!**/node_modules", "!**/dist", "!**/build", "!**/coverage", "!**/reports"]
   },

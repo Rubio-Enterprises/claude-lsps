@@ -99,7 +99,7 @@ node = "24.21.0"
 # want Biome alongside ESLint (e.g. super-productivity's `scripts.lint: "biome
 # check ."`). Consumers who don't want Biome can delete biome.jsonc; `_skip_if_exists`
 # keeps it from coming back on `copier update`.
-"npm:@biomejs/biome"       = "2.5.12"
+"npm:@biomejs/biome"       = "2.5.14"
 
 # Git hooks are per-repo via lefthook since dotfiles commit 2ea15ce retired the
 # global dispatcher. Local `mise install` activates them without `mise
