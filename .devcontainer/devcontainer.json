@@ -3,9 +3,5 @@
   "image": "mcr.microsoft.com/devcontainers/base:2.2.1-trixie",
   "features": {
     "ghcr.io/rubio-enterprises/devcontainer-features/baseline:1.0.0": {}
-  },
-  "hostRequirements": {
-    "cpus": 4,
-    "memory": "8gb"
   }
 }
