@@ -87,7 +87,7 @@ _check_proxy_plugin() {
 }
 
 # The unified proxy is the STANDARD WRAPPER: every plugin ships lsp-proxy.js
-# and routes its server through it (disk-sync applies fleet-wide; blocked
+# and routes its server through it (disk-sync applies to every plugin; blocked
 # methods and warmup are per-plugin proxy.json config). A plugin without the
 # proxy is a structural error, not a variant.
 tc_proxy_consistency() {
