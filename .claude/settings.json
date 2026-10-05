@@ -1,5 +1,11 @@
 {
   "extraKnownMarketplaces": {
+    "anthropic-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/skills"
+      }
+    },
     "claude-lsps": {
       "source": {
         "source": "github",
@@ -38,24 +44,46 @@
     }
   },
   "enabledPlugins": {
+    "1password@tools-skills": true,
+    "anki-connect@tools-skills": true,
     "bash-language-server@claude-lsps": true,
+    "bin-scripts@tools-skills": true,
     "claude-code-setup@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
     "claude-workflows@claude-workflows": true,
     "code-modernization@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
     "cue-lsp@claude-lsps": true,
+    "defuddle@tools-skills": true,
+    "doc-coauthoring@tools-skills": true,
+    "document-skills@anthropic-agent-skills": true,
+    "finish-pr@tools-skills": true,
+    "fork-maintenance@tools-skills": true,
+    "herdr@tools-skills": true,
+    "independent-comparison@tools-skills": true,
+    "likec4-dsl@tools-skills": true,
+    "markdown-serve@tools-skills": true,
     "mattpocock-skills@claude-plugins-official": true,
     "playground@claude-plugins-official": true,
-    "playwright-skills@playwright-skills": true,
+    "playwright-automation@playwright-skills": true,
+    "playwright-ci@playwright-skills": true,
+    "playwright-cli@playwright-skills": true,
+    "playwright-core@playwright-skills": true,
+    "playwright-migration@playwright-skills": true,
+    "playwright-pom@playwright-skills": true,
+    "procedure-validator@tools-skills": true,
     "pyright@claude-lsps": true,
     "regal-lsp@claude-lsps": true,
     "rubio-standards@rubio": true,
     "session-report@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
+    "skill-deploy@tools-skills": true,
+    "source-recon@tools-skills": true,
     "swift-lsp@claude-plugins-official": true,
-    "tools-skills@tools-skills": true,
-    "vtsls@claude-lsps": true
+    "tailscale-serve@tools-skills": true,
+    "twelve-factor-audit@tools-skills": true,
+    "vtsls@claude-lsps": true,
+    "web-artifacts-builder@tools-skills": true
   },
   "hooks": {
     "SessionStart": [
