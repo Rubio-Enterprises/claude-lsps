@@ -30,11 +30,10 @@ jobs:
   tests-ubuntu:
     name: tests / ubuntu-24.04
     timeout-minutes: 15
-    # Runner selection is routed through the org-level RUNNER_GLUE /
-    # RUNNER_MACOS variables so the fleet can be moved between GitHub-hosted
-    # and self-hosted pools centrally. The literal in the `||` fallback is the
-    # label this job used before the sweep, so an unset variable is a no-op.
-    runs-on: ${{ fromJSON(vars.RUNNER_GLUE || '["ubuntu-24.04"]') }}
+    # Runner selection uses the org-level RUNNERS map so the fleet can move
+    # between GitHub-hosted and self-hosted pools centrally. The per-key
+    # fallback preserves this job's previous GitHub-hosted label.
+    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').light || fromJSON('["ubuntu-24.04"]') }}
     outputs:
       tests_ran: ${{ steps.test.outputs.tests_ran }}
     steps:
@@ -94,7 +93,7 @@ jobs:
   tests-macos:
     name: tests / macos
     timeout-minutes: 15
-    runs-on: ${{ fromJSON(vars.RUNNER_MACOS || '["macos-latest"]') }}
+    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').macos || fromJSON('["macos-latest"]') }}
     outputs:
       tests_ran: ${{ steps.test.outputs.tests_ran }}
     steps:
@@ -109,8 +108,8 @@ jobs:
       #
       # Installed into a runner-writable prefix on $GITHUB_PATH rather than
       # `sudo mv`-ed into /usr/local/bin: passwordless sudo and a writable
-      # /usr/local/bin are GitHub-hosted-image properties, and RUNNER_MACOS may
-      # point this job at a self-hosted pool where neither holds.
+      # /usr/local/bin are GitHub-hosted-image properties, and the macos route
+      # may point this job at a self-hosted pool where neither holds.
       - name: install shellcheck (pinned)
         env:
           SHELLCHECK_VERSION: v0.10.0
@@ -166,7 +165,7 @@ jobs:
     name: test-gate
     if: ${{ always() }}
     needs: [tests-ubuntu, tests-macos]
-    runs-on: ${{ fromJSON(vars.RUNNER_GLUE || '["ubuntu-24.04"]') }}
+    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').light || fromJSON('["ubuntu-24.04"]') }}
     env:
       NEEDS_JSON: ${{ toJSON(needs) }}
     steps:
