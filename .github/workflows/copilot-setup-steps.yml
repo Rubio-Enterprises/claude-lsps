@@ -16,7 +16,7 @@ name: Copilot Setup Steps
 "on": workflow_dispatch
 
 jobs:
-  # The 120-minute fleet floor bounds execution on a wedged self-hosted runner
+  # The 120-minute org-wide floor bounds execution on a wedged self-hosted runner
   # (mac-dev-playbook#917); it never bounds queue time. The measured org-wide
   # maximum executing job is 47 minutes. A tighter per-class value, where
   # present, is deliberate and must remain unchanged.
