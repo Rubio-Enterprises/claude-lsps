@@ -28,12 +28,12 @@
 # ===== 8< ===== COPY FROM THE NEXT LINE INTO THE WEB "Setup script" FIELD =====
 #!/usr/bin/env bash
 # Repo-agnostic: this EXACT block works in every repo's cloud environment —
-# nothing below is project-specific, so one shared block fits the whole fleet.
+# nothing below is project-specific, so one shared block fits the org set.
 # Bump CACHE_EPOCH (e.g. 1 -> 2) and re-save this field to force an env-cache rebuild.
 CACHE_EPOCH=1
 export CACHE_EPOCH
 # PRIVATE GitHub dependencies: export the org's shared read-only fine-grained
-# PAT here (one org-wide token — the block stays fleet-uniform). The
+# PAT here (one org-wide token — the block is identical across consumers). The
 # "Environment variables" field reaches SESSIONS only, never this setup run
 # (proven 2026-07: the build log printed "auth tokens present at build: NONE"
 # with GH_PAT set in that field), so this line is the only way the snapshot

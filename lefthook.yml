@@ -12,7 +12,7 @@
 # runs `lefthook install` after `mise install`, so a fresh developer clone gets
 # per-repo hooks without `mise activate` or any `core.hooksPath` override.
 # Repo-local `.githooks/` directories remain banned by `check.sh`: lefthook's
-# own per-repo installation is the fleet's single hook path.
+# own per-repo installation is the org set's single hook path.
 #
 # Network-first with lefthook's own cached-copy offline fallback
 # (`.git/info/lefthook-remotes/`); the local standards clone is the emergency

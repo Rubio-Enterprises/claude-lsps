@@ -75,7 +75,7 @@ uv = "0.12.15"
 # and local `copier update` parity. The reusable workflow also installs copier
 # explicitly as belt-and-braces for consumers not yet re-rendered with this pin.
 "pipx:copier"                = "9.18.1"
-# Fleet-wide Node runtime pin — the single template-owned version for every
+# Org-wide Node runtime pin — the single template-owned version for every
 # repository, including repos without first-party JS. Renovate bumps it here
 # and in standards' root mirror; Copier update PRs deliver it to consumers,
 # through the canary ring first. The universal npm: hook tools above need it.
@@ -146,7 +146,7 @@ run = ["npm run lint"]
 # --if-present: this task renders for EVERY ts-* archetype, but the
 # ensure-pkg-typecheck-script.sh hook (and package-json.schema.json) only add/
 # require scripts.typecheck when `typescript` is an actual (dev)dependency. A
-# JS-only ts-* repo (fleet-live: the claude-statusline fork) otherwise
+# JS-only ts-* repo (observed in the claude-statusline fork) otherwise
 # hard-fails the typecheck gate on `npm error Missing script: "typecheck"`
 # with nothing to typecheck. Layer B still requires the script wherever
 # typescript IS a dependency, so this cannot mask a missing check there.

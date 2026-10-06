@@ -74,9 +74,9 @@ CONFIGS=(ruff.toml biome.jsonc .yamllint .markdownlint-cli2.jsonc)
 SIDECARS=(ruff.toml.local biome.json.local .yamllint.local .markdownlint-cli2.jsonc.local)
 
 resolve_channel() {
-  # Same rule as the gate: `ring == canary` -> canary, everything else (incl.
-  # unset, `fleet`, or an unreadable property) -> stable. Never fail here; a
-  # wrong-but-safe channel beats aborting a local regeneration.
+  # Same rule as the gate: `ring == canary` -> canary, `ring == stable` ->
+  # stable; unset or unreadable properties also default to stable. Never fail
+  # here; a wrong-but-safe channel beats aborting a local regeneration.
   local slug ring
   if ! command -v gh >/dev/null 2>&1; then
     echo stable
