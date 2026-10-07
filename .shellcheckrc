@@ -1,0 +1,2 @@
+# Literal Claude plugin paths and dynamic test-harness sources are intentional.
+disable=SC2016,SC1091
