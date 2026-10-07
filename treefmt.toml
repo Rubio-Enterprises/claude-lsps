@@ -2,27 +2,14 @@
 # Repo-specific changes: edit treefmt.toml.local, then run `mise run lint-config`.
 # CI fails if this file doesn't match that rebuild.
 
-# Resolve from subdirectories too; formatter processes run at this root so mise
-# and native tool configs resolve identically for hooks, CI and coding agents.
+# Fixer scope migrated from lefthook-local.yml; arrays append to the floor.
 tree-root-file = "treefmt.toml"
 on-unmatched = "debug"
 # treefmt 2.6 uses gobwas globs WITHOUT separator arguments: * spans /, but
 # **/ requires a slash. Brace prefixes cover root AND nested lockfiles without
 # overmatching e.g. my-pnpm-lock.yaml. These exclusions also cover absolute args
 # after treefmt resolves them relative to the root.
-excludes = [
-  "{,**/}pnpm-lock.yaml",
-  "{,**/}package-lock.json",
-  "{,**/}yarn.lock",
-  "{,**/}uv.lock",
-  "{,**/}Cargo.lock",
-  "{,**/}poetry.lock",
-  "{,**/}mise.lock",
-  "{,**/}modify_*",
-  "*.tmpl",
-  ".github/actions/**/action.yml",
-  ".copier-answers.yml",
-]
+excludes = ["{,**/}pnpm-lock.yaml", "{,**/}package-lock.json", "{,**/}yarn.lock", "{,**/}uv.lock", "{,**/}Cargo.lock", "{,**/}poetry.lock", "{,**/}mise.lock", "{,**/}modify_*", "*.tmpl", ".github/actions/**/action.yml", ".copier-answers.yml"]
 
 [formatter.markdownlint]
 command = "mise"
@@ -33,11 +20,13 @@ includes = ["*.md"]
 command = "mise"
 options = ["exec", "--", "prettier", "--write"]
 includes = ["*.yml", "*.yaml"]
+excludes = ["tests/fixtures/**"]
 
 [formatter.shfmt]
 command = "mise"
 options = ["exec", "--", "shfmt", "-w"]
 includes = ["*.sh", "*.bash"]
+excludes = ["tests/fixtures/**"]
 
 [formatter.biome]
 command = "mise"

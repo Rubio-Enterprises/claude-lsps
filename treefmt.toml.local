@@ -1,0 +1,7 @@
+# Fixer scope migrated from lefthook-local.yml; arrays append to the floor.
+
+[formatter.shfmt]
+excludes = ["tests/fixtures/**"]
+
+[formatter.yaml-prettier]
+excludes = ["tests/fixtures/**"]
