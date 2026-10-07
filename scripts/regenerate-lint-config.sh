@@ -7,7 +7,7 @@
 #
 # WHY THIS EXISTS:
 # The generated configs (`ruff.toml`, `biome.jsonc`, `.yamllint`,
-# `.markdownlint-cli2.jsonc`) are floor ⊕ delta merges. The floor lives in the
+# `.markdownlint-cli2.jsonc`, `treefmt.toml`, `tombi.toml`) are floor ⊕ delta merges. The floor lives in the
 # standards template, not in this repo, so refreshing one needs a render. The
 # only way to do that used to be `copier update`, which diff-applies the ENTIRE
 # template across the repo, runs migrations, and drags unrelated template drift
@@ -65,13 +65,13 @@ if [[ ! -f .copier-answers.yml ]]; then
   exit 1
 fi
 
-# The four Pattern F configs. Each is written solely by its `merge-*.sh` hook, so
+# The Pattern F configs. Each is written solely by its `merge-*.sh` hook, so
 # whatever the render produces IS the canonical content. `biome.json` is absent
 # by design: the rendered Biome target is `biome.jsonc` (strict JSON forbids the
 # @generated banner comment, and a comment in `biome.json` makes Biome silently
 # fall back to its own defaults).
-CONFIGS=(ruff.toml biome.jsonc .yamllint .markdownlint-cli2.jsonc)
-SIDECARS=(ruff.toml.local biome.json.local .yamllint.local .markdownlint-cli2.jsonc.local)
+CONFIGS=(ruff.toml biome.jsonc .yamllint .markdownlint-cli2.jsonc treefmt.toml tombi.toml)
+SIDECARS=(ruff.toml.local biome.json.local .yamllint.local .markdownlint-cli2.jsonc.local treefmt.toml.local tombi.toml.local)
 
 resolve_channel() {
   # Same rule as the gate: `ring == canary` -> canary, `ring == stable` ->
@@ -160,7 +160,7 @@ done
 # since writing that file would produce a config `biome.json` then beats in
 # biome's own resolution order. It bit exactly the unconverted repos that also
 # carry some OTHER sidecar, because the hook's glob fires on any sidecar and
-# then checks all four configs (claude-lsps#159, yaml-static-webpage-template#148,
+# then checks all applicable configs (claude-lsps#159, yaml-static-webpage-template#148,
 # 2026-09-02); unconverted repos with no sidecar at all never fired it and so
 # looked fine.
 for cfg in "${CONFIGS[@]}" biome.json; do

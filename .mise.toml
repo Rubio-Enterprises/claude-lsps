@@ -47,11 +47,15 @@ uv = "0.12.15"
 # resolve these binaries on a fresh CI runner (and via `mise exec --` locally
 # without polluting the developer's global tool surface).
 "aqua:koalaman/shellcheck" = "0.11.0"
-"aqua:mvdan/sh"            = "3.14.0"   # shfmt
+"aqua:mvdan/sh" = "3.14.0"  # shfmt
 # 2026-08-28: remove this exact fastq exclude once the selected fastq release publishes SLSA provenance.
 "npm:markdownlint-cli2" = { version = "0.23.1", trust_policy_excludes = ["fastq@1.20.2"] }
-"npm:prettier"             = "3.9.6"
-"pipx:yamllint"            = "1.38.0"
+"npm:prettier" = "3.9.6"
+"pipx:yamllint" = "1.38.0"
+# Fixer dispatcher — render before switching the remote hooks (issue #621).
+# Renovate tracks this two-segment aqua pin with the other mise tool floors.
+"aqua:numtide/treefmt" = "2.6.0"
+"aqua:tombi-toml/tombi" = "1.7.3"
 # lefthook binary itself. The lint-hooks CI job runs `mise exec -- lefthook
 # run pre-commit --all-files`, which requires lefthook on PATH from mise (the
 # CI runner doesn't carry it natively). Locally developers usually have
@@ -63,43 +67,25 @@ uv = "0.12.15"
 # lefthook pre-commit gitleaks hook invokes a bare `gitleaks git --staged`,
 # which needs the binary on PATH — the consumer-side lint-hooks CI job
 # doesn't materialize .standards/ so cannot rely on that pin.
-"aqua:gitleaks/gitleaks"     = "8.30.1"
+"aqua:gitleaks/gitleaks" = "8.30.1"
 # yq — used by the `_tasks` merge-yamllint.sh hook to deep-merge consumer-side
 # .yamllint.local into the template-rendered .yamllint at copier render time.
 # Pinning universally so consumers can rely on it for their own scripts too.
-"aqua:mikefarah/yq"          = "4.53.6"
+"aqua:mikefarah/yq" = "4.53.6"
 # copier — the weekly copier-sync reusable workflow (.github/copier-sync.yml)
 # runs a bare `copier update`, bootstrapping tools via mise-action. The CI
 # runner image does not ship copier, so without this pin the sync job exits
 # 127 (command not found). Pinning here lands it on the mise PATH for both CI
 # and local `copier update` parity. The reusable workflow also installs copier
 # explicitly as belt-and-braces for consumers not yet re-rendered with this pin.
-"pipx:copier"                = "9.18.1"
+"pipx:copier" = "9.18.1"
 # Org-wide Node runtime pin — the single template-owned version for every
 # repository, including repos without first-party JS. Renovate bumps it here
 # and in standards' root mirror; Copier update PRs deliver it to consumers,
 # through the canary ring first. The universal npm: hook tools above need it.
 node = "24.21.0"
-# Biome 2.x — JS/TS language facets (has_javascript or has_typescript,
-# including ts-web-angular). This pin is
-# LOAD-BEARING: both the lefthook `biome` pre-commit hook and the lint-format
-# CI gate invoke `mise exec -- biome`, resolving this exact version. (The hook
-# previously used bare `npx biome`, which silently resolved the abandoned npm
-# registry package named `biome` whenever no consumer devDep was installed.)
-# Also pinned for any non-TS archetype when has_embedded_web=true
-# so the embedded web surface (JS/JSX/TS/CSS) gets the same Biome floor as a
-# standalone ts-* repo (e.g. vibetunnel Swift + Node, todoist-classify Python +
-# React/JSX).
-#
-# Note for ts-web-angular: the template pins Biome and renders `biome.jsonc`
-# uniformly with ts-web. The audit-side override-policy Rego rule that "scripts.lint
-# invokes biome" is relaxed for Angular repos (policy/typescript/overrides.rego's
-# `is_angular_repo` bypass) so consumers running `ng lint` still pass — but the
-# template no longer withholds biome.jsonc from Angular consumers who legitimately
-# want Biome alongside ESLint (e.g. super-productivity's `scripts.lint: "biome
-# check ."`). Consumers who don't want Biome can delete biome.jsonc; `_skip_if_exists`
-# keeps it from coming back on `copier update`.
-"npm:@biomejs/biome"       = "2.5.14"
+# Biome owns JSON in every repository; JS/TS coverage follows the facets.
+"npm:@biomejs/biome" = "2.5.14"
 
 # Git hooks are per-repo via lefthook since dotfiles commit 2ea15ce retired the
 # global dispatcher. Local `mise install` activates them without `mise
@@ -124,11 +110,15 @@ postinstall = 'test -n "${CI:-}" || mise exec -- lefthook install'
 [tasks.lint-config]
 description = "Regenerate generated lint configs from the standards floor + this repo's *.local sidecars"
 run = ["bash scripts/regenerate-lint-config.sh"]
+
 # TS archetypes: tasks delegate to package.json scripts (the consumer owns
 # package.json per Pattern A/D / _skip_if_exists). The audit Layer B JSON
 # Schema enforces that lint, test, e2e exist in scripts; this contract makes
 # `mise run <task>` the uniform invocation across all archetypes regardless
 # of how the underlying TS toolchain is wired.
+# With no @biomejs/biome dependency, bare `biome` in package scripts resolves
+# from mise's task PATH. npm prepends node_modules/.bin: natives must remove
+# the package copy; direct npm/editor/CI entry points use `mise exec -- biome`.
 [tasks.lint]
 description = "Delegates to scripts.lint in package.json"
 run = ["npm run lint"]
