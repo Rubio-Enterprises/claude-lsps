@@ -21,8 +21,8 @@
 #
 # Fork deltas: these remote configs hardcode `stage_fixed: true` (non-fork
 # default). Fork repos (is_fork: true) that must not auto-stage upstream-pristine
-# formatter rewrites set `stage_fixed: false` per hook in `lefthook-local.yml`,
-# which overrides remote configs (the highest-priority overlay). Any other
+# formatter rewrites set `treefmt: { stage_fixed: false }`
+# in `lefthook-local.yml`, which overrides remote configs (the highest-priority overlay). Any other
 # fork-local hook override also belongs in `lefthook-local.yml`.
 remotes:
   - git_url: https://github.com/Rubio-Enterprises/standards.git
@@ -31,5 +31,3 @@ remotes:
     configs:
       - lefthook/base.yml
       - lefthook/ts.yml
-      - lefthook/biome.yml
-      - lefthook/biome-native.yml
