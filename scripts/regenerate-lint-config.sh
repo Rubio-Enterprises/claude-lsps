@@ -14,7 +14,7 @@
 # into your branch — absurdly heavy for "I changed one rule in a .local file".
 #
 # This script runs the SAME recipe the org CI gate runs (`.github`'s
-# `lint-format.yml`): resolve the standards channel, render the template into a
+# `standards-gates.yml` lint-config check): resolve the standards channel, render the template into a
 # scratch dir with this repo's answers and its committed `.local` sidecars
 # seeded, let the `_tasks` merge hooks compose floor ⊕ delta, then copy back
 # ONLY the config files. Nothing else in the repo is touched.
