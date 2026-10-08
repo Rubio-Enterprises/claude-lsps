@@ -7,12 +7,11 @@ name: standards
 # resolves the key by name regardless, and actionlint accepts both forms.
 #
 # The org's required governance workflows own audit, lint-config, secret-scan,
-# PR title, and typecheck; test-gate.yml owns canonical non-E2E tests. This
-# workflow keeps the scheduled trufflehog scan, repo-local lint-hooks and E2E,
-# and default-branch cache seeding.
+# PR title, typecheck, and lint-hooks (injected via gate-lint-hooks since
+# standards#627, so a repository cannot edit or skip it); test-gate.yml owns
+# canonical non-E2E tests. This workflow keeps the scheduled trufflehog scan,
+# E2E, and default-branch cache seeding.
 "on":
-  pull_request:
-  merge_group:
   schedule:
     # `0 9 * * 1` → weekly trufflehog (secret-scan tree-wide entropy scan).
     - cron: "0 9 * * 1"
@@ -43,14 +42,3 @@ jobs:
       || github.event_name == 'workflow_dispatch'
     uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@9634081f9a3a599f936d1fc7aadb558e856187fd # v4
     with: { mode: trufflehog }
-
-  lint-hooks:
-    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-    uses: Rubio-Enterprises/.github/.github/workflows/lint-hooks.yml@9634081f9a3a599f936d1fc7aadb558e856187fd # v4
-    # secrets: inherit — the reusable workflow's private-Go-module mint step
-    # (consumers setting GO_PRIVATE_MODULE_REPOS) reads the org secrets
-    # STANDARDS_READER_APP_ID / STANDARDS_READER_APP_PRIVATE_KEY; a called
-    # workflow receives no caller secrets unless inherited (surfaced by
-    # gha-outrunner, the first GO_PRIVATE_MODULE_REPOS consumer, on .github
-    # release 90eb7c68).
-    secrets: inherit
