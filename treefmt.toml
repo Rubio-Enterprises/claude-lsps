@@ -8,33 +8,11 @@ on-unmatched = "debug"
 # treefmt 2.6 uses gobwas globs WITHOUT separator arguments: * spans /, but
 # **/ requires a slash. Brace prefixes cover root AND nested lockfiles without
 # overmatching e.g. my-pnpm-lock.yaml. These exclusions also cover absolute args
-# after treefmt resolves them relative to the root.
-excludes = [
-  "{,**/}pnpm-lock.yaml",
-
-  "{,**/}package-lock.json",
-
-  "{,**/}yarn.lock",
-
-  "{,**/}uv.lock",
-
-  "{,**/}Cargo.lock",
-
-  "{,**/}poetry.lock",
-
-  "{,**/}mise.lock",
-
-  "{,**/}modify_*",
-
-  "*.tmpl",
-
-  # Xcode rewrites asset-catalog manifests in its own JSON style on every
-  "*.xcassets/{,**/}Contents.json",
-
-  ".github/actions/**/action.yml",
-
-  ".copier-answers.yml",
-]
+# after treefmt resolves them relative to the root. Xcode asset-catalog
+# manifests are Xcode's own output: formatting them would make Xcode and Biome
+# undo each other. Keep comments OUT of this array: the Config Delta merge
+# (merge-treefmt.sh) does not preserve comments inside arrays.
+excludes = ["{,**/}pnpm-lock.yaml", "{,**/}package-lock.json", "{,**/}yarn.lock", "{,**/}uv.lock", "{,**/}Cargo.lock", "{,**/}poetry.lock", "{,**/}mise.lock", "{,**/}modify_*", "*.tmpl", "*.xcassets/{,**/}Contents.json", ".github/actions/**/action.yml", ".copier-answers.yml"]
 
 [formatter.markdownlint]
 command = "mise"
