@@ -9,7 +9,32 @@ on-unmatched = "debug"
 # **/ requires a slash. Brace prefixes cover root AND nested lockfiles without
 # overmatching e.g. my-pnpm-lock.yaml. These exclusions also cover absolute args
 # after treefmt resolves them relative to the root.
-excludes = ["{,**/}pnpm-lock.yaml", "{,**/}package-lock.json", "{,**/}yarn.lock", "{,**/}uv.lock", "{,**/}Cargo.lock", "{,**/}poetry.lock", "{,**/}mise.lock", "{,**/}modify_*", "*.tmpl", ".github/actions/**/action.yml", ".copier-answers.yml"]
+excludes = [
+  "{,**/}pnpm-lock.yaml",
+
+  "{,**/}package-lock.json",
+
+  "{,**/}yarn.lock",
+
+  "{,**/}uv.lock",
+
+  "{,**/}Cargo.lock",
+
+  "{,**/}poetry.lock",
+
+  "{,**/}mise.lock",
+
+  "{,**/}modify_*",
+
+  "*.tmpl",
+
+  # Xcode rewrites asset-catalog manifests in its own JSON style on every
+  "*.xcassets/{,**/}Contents.json",
+
+  ".github/actions/**/action.yml",
+
+  ".copier-answers.yml",
+]
 
 [formatter.markdownlint]
 command = "mise"
