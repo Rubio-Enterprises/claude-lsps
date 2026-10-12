@@ -45,6 +45,7 @@
   },
   "enabledPlugins": {
     "1password@tools-skills": true,
+    "ai-ready@tools-skills": true,
     "bash-language-server@claude-lsps": true,
     "bin-scripts@tools-skills": true,
     "claude-workflows@claude-workflows": true,
@@ -74,9 +75,11 @@
     "rubio-standards@rubio": true,
     "skill-creator@claude-plugins-official": true,
     "skill-deploy@tools-skills": true,
+    "standard-readme@tools-skills": true,
     "swift-lsp@claude-plugins-official": true,
     "tailscale-serve@tools-skills": true,
     "twelve-factor-audit@tools-skills": true,
+    "ux-designer@tools-skills": true,
     "vtsls@claude-lsps": true,
     "web-artifacts-builder@tools-skills": true
   },
