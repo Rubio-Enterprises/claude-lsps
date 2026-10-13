@@ -1,5 +1,15 @@
-<!-- Limit the PR length to 400 words max. -->
-# [Work Item ID](./link-to-the-work-item)
+<!-- PR conventions checked in CI:
+Use a Conventional Commits title (for example, "fix: correct validation").
+Write the first # heading exactly as
+# [REPO#NUMBER](https://github.com/Rubio-Enterprises/REPO/issues/NUMBER)
+(use /pull/ instead of /issues/ for a PR), replacing REPO and NUMBER with matching values,
+or write # No associated work item.
+What?, Why?, How?, and Testing? are required ## headings with non-empty content.
+The remaining sections are optional. Keep the description to at most 400 words;
+HTML comments are excluded, link text and code count, and link URLs do not.
+-->
+<!-- pr-conventions: {"required": ["What?", "Why?", "How?", "Testing?"], "maxWords": 400} -->
+# [REPO#NUMBER](https://github.com/Rubio-Enterprises/REPO/issues/NUMBER)
 
 ## What?
 
