@@ -2,6 +2,6 @@
   "name": "claude-lsps",
   "image": "mcr.microsoft.com/devcontainers/base:2.2.1-trixie",
   "features": {
-    "ghcr.io/rubio-enterprises/devcontainer-features/baseline:1.0.0": {}
+    "ghcr.io/rubio-enterprises/devcontainer-features/baseline:3.0.0": {}
   }
 }
