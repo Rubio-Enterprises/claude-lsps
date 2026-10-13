@@ -58,6 +58,7 @@
     "document-skills@anthropic-agent-skills": true,
     "finish-pr@tools-skills": true,
     "fork-maintenance@tools-skills": true,
+    "grain@tools-skills": true,
     "herdr@tools-skills": true,
     "independent-comparison@tools-skills": true,
     "likec4-dsl@tools-skills": true,
