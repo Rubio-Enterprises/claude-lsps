@@ -216,7 +216,7 @@ if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] && [ -z "${CLOUD_SETUP_BUILD:-}" ] &&
 $(jq -r '
   (.extraKnownMarketplaces // {})
   | to_entries[]
-  | select(.value.source | type == "object" and .source == "github")
+  | select(.value.source | type == "object" and (.source == "github" or .source == "git"))
   | .key
 ' "$repo_root/.claude/settings.json" 2>/dev/null)
 EOF
