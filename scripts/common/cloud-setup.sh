@@ -188,14 +188,22 @@ else
   echo "cloud-setup: building claude-lsps environment cache (epoch ${CACHE_EPOCH:-unset})" >&2
 fi
 
-# --- Marketplace SSH->HTTPS rewrite (early; helper registered after apt) -----
-# Rewrite git@github.com: SSH-form marketplace sources to HTTPS so the runtime
-# credential helper (registered AFTER the apt step below, once `jq` is installed
-# to parse the carrier and scope the helper per-repo) can authenticate them.
-# Idempotent; non-fatal. Skipped in smoke mode: a CI runner's global git config
-# is shared with the checkout steps, and no marketplace clone happens there.
-[ -n "$__smoke" ] ||
-  git config --global url."https://github.com/".insteadOf "git@github.com:" || true
+# GitHub shorthand in marketplace/plugin sources otherwise selects SSH inside
+# Claude's installer, independently of the HTTPS pre-seed clone below.
+# https://code.claude.com/docs/en/plugin-marketplaces#private-repositories
+export CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1
+
+# Persistent reruns must retire the exact rule this bootstrap used to install,
+# without removing sibling URL values or caller-owned credentials.
+if [ -z "$__smoke" ]; then
+  git config --global --fixed-value --unset-all \
+    url.https://github.com/.insteadOf 'git@github.com:'
+  __rewrite_rc=$?
+  case "$__rewrite_rc" in
+  0 | 5) ;; # Git returns 5 when the exact value is already absent.
+  *) __warn "legacy marketplace URL rewrite cleanup" ;;
+  esac
+fi
 
 # apt (root-only — cannot live in the portable hook), GUARDED: jq is the only
 # apt dependency — it parses the committed .claude/settings.json so the
@@ -209,7 +217,7 @@ fi
 # sessions use the built-in GitHub tools. When the install does run it is
 # parallel with the toolchain bootstrap and non-fatal (a Setup script that
 # exits non-zero blocks the session from starting): on failure the credential
-# helper degrades to its global fallback and the pre-seed no-ops.
+# helper registration and pre-seeding are skipped without widening auth.
 apt_pid=""
 if [ -z "$__smoke" ] && ! command -v jq >/dev/null 2>&1; then
   (
@@ -246,7 +254,7 @@ if [ -f scripts/common/session-start-claude.sh ] && [ "$__smoke" != "warm" ]; th
 fi
 
 if [ -n "$apt_pid" ]; then
-  wait "$apt_pid" || echo "cloud-setup: jq install failed (non-fatal; credential helper falls back to global; marketplace pre-seed skipped)" >&2
+  wait "$apt_pid" || echo "cloud-setup: jq install failed (non-fatal; scoped credential helper and marketplace pre-seed skipped)" >&2
 fi
 
 # --- Private-marketplace git credential helper (RUNTIME, repo-scoped) --------
@@ -254,22 +262,21 @@ fi
 # ONLY, so the marketplace pre-seed's clones (next section) authenticate with
 # the read-only GH_PAT while the WORKING repo keeps using its own
 # session-injected token. The repos are derived
-# from the committed carrier's extraKnownMarketplaces (github sources); BOTH the
+# from the committed carrier's extraKnownMarketplaces (GitHub sources); BOTH the
 # bare and ".git" clone-URL forms are registered because git credential
 # URL-matching is exact, not suffix-tolerant. Scoping is per-REPO — never a
 # global helper, never a github.com/<org> prefix (an org prefix over-matches
 # EVERY repo in the org, including the working repo, and would hand it the
-# read-only token, breaking working-repo writes). Net effect: ONE shared,
-# narrowly-scoped, read-only GH_PAT can never interfere with working-repo auth.
+# read-only token, breaking working-repo writes). Repositories outside the
+# declared dependency set retain their existing credential routing.
 # Token precedence GH_PAT -> GH_TOKEN -> GITHUB_TOKEN, resolved at CLONE time.
 # Do NOT use `gh auth setup-git` (errors "not logged into any GitHub hosts").
-# Degrades to a single global helper if jq is unavailable or the carrier
-# declares no github marketplaces, so a private clone never silently loses auth.
+# Missing/invalid discovery skips registration rather than widening auth.
 # Idempotent (git config --global overwrites); non-fatal.
 # shellcheck disable=SC2016  # ${GH_PAT:-...} must stay literal and expand at clone time, not now
 __mkt_helper='!f(){ echo username=x-access-token; echo "password=${GH_PAT:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"; };f'
 # ONE parse of the carrier feeds BOTH the credential-helper scoping here and
-# the marketplace pre-seed section below: "<name>\t<owner/repo>" per github
+# the marketplace pre-seed section below: "<name>\t<owner/repo>\t<ref>" per GitHub
 # marketplace. (The pre-seed needs the marketplace NAME — it is the on-disk
 # clone dir and the registry key — not just the repo, so extract pairs first,
 # then derive the unique repo list for the helper loop.)
@@ -279,13 +286,27 @@ __mkt_helper='!f(){ echo username=x-access-token; echo "password=${GH_PAT:-${GH_
 __mkt_pairs=""
 __mkt_repos=""
 if [ -z "$__smoke" ] && command -v jq >/dev/null 2>&1 && [ -f .claude/settings.json ]; then
-  __mkt_pairs="$(jq -r '
+  if ! __mkt_pairs="$(jq -r '
     (.extraKnownMarketplaces // {})
     | to_entries[]
-    | select(.value.source | type == "object" and .source == "github" and (.repo | type == "string"))
-    | "\(.key)\t\(.value.source.repo)"
-  ' .claude/settings.json 2>/dev/null)"
-  __mkt_repos="$(printf '%s\n' "$__mkt_pairs" | cut -f2 | sort -u)"
+    | select(.key | test("^[A-Za-z0-9_.-]+$") and . != "." and . != "..")
+    | .key as $name | .value.source
+    | (.ref // "") as $ref
+    | if has("ref") and .ref != null and
+        ((.ref | type) != "string" or (.ref | test("^[A-Za-z0-9_./-]+$") | not))
+      then error("unsupported marketplace ref") else . end
+    | if .source == "github" then .repo
+      elif .source == "git" and (.url | startswith("https://github.com/"))
+      then (.url | sub("^https://github.com/"; "") | sub("[.]git$"; ""))
+      else empty end
+    | select(type == "string" and test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))
+    | select(split("/") | all(. != "." and . != ".."))
+    | "\($name)\t\(.)\t\($ref)"
+  ' .claude/settings.json 2>/dev/null)"; then
+    __mkt_pairs=""
+    __warn "marketplace source discovery"
+  fi
+  __mkt_repos="$(printf '%s\n' "$__mkt_pairs" | cut -f2 | grep '^Rubio-Enterprises/' | sort -u)"
 fi
 if [ -n "$__mkt_repos" ]; then
   printf '%s\n' "$__mkt_repos" | while IFS= read -r __repo; do
@@ -295,12 +316,7 @@ if [ -n "$__mkt_repos" ]; then
   done
   echo "cloud-setup: scoped marketplace credential helper to: $(printf '%s' "$__mkt_repos" | tr '\n' ' ')" >&2
 elif [ -z "$__smoke" ]; then
-  # Degraded path: no jq or no github marketplaces in the carrier. Use a single
-  # global helper so a private clone is never left unauthenticated. A read-only
-  # GH_PAT here could shadow the working-repo token for git WRITES — acceptable
-  # only as the fallback when per-repo scoping is impossible.
-  git config --global credential.helper "$__mkt_helper" || true
-  echo "cloud-setup: global marketplace credential helper (jq/carrier unavailable; unscoped fallback)" >&2
+  echo "cloud-setup: no org marketplace credential scopes discovered; no unscoped fallback installed" >&2
 fi
 
 # --- Private Go-module git credential helper (RUNTIME, repo-scoped) ----------
@@ -329,6 +345,9 @@ if [ -f go.mod ] &&
         }
         relative = substr(module, length("github.com/Rubio-Enterprises/") + 1)
         split(relative, parts, "/")
+        if (parts[1] !~ /^[A-Za-z0-9_.-]+$/ || parts[1] == "." || parts[1] == "..") {
+          return
+        }
         print "Rubio-Enterprises/" parts[1]
       }
       function emit_replace_target(line, fields) {
@@ -452,25 +471,88 @@ if [ -n "$__mkt_pairs" ]; then
   # clobbering, preserves entries Claude Code wrote natively, e.g. the default
   # claude-plugins-official registration).
   jq -e . "$__mkt_reg" >/dev/null 2>&1 || printf '{}\n' >"$__mkt_reg" || true
-  while IFS=$'\t' read -r __mkt_name __mkt_repo; do
+  while IFS=$'\t' read -r __mkt_name __mkt_repo __mkt_ref; do
     { [ -n "$__mkt_name" ] && [ -n "$__mkt_repo" ]; } || continue
     __mkt_dst="$__mkt_root/$__mkt_name"
+    __mkt_url="https://github.com/${__mkt_repo}.git"
+    __mkt_clone_helper=""
+    case "$__mkt_repo" in Rubio-Enterprises/*) __mkt_clone_helper="$__mkt_helper" ;; esac
+    __mkt_ready=1
     if [ -d "$__mkt_dst/.git" ]; then
-      GIT_TERMINAL_PROMPT=0 GIT_CONFIG_GLOBAL=/dev/null \
-        git -C "$__mkt_dst" -c "credential.helper=$__mkt_helper" \
-        pull --ff-only --quiet >/dev/null 2>&1 || true
+      # Old snapshots may carry an SSH origin even after the carrier changes.
+      git -C "$__mkt_dst" remote set-url origin "$__mkt_url" || __mkt_ready=""
+      if [ -z "$__mkt_ref" ] && [ -n "$__mkt_ready" ]; then
+        # Unpinning must leave detached HEAD and follow the remote's current
+        # default, not a cached origin/HEAD or the previously pinned branch.
+        if ! __mkt_default_ref="$(
+          GIT_TERMINAL_PROMPT=0 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_ALLOW_PROTOCOL=https \
+            git -C "$__mkt_dst" -c "credential.$__mkt_url.helper=$__mkt_clone_helper" \
+            ls-remote --symref -- origin HEAD 2>/dev/null |
+            awk '$1 == "ref:" && $3 == "HEAD" && $2 ~ /^refs\/heads\// { print $2 }'
+        )" || [ -z "$__mkt_default_ref" ] ||
+          ! git check-ref-format "$__mkt_default_ref" >/dev/null 2>&1; then
+          __mkt_bad="$__mkt_bad $__mkt_name(default-ref)"
+          continue
+        fi
+        __mkt_default_branch="${__mkt_default_ref#refs/heads/}"
+        if ! GIT_TERMINAL_PROMPT=0 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_ALLOW_PROTOCOL=https \
+          git -C "$__mkt_dst" -c "credential.$__mkt_url.helper=$__mkt_clone_helper" \
+          fetch --quiet --depth 1 -- origin \
+          "$__mkt_default_ref:refs/remotes/origin/$__mkt_default_branch" >/dev/null 2>&1; then
+          __mkt_bad="$__mkt_bad $__mkt_name(default-ref)"
+          continue
+        fi
+        # Shallow clones can retain a single-branch fetch mapping for an old
+        # default. Keep that mapping and add the new one for native pulls.
+        __mkt_default_fetch="+$__mkt_default_ref:refs/remotes/origin/$__mkt_default_branch"
+        __mkt_fetch_added=""
+        if ! git -C "$__mkt_dst" config --local --fixed-value --get-all \
+          remote.origin.fetch "$__mkt_default_fetch" >/dev/null 2>&1; then
+          if ! git -C "$__mkt_dst" config --local --add \
+            remote.origin.fetch "$__mkt_default_fetch"; then
+            __mkt_bad="$__mkt_bad $__mkt_name(default-ref)"
+            continue
+          fi
+          __mkt_fetch_added=1
+        fi
+        if ! git -C "$__mkt_dst" checkout --quiet -B "$__mkt_default_branch" \
+          --track "origin/$__mkt_default_branch" >/dev/null 2>&1; then
+          if [ -n "$__mkt_fetch_added" ]; then
+            git -C "$__mkt_dst" config --local --fixed-value --unset-all \
+              remote.origin.fetch "$__mkt_default_fetch" ||
+              __warn "default-branch fetch mapping rollback"
+          fi
+          __mkt_bad="$__mkt_bad $__mkt_name(default-ref)"
+          continue
+        fi
+      fi
     else
       rm -rf "$__mkt_dst"
-      GIT_TERMINAL_PROMPT=0 GIT_CONFIG_GLOBAL=/dev/null \
-        git -c "credential.helper=$__mkt_helper" \
-        clone --quiet --depth 1 "https://github.com/${__mkt_repo}.git" "$__mkt_dst" \
-        >/dev/null 2>&1 || true
+      __mkt_clone_opts=(--quiet --depth 1)
+      [ -z "$__mkt_ref" ] || __mkt_clone_opts+=(--no-checkout)
+      GIT_TERMINAL_PROMPT=0 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_ALLOW_PROTOCOL=https \
+        git -c "credential.$__mkt_url.helper=$__mkt_clone_helper" \
+        clone "${__mkt_clone_opts[@]}" "$__mkt_url" "$__mkt_dst" \
+        >/dev/null 2>&1 || __mkt_ready=""
     fi
-    if [ -d "$__mkt_dst/.git" ]; then
+    if [ -n "$__mkt_ref" ] && [ -n "$__mkt_ready" ]; then
+      # Fetch+detach handles branch, tag and commit refs without falling back
+      # to the default branch or pulling a cached clone's previous branch.
+      if ! GIT_TERMINAL_PROMPT=0 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_ALLOW_PROTOCOL=https \
+        git -C "$__mkt_dst" -c "credential.$__mkt_url.helper=$__mkt_clone_helper" \
+        fetch --quiet --depth 1 -- origin "$__mkt_ref" >/dev/null 2>&1 ||
+        ! git -C "$__mkt_dst" checkout --quiet --detach FETCH_HEAD >/dev/null 2>&1; then
+        __mkt_bad="$__mkt_bad $__mkt_name(ref)"
+        continue
+      fi
+    fi
+    if [ -n "$__mkt_ready" ] && [ -d "$__mkt_dst/.git" ] &&
+      jq -e '.plugins | type == "array"' "$__mkt_dst/.claude-plugin/marketplace.json" >/dev/null 2>&1; then
       __mkt_tmp="$(mktemp)"
-      if jq --arg name "$__mkt_name" --arg repo "$__mkt_repo" \
+      if jq --arg name "$__mkt_name" --arg url "$__mkt_url" --arg ref "$__mkt_ref" \
         --arg loc "$__mkt_dst" --arg ts "$__mkt_now" \
-        '. + {($name): {source: {source: "github", repo: $repo}, installLocation: $loc, lastUpdated: $ts}}' \
+        '. + {($name): {source: ({source: "git", url: $url} +
+          (if $ref == "" then {} else {ref: $ref} end)), installLocation: $loc, lastUpdated: $ts}}' \
         "$__mkt_reg" >"$__mkt_tmp" 2>/dev/null; then
         mv "$__mkt_tmp" "$__mkt_reg" || true
         __mkt_ok="$__mkt_ok $__mkt_name"
@@ -508,13 +590,50 @@ EOF
   # untouched (project scope rewrote it cosmetically and needed a
   # git-checkout restore here).
   if command -v claude >/dev/null 2>&1; then
+    # Multi-repo sessions launch above the carrier, so persist the supported
+    # transport preference in user scope as well as the committed carrier.
+    __user_settings="$HOME/.claude/settings.json"
+    __user_tmp="$(mktemp)"
+    if { [ -f "$__user_settings" ] && jq '.' "$__user_settings" || { [ ! -e "$__user_settings" ] && printf '{}\n'; }; } |
+      jq '.env.CLAUDE_CODE_PLUGIN_PREFER_HTTPS = "1"' >"$__user_tmp" &&
+      mv "$__user_tmp" "$__user_settings"; then
+      :
+    else
+      rm -f "$__user_tmp"
+      __warn "user-scope plugin HTTPS preference"
+    fi
     while IFS= read -r __mkt_plugin; do
       [ -n "$__mkt_plugin" ] || continue
       case " $__mkt_ok " in
       *" ${__mkt_plugin##*@} "*) ;;
       *) continue ;;
       esac
-      timeout 60 claude plugin install "$__mkt_plugin" --scope user </dev/null >/dev/null 2>&1 ||
+      # A plugin may live in a different private repo from its marketplace.
+      # Reject dot segments before Git normalizes credential URL paths; scope
+      # enabled sources to repository URLs, never an org/host prefix.
+      if ! __plugin_repos="$(jq -r --arg name "${__mkt_plugin%@*}" '
+        .plugins[] | select(.name == $name) | .source
+        | select(type == "object")
+        | if .source == "github" then .repo
+          elif .source == "url" or .source == "git-subdir" then .url
+          else empty end
+        | select(type == "string")
+        | sub("^https://github.com/"; "") | sub("[.]git$"; "")
+        | if test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") and
+            (split("/") | any(. == "." or . == ".."))
+          then error("dot-segment plugin repository") else . end
+        | select(test("^Rubio-Enterprises/[A-Za-z0-9_.-]+$"))
+      ' "$__mkt_root/${__mkt_plugin##*@}/.claude-plugin/marketplace.json" 2>/dev/null)"; then
+        __mkt_bad="$__mkt_bad $__mkt_plugin(source)"
+        continue
+      fi
+      while IFS= read -r __repo; do
+        [ -n "$__repo" ] || continue
+        git config --global "credential.https://github.com/${__repo}.helper" "$__mkt_helper" || true
+        git config --global "credential.https://github.com/${__repo}.git.helper" "$__mkt_helper" || true
+      done <<<"$__plugin_repos"
+      GIT_TERMINAL_PROMPT=0 GIT_ALLOW_PROTOCOL=https \
+        timeout 60 claude plugin install "$__mkt_plugin" --scope user </dev/null >/dev/null 2>&1 ||
         __mkt_bad="$__mkt_bad $__mkt_plugin(install)"
     done <<EOF
 $(jq -r '(.enabledPlugins // {}) | to_entries[] | select(.value == true) | .key' .claude/settings.json 2>/dev/null)
