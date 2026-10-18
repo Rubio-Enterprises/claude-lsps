@@ -166,6 +166,7 @@ jobs:
     if: ${{ always() }}
     needs: [tests-ubuntu, tests-macos]
     runs-on: ${{ fromJSON(vars.RUNNERS || '{}').light || fromJSON('["ubuntu-24.04"]') }}
+    timeout-minutes: 15
     env:
       NEEDS_JSON: ${{ toJSON(needs) }}
     steps:
