@@ -33,7 +33,7 @@ jobs:
     # Runner selection uses the org-level RUNNERS map so the fleet can move
     # between GitHub-hosted and self-hosted pools centrally. The per-key
     # fallback preserves this job's previous GitHub-hosted label.
-    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').light || fromJSON('["ubuntu-24.04"]') }}
+    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').small || fromJSON('["ubuntu-slim"]') }}
     outputs:
       tests_ran: ${{ steps.test.outputs.tests_ran }}
     steps:
@@ -93,7 +93,7 @@ jobs:
   tests-macos:
     name: tests / macos
     timeout-minutes: 15
-    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').macos || fromJSON('["macos-latest"]') }}
+    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').macos || fromJSON('["macos-26"]') }}
     outputs:
       tests_ran: ${{ steps.test.outputs.tests_ran }}
     steps:
@@ -165,7 +165,7 @@ jobs:
     name: test-gate
     if: ${{ always() }}
     needs: [tests-ubuntu, tests-macos]
-    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').light || fromJSON('["ubuntu-24.04"]') }}
+    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').small || fromJSON('["ubuntu-slim"]') }}
     timeout-minutes: 15
     env:
       NEEDS_JSON: ${{ toJSON(needs) }}
