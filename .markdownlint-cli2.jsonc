@@ -20,6 +20,7 @@
     "build",
     "playwright-report",
     "test-results",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "CHANGELOG.rubio.md"
   ]
 }
