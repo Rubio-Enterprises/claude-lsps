@@ -94,6 +94,7 @@
     "defuddle@tools-skills": true,
     "dependabot@tools-skills": true,
     "diagnose@tools-skills": true,
+    "diagram-design@tools-skills": true,
     "doc-coauthoring@tools-skills": true,
     "docs-sync-audit@tools-skills": true,
     "document-skills@anthropic-agent-skills": true,
@@ -151,8 +152,7 @@
     "technology-stack-blueprint-generator@tools-skills": true,
     "twelve-factor-audit@tools-skills": true,
     "ux-designer@tools-skills": true,
-    "vtsls@claude-lsps": true,
-    "web-artifacts-builder@tools-skills": true
+    "vtsls@claude-lsps": true
   },
   "hooks": {
     "SessionStart": [
