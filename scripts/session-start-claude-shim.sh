@@ -16,6 +16,10 @@
 # the registered hook path stays stable while the core evolves underneath.
 #
 # Contract: abort-proof — a SessionStart hook must never fail the session.
+# Contract (rubio-standards §6.1): persistence for later Bash calls via
+# $CLAUDE_ENV_FILE is satisfied by delegation to
+# scripts/common/session-start-claude.sh, which appends the mise bin/shims
+# dirs before it exits.
 set -uo pipefail
 src="${BASH_SOURCE[0]:-$0}"
 unset CDPATH
