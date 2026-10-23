@@ -3,5 +3,6 @@
   "image": "mcr.microsoft.com/devcontainers/base:2.2.1-trixie",
   "features": {
     "ghcr.io/rubio-enterprises/devcontainer-features/baseline:3.0.0": {}
-  }
+  },
+  "updateContentCommand": "mise run setup"
 }

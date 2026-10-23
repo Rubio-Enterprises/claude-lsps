@@ -12,11 +12,15 @@ The repo is rendered against the standards template with `archetype: bare` (no l
 
 ## Test commands
 
-The whole suite is a single bash entry point:
+The whole suite is a single bash entry point (`mise run test` and the test gate's `make test` both
+run it):
 
 ```bash
 bash tests/run.sh
 ```
+
+`mise run setup` installs the toolchain; the Dev Container runs it on create. The live cases in
+`08-live.sh` skip without their LSP servers; `mise run live-setup` installs them.
 
 Required tools (the runner aborts if any are missing): `node`, `bash`, `jq`, `shellcheck`. CI pins `shellcheck v0.10.0` and Node `22.11.0` — match these locally if you hit a green-locally / red-in-CI mismatch.
 
