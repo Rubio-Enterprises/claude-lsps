@@ -126,11 +126,12 @@ Repository changes go through pull requests with a Conventional Commits title an
 Feedback, and known dependencies (screenshots when relevant). Use repository issues for questions
 and bug reports.
 
-Run `mise install`, `mise run lint`, and `make test` (or `bash tests/run.sh`). The test harness
-requires Node.js, Bash, jq, and ShellCheck; live-server cases skip when their binaries are absent.
-The rendered `mise run test`, `mise run build`, and `mise run typecheck` tasks delegate to npm,
-but this marketplace has no `package.json`; use the repository's `make test` entry point instead
-of the rendered test task. Commit hooks also format and check staged Markdown.
+Run `mise run setup`, `mise run lint`, and `mise run test` (the test gate runs the same harness
+through `make test`; both run `bash tests/run.sh`). The Dev Container runs `mise run setup` on
+create. The test harness requires Node.js, Bash, jq, and ShellCheck; live-server cases skip when
+their binaries are absent, and `mise run live-setup` installs them with each plugin's installer.
+The rendered `mise run build` and `mise run typecheck` tasks delegate to npm, but this marketplace
+has no `package.json`. Commit hooks also format and check staged Markdown.
 
 ## License
 
