@@ -14,10 +14,13 @@ run = ["bash tests/run.sh"]
 
 [tasks.live-setup]
 description = "Install the LSP servers the live cases drive (they skip without them)"
-run = [
-  "bash pyright/hooks/check-pyright.sh",
-  "bash bash-language-server/hooks/check-bash-language-server.sh",
-  "bash vtsls/hooks/check-vtsls.sh",
-  "bash cue-lsp/hooks/check-cue.sh",
-  "bash regal-lsp/hooks/check-regal.sh",
-]
+# The cue and regal installers fall back to ~/.local/bin and then check PATH.
+run = '''
+set -e
+export PATH="$HOME/.local/bin:$PATH"
+bash pyright/hooks/check-pyright.sh
+bash bash-language-server/hooks/check-bash-language-server.sh
+bash vtsls/hooks/check-vtsls.sh
+bash cue-lsp/hooks/check-cue.sh
+bash regal-lsp/hooks/check-regal.sh
+'''
