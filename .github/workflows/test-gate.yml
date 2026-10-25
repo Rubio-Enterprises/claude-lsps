@@ -42,9 +42,9 @@ jobs:
       # Pin Node to a specific patch so setup-node@v6 can't drift across runs.
       # Coverage collection uses NODE_V8_COVERAGE which has been stable since
       # Node 18, but a fixed version keeps the coverage gate deterministic.
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: "24.21.0"
+          node-version: "24.22.0"
 
       # jq is bundled with both runner images at compatible versions. We pin
       # shellcheck explicitly because new releases periodically add diagnostics
@@ -99,9 +99,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: "24.21.0"
+          node-version: "24.22.0"
 
       # shellcheck's darwin.x86_64 binary runs under Rosetta on arm64 runners;
       # switch to darwin.aarch64 once published for the version we pin.
