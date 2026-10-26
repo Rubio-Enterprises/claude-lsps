@@ -1,8 +1,5 @@
-// commitlint.config.cjs — universal across archetypes (§6.4).
-// .cjs (not .js) so the file works regardless of the consumer's package.json
-// "type" field. Under Node 22+ with "type": "module", a .js file is treated
-// as ESM and commitlint 19's cosmiconfig loader fails with
-// ERR_REQUIRE_CYCLE_MODULE. .cjs is unambiguously CommonJS.
-module.exports = {
-  extends: ['@commitlint/config-conventional'],
-};
+// commitlint.config.cjs — Config Stub (config_model: native, ADR-0033).
+// Extends the shared commitlint config in the Shared Config Checkout
+// (`.standards-config/`, provisioned by `mise bootstrap --only repos,tools`).
+// Repository rules go after `extends`, in commitlint's own syntax.
+module.exports = { extends: ['./.standards-config/config/commitlint.cjs'] };

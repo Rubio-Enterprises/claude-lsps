@@ -15,6 +15,8 @@ dist/
 build/
 coverage/
 reports/
+# Shared Config Checkout (ADR-0033), provisioned by `mise bootstrap --only repos,tools`.
+.standards-config/
 
 # .claude deny-block (template/v1.29.0): ignore the whole .claude/ dir EXCEPT
 # the committed cloud carrier + hooks/commands/agents. CONTENTS form (.claude/*)
