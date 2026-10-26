@@ -8,7 +8,10 @@ Repo-specific context (in-progress migrations, gotchas, agent guidance):
 
 A Claude Code plugin **marketplace** that ships five LSP plugins (`bash-language-server`, `cue-lsp`, `pyright`, `regal-lsp`, `vtsls`). There is no application to build — the "product" is the directory tree itself, consumed by Claude Code via `.claude-plugin/marketplace.json`.
 
-The repo is rendered against the standards template with `archetype: bare` (no language toolchain — see `${CLAUDE_PLUGIN_ROOT}/spec/bare.md`). Only the cross-cutting org floor applies; there is no `package.json`, `tsconfig.json`, or `biome.json` and audit checks for those files do not fire.
+The repository uses `config_model: native`: tool configs and hooks inherit from the gitignored
+`.standards-config/` checkout on the stable channel. Repository exceptions live in the Config
+Stubs and `lefthook-local.yml`; repository tasks live in `.mise.local.toml`. There is no
+`package.json`: the Node proxies have no npm dependencies.
 
 ## Test commands
 
@@ -19,8 +22,10 @@ run it):
 bash tests/run.sh
 ```
 
-`mise run setup` installs the toolchain; the Dev Container runs it on create. The live cases in
-`08-live.sh` skip without their LSP servers; `mise run live-setup` installs them.
+On a fresh clone or worktree, run `mise trust && mise bootstrap --only repos,tools --yes` before
+`mise run setup`; the shared tasks and hooks fail without `.standards-config/`. The Dev Container
+runs bootstrap and setup on create. The live cases in `08-live.sh` skip without their LSP servers;
+`mise run live-setup` installs them.
 
 Required tools (the runner aborts if any are missing): `node`, `bash`, `jq`, `shellcheck`. CI pins `shellcheck v0.10.0` and Node `22.11.0` — match these locally if you hit a green-locally / red-in-CI mismatch.
 

@@ -122,16 +122,26 @@ It provides:
 ## Contributing
 
 Repository changes go through pull requests with a Conventional Commits title and the sections in
-[.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md): What, Why, How, Testing,
+[the organization PR template](https://github.com/Rubio-Enterprises/.github/blob/main/.github/PULL_REQUEST_TEMPLATE.md): What, Why, How, Testing,
 Feedback, and known dependencies (screenshots when relevant). Use repository issues for questions
 and bug reports.
 
-Run `mise run setup`, `mise run lint`, and `mise run test` (the test gate runs the same harness
-through `make test`; both run `bash tests/run.sh`). The Dev Container runs `mise run setup` on
-create. The test harness requires Node.js, Bash, jq, and ShellCheck; live-server cases skip when
-their binaries are absent, and `mise run live-setup` installs them with each plugin's installer.
-The rendered `mise run build` and `mise run typecheck` tasks delegate to npm, but this marketplace
-has no `package.json`. Commit hooks also format and check staged Markdown.
+On a fresh clone or worktree, provision the shared configuration first (mise 2026.10.19 or later):
+
+```bash
+mise trust && mise bootstrap --only repos,tools --yes
+mise run setup
+mise run lint
+mise run test
+```
+
+The native Config Stubs and hooks inherit from the gitignored `.standards-config/` checkout on the
+stable channel. The test gate runs the same harness through `make test`; both run
+`bash tests/run.sh`. The Dev Container runs bootstrap and setup on create. The harness requires
+Node.js, Bash, jq, and ShellCheck; live-server cases skip when their binaries are absent, and
+`mise run live-setup` installs them with each plugin's installer. The shared `mise run build` and
+`mise run typecheck` tasks delegate to npm, but this marketplace has no `package.json`. Commit
+hooks also format and check staged Markdown.
 
 ## License
 
