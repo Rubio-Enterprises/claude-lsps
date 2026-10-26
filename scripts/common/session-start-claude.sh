@@ -108,11 +108,13 @@ fi
 
 # (7) Idempotent toolchain check: install only when something is missing. A warm
 # environment costs well under a second.
+# `mise ls --missing` exits 0 even for missing pins, so check its output
 # config_model native (ADR-0033): `mise bootstrap --only repos,tools` provisions
 # the Shared Config Checkout as well as the toolchain. A plain `mise install`
 # would leave the hooks and Config Stubs without their shared files.
 if [ ! -f "$repo_root/.standards-config/config/lefthook/base.yml" ] ||
-  ! mise -C "$repo_root" ls --installed --quiet >/dev/null 2>&1 ||
+  ! missing_tools="$(mise -C "$repo_root" ls --missing --no-header 2>/dev/null)" ||
+  [ -n "$missing_tools" ] ||
   ! mise -C "$repo_root" which shellcheck >/dev/null 2>&1; then
   mise trust "$repo_root" >/dev/null 2>&1 || true
   log "provisioning the Shared Config Checkout and pinned toolchain via mise bootstrap"
