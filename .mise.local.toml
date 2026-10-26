@@ -1,14 +1,13 @@
-[tasks.lint]
+[tasks."lint:ts"]
 description = "Checks JavaScript with Biome"
 run = ["biome check ."]
 
-# The rendered setup:ts and test delegate to npm, but this marketplace has no
-# package.json: its Node proxies have no dependencies.
+# Shared setup:ts and test:ts defaults use npm, but these proxies have no dependencies
 [tasks."setup:ts"]
 description = "Nothing to install: the plugins' Node proxies have no npm dependencies"
 run = ":"
 
-[tasks.test]
+[tasks."test:ts"]
 description = "Run the test harness (the test gate's make test)"
 run = ["bash tests/run.sh"]
 

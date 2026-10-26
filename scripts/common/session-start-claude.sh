@@ -108,11 +108,15 @@ fi
 
 # (7) Idempotent toolchain check: install only when something is missing. A warm
 # environment costs well under a second.
-if ! mise -C "$repo_root" ls --installed --quiet >/dev/null 2>&1 ||
+# config_model native (ADR-0033): `mise bootstrap --only repos,tools` provisions
+# the Shared Config Checkout as well as the toolchain. A plain `mise install`
+# would leave the hooks and Config Stubs without their shared files.
+if [ ! -f "$repo_root/.standards-config/config/lefthook/base.yml" ] ||
+  ! mise -C "$repo_root" ls --installed --quiet >/dev/null 2>&1 ||
   ! mise -C "$repo_root" which shellcheck >/dev/null 2>&1; then
   mise trust "$repo_root" >/dev/null 2>&1 || true
-  log "installing pinned toolchain via mise"
-  mise -C "$repo_root" install || warn "mise install reported errors (often api.github.com rate limiting); re-run 'mise install' if git hooks fail"
+  log "provisioning the Shared Config Checkout and pinned toolchain via mise bootstrap"
+  mise -C "$repo_root" bootstrap --only repos,tools --yes || warn "mise bootstrap reported errors; re-run 'mise bootstrap --only repos,tools --yes' before committing"
 fi
 mise trust "$repo_root" >/dev/null 2>&1 || true
 

@@ -1,14 +1,10 @@
-# .gitleaks.toml — Copier-synced (§6.10)
+# .gitleaks.toml — Config Stub (config_model: native, ADR-0033).
+# Extends the shared Gitleaks config in the Shared Config Checkout, which in
+# turn extends Gitleaks' default rules (two levels, Gitleaks' maximum). Gitleaks
+# resolves `path` from the directory it runs in, so run it from the repository
+# root; a missing file is a fatal load error, never a fallback to defaults.
+#
+# A repository allowlist goes below as a singular `[allowlist]` table; Gitleaks
+# adds it beside the shared ones.
 [extend]
-useDefault = true
-
-# `[allowlist]` (singular, top-level) is what gitleaks 8.18+ expects in extended
-# configs that allowlist by path. The `[[allowlists]]` array form was added later
-# (8.22+) and isn't applied by the audit-side secret-scan.yml workflow's 8.21
-# binary (pinned in .mise.toml). Stay on the singular form fleet-wide.
-[allowlist]
-description = "placeholder/sample files and Copier-managed public-key/SHA manifests"
-paths = [
-  '''secrets/example\.yaml$''',
-  '''\.copier-answers\.yml$''',
-]
+path = ".standards-config/config/gitleaks.toml"

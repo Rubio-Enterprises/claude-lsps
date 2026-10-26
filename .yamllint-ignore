@@ -1,0 +1,2 @@
+# Deliberately malformed LSP fixtures are not repository YAML
+tests/fixtures/**

@@ -214,10 +214,9 @@ fi
 # regression, not a routine step: most rebuilds skip the slowest, flakiest
 # network dependency entirely. gh is dropped — it never installed
 # successfully in the cloud image, nothing in this setup uses it, and cloud
-# sessions use the built-in GitHub tools. When the install does run it is
-# parallel with the toolchain bootstrap and non-fatal (a Setup script that
-# exits non-zero blocks the session from starting): on failure the credential
-# helper registration and pre-seeding are skipped without widening auth.
+# sessions use the built-in GitHub tools. Install jq before credentials and
+# bootstrap. Failure is non-fatal (a non-zero Setup script blocks the session):
+# credential registration and pre-seeding are skipped without widening auth.
 apt_pid=""
 if [ -z "$__smoke" ] && ! command -v jq >/dev/null 2>&1; then
   (
@@ -225,32 +224,6 @@ if [ -z "$__smoke" ] && ! command -v jq >/dev/null 2>&1; then
     apt-get update && apt-get install -y --no-install-recommends jq
   ) &
   apt_pid=$!
-fi
-
-# Same bootstrap the SessionStart hook runs. Installing it here bakes the pinned
-# mise toolchain into the snapshot. CLAUDE_CODE_REMOTE=true forces the hook's
-# cloud branch (the var isn't reliably exported this early). GH_TOKEN ->
-# GITHUB_TOKEN lets mise's aqua/github backends fetch release metadata without
-# the unauthenticated GitHub rate limit (the hook also bridges this internally;
-# belt-and-suspenders). GH_PAT is the LAST fallback so environments only ever
-# need to provide GH_PAT (exported in the Setup-script wrapper — see the
-# header notes): at snapshot time neither the session-injected GH_TOKEN nor
-# the env-vars field exists, and any valid token — the read-only marketplace
-# PAT included — lifts the anonymous api.github.com rate limit.
-# CLOUD_SETUP_BUILD=1 tells the hook's cloud plugin health check that this is
-# the snapshot build, not a live session: it must skip here because the
-# marketplace pre-seed section below has not run yet at this point.
-# Guarded so a greenfield render with no hook yet no-ops.
-#
-# Smoke mode runs this at the `1` level and skips it at `warm`. Note its exit
-# code proves nothing either way: the hook is abort-proof by contract (§6.1 —
-# every step `|| true`, always `exit 0`), so a failed mise install surfaces only
-# as stderr chatter. What the smoke actually gets from running it is the PATH it
-# leaves behind — the warm steps below need the toolchain it installs, and the
-# `__smoke_check_failed` guards there report the tools it failed to provide.
-if [ -f scripts/common/session-start-claude.sh ] && [ "$__smoke" != "warm" ]; then
-  CLAUDE_CODE_REMOTE=true CLOUD_SETUP_BUILD=1 GITHUB_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-${GH_PAT:-}}}" \
-    bash scripts/common/session-start-claude.sh || true
 fi
 
 if [ -n "$apt_pid" ]; then
@@ -317,6 +290,32 @@ if [ -n "$__mkt_repos" ]; then
   echo "cloud-setup: scoped marketplace credential helper to: $(printf '%s' "$__mkt_repos" | tr '\n' ' ')" >&2
 elif [ -z "$__smoke" ]; then
   echo "cloud-setup: no org marketplace credential scopes discovered; no unscoped fallback installed" >&2
+fi
+
+# Same bootstrap the SessionStart hook runs. Installing it here bakes the pinned
+# mise toolchain into the snapshot. CLAUDE_CODE_REMOTE=true forces the hook's
+# cloud branch (the var isn't reliably exported this early). GH_TOKEN ->
+# GITHUB_TOKEN lets mise's aqua/github backends fetch release metadata without
+# the unauthenticated GitHub rate limit (the hook also bridges this internally;
+# belt-and-suspenders). GH_PAT is the LAST fallback so environments only ever
+# need to provide GH_PAT (exported in the Setup-script wrapper — see the
+# header notes): at snapshot time neither the session-injected GH_TOKEN nor
+# the env-vars field exists, and any valid token — the read-only marketplace
+# PAT included — lifts the anonymous api.github.com rate limit.
+# CLOUD_SETUP_BUILD=1 tells the hook's cloud plugin health check that this is
+# the snapshot build, not a live session: it must skip here because the
+# marketplace pre-seed section below has not run yet at this point.
+# Guarded so a greenfield render with no hook yet no-ops.
+#
+# Smoke mode runs this at the `1` level and skips it at `warm`. Note its exit
+# code proves nothing either way: the hook is abort-proof by contract (§6.1 —
+# every step `|| true`, always `exit 0`), so a failed mise install surfaces only
+# as stderr chatter. What the smoke actually gets from running it is the PATH it
+# leaves behind — the warm steps below need the toolchain it installs, and the
+# `__smoke_check_failed` guards there report the tools it failed to provide.
+if [ -f scripts/common/session-start-claude.sh ] && [ "$__smoke" != "warm" ]; then
+  CLAUDE_CODE_REMOTE=true CLOUD_SETUP_BUILD=1 GITHUB_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-${GH_PAT:-}}}" \
+    bash scripts/common/session-start-claude.sh || true
 fi
 
 # --- Private Go-module git credential helper (RUNTIME, repo-scoped) ----------

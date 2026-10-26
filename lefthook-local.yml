@@ -1,7 +1,24 @@
-# Treefmt migration (#621): merge only after standards bridge #636 is released
-# on this repo's remote ref and `lefthook install` has refreshed the cache.
-# Fixer scope lives in treefmt.toml.local; Checker/repo-owned hooks stay here.
+# Malformed LSP fixtures are test data, not shell or YAML source
 pre-commit:
+  jobs:
+    - name: fixers
+      group:
+        jobs:
+          - name: repo-scope
+            group:
+              jobs:
+                - name: shfmt
+                  group:
+                    jobs:
+                      - name: invoke
+                        exclude:
+                          - tests/fixtures/**
+                - name: yaml-prettier
+                  group:
+                    jobs:
+                      - name: invoke
+                        exclude:
+                          - tests/fixtures/**
   commands:
     shellcheck:
       exclude:
