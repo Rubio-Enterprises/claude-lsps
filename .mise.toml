@@ -23,8 +23,8 @@
 # Repository-owned tasks, [env] and extra tools go at the end of this file. A
 # task defined here replaces the shared task of the same name; extend a shared
 # composite with a namespaced task such as `lint:docs` or `setup:fixtures`.
-# Canary Ring repositories replace `ref = "stable"` and every `ref=stable`
-# below with `canary`.
+# The `standards_channel` Copier answer selects the Channel for both refs.
+# Change it with `copier update --data standards_channel=canary`.
 min_version = "2026.10.19"
 include = [
   "{% if (config_root ~ '/.standards-config/config/mise/base.toml') is file %}.standards-config/config/mise/base.toml{% else %}git::https://github.com/Rubio-Enterprises/standards.git//config/mise/base.toml?ref=stable{% endif %}",
