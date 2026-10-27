@@ -47,7 +47,6 @@ name: cloud-setup smoke
       - "scripts/**"
       # The toolchain the chain bootstraps before warming anything.
       - ".mise.toml"
-      - ".tool-versions"
       # This caller, so a change to the wiring smoke-tests itself.
       - ".github/workflows/cloud-setup-smoke.yml"
       - "package.json"

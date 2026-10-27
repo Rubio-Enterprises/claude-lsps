@@ -1,6 +1,6 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.55.154
-_rubio_template_version: template/v1.55.154
+_commit: template/v1.55.155
+_rubio_template_version: template/v1.55.155
 _src_path: https://github.com/Rubio-Enterprises/standards.git
 config_model: native
 container_registry: ghcr.io/Rubio-Enterprises
