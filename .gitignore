@@ -4,11 +4,8 @@
 # `scripts/merge-gitignore.sh` rewrites this block on every `copier copy/update`.
 .DS_Store
 .envrc.local
-# .mise.local.toml is NOT ignored: it is the committed home for repo-owned mise
-# tools, tasks and [env] (see the .mise.toml header), like the other .local
-# sidecars. Machine-local values go in .envrc.local above. The #296 rule that
-# ignored it made repos silently drop it on a plain `git add`; a better,
-# non-.local name is tracked in Rubio-Enterprises/standards#662.
+# .mise.local.toml stays trackable for committed repository tools, tasks and env
+# Use .envrc.local for machine-local values
 *.log
 node_modules/
 dist/
