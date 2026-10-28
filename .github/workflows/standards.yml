@@ -40,5 +40,5 @@ jobs:
     if: >-
       github.event_name == 'schedule' && github.event.schedule == '0 9 * * 1'
       || github.event_name == 'workflow_dispatch'
-    uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@427623d6179953834b50c1663facac001aed0700 # v4
+    uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@main
     with: { mode: trufflehog }

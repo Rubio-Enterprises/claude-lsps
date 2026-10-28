@@ -24,9 +24,8 @@
 #   https://code.claude.com/docs/en/hooks#sessionstart
 #
 # Contract (rubio-standards §6.1 — enforced by check.sh on CONTENT):
-#   1. Abort-proof: every network/install/toolchain step is `|| true`, and the
-#      script ALWAYS ends in `exit 0`. A SessionStart hook must never abort the
-#      session. `set -euo pipefail` is kept for shellcheck/convention parity, so
+#   1. Pin/checkout verification is mandatory before mise; dependency warming
+#      remains best-effort, and its normal path ends in `exit 0`. `set -euo pipefail` is kept for shellcheck/convention parity, so
 #      every fallible step below is explicitly guarded.
 #   2. Bridge GH_TOKEN -> GITHUB_TOKEN (mise's aqua backend resolves release
 #      metadata via api.github.com and 403s on the unauthenticated rate limit).
@@ -76,6 +75,10 @@ if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ "${CLAUDE_PROJECT_DIR}" != "$repo_root"
 fi
 cd "$repo_root" || exit 0
 
+# shellcheck source=scripts/common/standards-pin.sh disable=SC1091
+source "$repo_root/scripts/common/standards-pin.sh"
+standards_restore_pin "$repo_root"
+
 # Only act inside this repo — a SessionStart hook can fire in unrelated
 # checkouts. The mise manifest is the repo marker.
 [ -f .mise.toml ] || exit 0
@@ -97,19 +100,23 @@ if ! command -v mise >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
   elif [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
     log "installing mise"
-    curl -fsSL https://mise.run | sh >/dev/null 2>&1 || true
+    (cd / && curl -fsSL https://mise.run | sh >/dev/null 2>&1) || true
     export PATH="$HOME/.local/bin:$PATH"
   fi
 fi
 if ! command -v mise >/dev/null 2>&1; then
   warn "mise not on PATH; install it (https://mise.jdx.dev) so the pinned toolchain and lefthook git hooks resolve"
+  [ "${STANDARDS_PIN+x}" != x ] || exit 1
   exit 0
+fi
+if [ "${STANDARDS_PIN+x}" = x ]; then
+  mise -C "$repo_root" bootstrap repos status --missing
 fi
 
 # (7) Idempotent toolchain check: install only when something is missing. A warm
 # environment costs well under a second.
 # `mise ls --missing` exits 0 even for missing pins, so check its output
-# config_model native (ADR-0033): `mise bootstrap --only repos,tools` provisions
+# ADR-0033: `mise bootstrap --only repos,tools` provisions
 # the Shared Config Checkout as well as the toolchain. A plain `mise install`
 # would leave the hooks and Config Stubs without their shared files.
 if [ ! -f "$repo_root/.standards-config/config/lefthook/base.yml" ] ||
