@@ -114,17 +114,36 @@ src="${BASH_SOURCE[0]:-$0}"
 unset CDPATH
 repo_root="$(cd -- "$(dirname -- "$src")/../.." 2>/dev/null && pwd)"
 if [ -z "$repo_root" ] || ! cd -- "$repo_root"; then
-  echo "cloud-setup: cannot resolve repo root from $src; skipping" >&2
-  exit 0
+  echo "cloud-setup: cannot resolve repo root from $src" >&2
+  [ "${1:-}" != --provision-standards ] && [ "${STANDARDS_PIN+x}" != x ] && exit 0
+  exit 1
+fi
+
+# Pin verification is mandatory; only dependency/cache warming below is best-effort.
+# shellcheck source=scripts/common/standards-pin.sh disable=SC1091
+source "$repo_root/scripts/common/standards-pin.sh" || exit 1
+case "${1:-}" in
+--provision-standards)
+  # A conditional call would disable errexit inside the provisioner subshell
+  standards_provision_pin "$repo_root"
+  provision_status=$?
+  [ "$provision_status" -eq 0 ] || exit 1
+  ;;
+"") ;;
+*)
+  printf 'cloud-setup: unsupported argument: %s\n' "$1" >&2
+  exit 2
+  ;;
+esac
+standards_restore_pin "$repo_root" || exit 1
+if [ "${STANDARDS_PIN+x}" = x ]; then
+  mise -C "$repo_root" bootstrap repos status --missing || exit 1
 fi
 
 # --- Smoke mode (CI parity check; CLOUD_SETUP_SMOKE) -------------------------
-# This script is NON-FATAL BY CONTRACT: a Setup script that exits non-zero
-# blocks the cloud session from starting, so every step below swallows its own
-# failure and the script always ends in `exit 0`. That contract also makes the
-# script UNTESTABLE by exit code — the bare-`command -v` node fallback failed on
-# EVERY snapshot build of EVERY has_embedded_web consumer and still exited 0,
-# visible only as one line in a build log nobody reads.
+# Dependency/cache warming is best-effort after the mandatory pin gate above.
+# Smoke mode records warming failures so CI can distinguish a broken warm from
+# a successful no-op on a repository with no matching manifest.
 #
 # CLOUD_SETUP_SMOKE inverts the contract FOR CI ONLY. Every step still runs to
 # completion (no `set -e`, no early abort — a smoke run must report ALL
@@ -793,8 +812,7 @@ if [ -z "$__smoke" ] && mkdir -p "$marker_dir" 2>/dev/null; then
   } >"$marker_dir/cloud-setup.built" 2>/dev/null || true
 fi
 
-# Smoke mode is the ONLY path that may exit non-zero. The cloud path below keeps
-# the abort-proof contract unconditionally.
+# Dependency and cache warming remain best-effort outside smoke mode.
 if [ -n "$__smoke" ]; then
   if [ -n "$__smoke_failures" ]; then
     echo "cloud-setup: SMOKE FAILED ($__smoke) — $__smoke_failures" >&2

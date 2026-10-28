@@ -1,33 +1,16 @@
 # Rendered by rubio-standards; `copier update` keeps it current and merges your additions.
 # Source: Rubio-Enterprises/standards, template/.mise.toml.jinja
-# .mise.toml — Config Stub for the Shared Config Checkout (config_model: native).
+# Shared pins and tasks come from the gitignored full-history .standards-config/.
+# Trusted provisioners supply STANDARDS_PIN before setup; native laptops follow main.
+# Cold includes use main only until the checkout exists.
 #
-# `.standards-config/` is a full-history, gitignored checkout of
-# Rubio-Enterprises/standards on this repository's Channel (ADR-0033). The
-# shared tool pins and tasks included below, the tool Config Stubs and the
-# Lefthook hooks all read it, so they agree on one commit. Provision or
-# refresh it, and install every pinned tool, with:
-#
-#   mise bootstrap --only repos,tools --yes
-#
-# Run it first on a fresh clone: the shared tasks, `setup` among them, load
-# from the checkout. `mise run setup` repeats it before installing each stack's
-# dependencies. A plain `mise install` neither clones nor refreshes the
-# checkout. The post-repos hook fails the bootstrap when the checkout is
-# missing or behind its Channel; nothing falls back to defaults.
-#
-# Each include reads the checkout once it exists. Before the first bootstrap
-# (a cold clone) it reads the same file from the same Channel through Git, so
-# that mise can load this file at all.
-#
-# Repository-owned tasks, [env] and extra tools go at the end of this file. A
-# task defined here replaces the shared task of the same name; extend a shared
-# composite with a namespaced task such as `lint:docs` or `setup:fixtures`.
-# The `standards_channel` Copier answer selects the Channel for both refs.
-# Change it with `copier update --data standards_channel=canary`.
+# First on a native laptop: mise bootstrap --only repos,tools --yes
+# Provisioned environments validate the pin and run repos status before setup.
+# Repository tasks, [env] and extra tools go below. Task definitions replace
+# shared tasks; namespaced tasks join the shared composites.
 min_version = "2026.10.19"
 include = [
-  "{% if (config_root ~ '/.standards-config/config/mise/base.toml') is file %}.standards-config/config/mise/base.toml{% else %}git::https://github.com/Rubio-Enterprises/standards.git//config/mise/base.toml?ref=stable{% endif %}",
+  "{% if (config_root ~ '/.standards-config/config/mise/base.toml') is file %}.standards-config/config/mise/base.toml{% else %}git::https://github.com/Rubio-Enterprises/standards.git//config/mise/base.toml?ref=main{% endif %}",
 ]
 
 [tools]
@@ -35,14 +18,13 @@ include = [
 # from the shared includes above; a tool named here overrides its shared pin.
 node = "24.21.0"
 
-# The shared pins float on the Channel, so this repository commits no
+# The shared pins follow main, so this repository commits no
 # mise.lock (lint-config rejects one): a lockfile would pin them per
 # repository again, one PR each. Leave `settings.lockfile` unset: `false`
 # makes a globally locked mise refuse to install, and `true` writes a lock.
 
 [bootstrap.repos]
-# Keep full history so promotions can fast-forward across other branch tips
-".standards-config" = { url = "https://github.com/Rubio-Enterprises/standards.git", ref = "stable" }
+".standards-config" = { url = "https://github.com/Rubio-Enterprises/standards.git", ref = "{{ env.STANDARDS_PIN | default(value='main') }}" }
 
 [bootstrap.hooks]
 post-repos = "mise bootstrap repos status --missing"

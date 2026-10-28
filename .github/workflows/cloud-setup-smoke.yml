@@ -82,8 +82,8 @@ jobs:
     # trailing comment is the org's pin convention that Renovate's
     # helpers:pinGitHubActionDigests reads to track the major line.
     # yamllint disable-line rule:line-length
-    uses: Rubio-Enterprises/.github/.github/workflows/cloud-setup-smoke.yml@427623d6179953834b50c1663facac001aed0700 # v4
-    # config_model native (ADR-0033): the read-only standards-reader App clones
+    uses: Rubio-Enterprises/.github/.github/workflows/cloud-setup-smoke.yml@main
+    # ADR-0033: the read-only standards-reader App clones
     # the Shared Config Checkout; the reusable fails without it.
     secrets:
       STANDARDS_READER_APP_ID: ${{ secrets.STANDARDS_READER_APP_ID }}
