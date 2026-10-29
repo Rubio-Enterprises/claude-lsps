@@ -2,7 +2,7 @@
 # Source: Rubio-Enterprises/standards, template/.mise.toml.jinja
 # Shared pins and tasks come from the gitignored full-history .standards-config/.
 # Trusted provisioners supply STANDARDS_PIN before setup; native laptops follow main.
-# Cold includes use main only until the checkout exists.
+# Missing fragments use a local no-op so entering a cold checkout never fetches.
 #
 # First on a native laptop: mise bootstrap --only repos,tools --yes
 # Provisioned environments validate the pin and run repos status before setup.
@@ -10,7 +10,7 @@
 # shared tasks; namespaced tasks join the shared composites.
 min_version = "2026.10.19"
 include = [
-  "{% if (config_root ~ '/.standards-config/config/mise/base.toml') is file %}.standards-config/config/mise/base.toml{% else %}git::https://github.com/Rubio-Enterprises/standards.git//config/mise/base.toml?ref=main{% endif %}",
+  "{% if (config_root ~ '/.standards-config/config/mise/base.toml') is file %}.standards-config/config/mise/base.toml{% else %}.config/mise-bootstrap.toml{% endif %}",
 ]
 
 [tools]
@@ -32,6 +32,7 @@ post-repos = "mise bootstrap repos status --missing"
 # Git hooks are per-repo via lefthook. Local `mise install` activates them;
 # CI never fires Git hooks, and lint-hooks runs Lefthook itself.
 [hooks]
+enter = 'test -f .standards-config/config/mise/base.toml || echo "shared config missing: run mise bootstrap --only repos,tools" >&2'
 postinstall = 'test -n "${CI:-}" || mise exec -- lefthook install'
 
 [task_config]

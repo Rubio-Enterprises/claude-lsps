@@ -764,6 +764,8 @@ if [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
   (npm ci || npm install) >/dev/null 2>&1 || __warn "npm install"
 elif [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
   (pnpm install --frozen-lockfile || pnpm install) >/dev/null 2>&1 || __warn "pnpm install"
+elif { [ -f bun.lock ] || [ -f bun.lockb ]; } && command -v bun >/dev/null 2>&1; then
+  (bun install --frozen-lockfile || bun install) >/dev/null 2>&1 || __warn "bun install"
 elif [ -f package.json ]; then
   echo "cloud-setup: package.json with no committed lockfile; skipping the node warm (a plain install would mint an untracked lockfile into the snapshot)" >&2
 fi
