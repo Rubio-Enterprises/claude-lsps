@@ -1,6 +1,6 @@
 # Changes here will be overwritten by Copier; NEVER edit this file manually.
-_commit: template/v1.55.157
-_rubio_template_version: template/v1.55.157
+_commit: template/v1.55.158
+_rubio_template_version: template/v1.55.158
 _src_path: https://github.com/Rubio-Enterprises/standards.git
 container_registry: ghcr.io/Rubio-Enterprises
 default_branch: main
@@ -18,6 +18,7 @@ has_codewiki: false
 has_codex_plugin: false
 has_container_image: false
 has_go: false
+has_herdr_plugin: false
 has_homebrew_formulae: false
 has_javascript: true
 has_knowledgebase: false
@@ -33,12 +34,12 @@ is_marketplace: true
 is_mcp_server: false
 is_monorepo: false
 is_public: true
-lint_hooks_workload_class: light
+lint_hooks_workload_class: small
 linter_floor: biome
 project_name: claude-lsps
 repo_type: native
 supported_platforms: []
-typecheck_workload_class: light
+typecheck_workload_class: small
 upstream_branch: ''
 upstream_url: ''
 uses_release_please: false
