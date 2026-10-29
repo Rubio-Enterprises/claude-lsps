@@ -12,6 +12,8 @@ name: standards
 # canonical non-E2E tests. This workflow keeps the scheduled trufflehog scan,
 # E2E, and default-branch cache seeding.
 "on":
+  push:
+    branches: [main]
   schedule:
     # `0 9 * * 1` → weekly trufflehog (secret-scan tree-wide entropy scan).
     - cron: "0 9 * * 1"
@@ -42,3 +44,20 @@ jobs:
       || github.event_name == 'workflow_dispatch'
     uses: Rubio-Enterprises/.github/.github/workflows/secret-scan.yml@main
     with: { mode: trufflehog }
+
+  codewiki-pages:
+    # Publishes docs/codewiki/ (minus CodeWiki's temp/ state) to GitHub Pages
+    # (has_codewiki, ADR-0026). The Settings Plane enables Pages with
+    # build_type=workflow; this job only deploys. No paths filter: one on the
+    # shared push trigger would gate every other job too, so it deploys on
+    # every push to the default branch. A workflow_dispatch on the default
+    # branch re-publishes by hand (e.g. once the Settings Plane has enabled
+    # Pages after the opt-in merge).
+    if: >-
+      github.event_name == 'push'
+      || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: Rubio-Enterprises/.github/.github/workflows/codewiki-pages.yml@main

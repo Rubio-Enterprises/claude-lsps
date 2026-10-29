@@ -9,7 +9,8 @@
 {
   "extends": [
     "./.standards-config/config/biome.jsonc",
-    "./.standards-config/config/biome-native.jsonc"
+    "./.standards-config/config/biome-native.jsonc",
+    "./.standards-config/config/biome-codewiki.jsonc"
   ],
   "linter": {
     "rules": {

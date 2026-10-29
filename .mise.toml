@@ -11,6 +11,7 @@
 min_version = "2026.10.19"
 include = [
   "{% if (config_root ~ '/.standards-config/config/mise/base.toml') is file %}.standards-config/config/mise/base.toml{% else %}.config/mise-bootstrap.toml{% endif %}",
+  "{% if (config_root ~ '/.standards-config/config/mise/codewiki.toml') is file %}.standards-config/config/mise/codewiki.toml{% else %}.config/mise-bootstrap.toml{% endif %}",
 ]
 
 [tools]
@@ -39,4 +40,5 @@ postinstall = 'test -n "${CI:-}" || mise exec -- lefthook install'
 includes = [
   ".standards-config/config/tasks/base.toml",
   ".standards-config/config/tasks/typescript.toml",
+  ".standards-config/config/tasks/codewiki.toml",
 ]
