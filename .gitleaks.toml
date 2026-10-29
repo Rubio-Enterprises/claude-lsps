@@ -7,4 +7,4 @@
 # A repository allowlist goes below as a singular `[allowlist]` table; Gitleaks
 # adds it beside the shared ones.
 [extend]
-path = ".standards-config/config/gitleaks.toml"
+path = ".standards-config/config/gitleaks-codewiki.toml"

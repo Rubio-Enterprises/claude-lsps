@@ -7,3 +7,5 @@
 *.pdf binary
 *.zip binary
 *.gz binary
+# CodeWiki output (has_codewiki, ADR-0026): generated, so GitHub collapses its diffs.
+docs/codewiki/** linguist-generated
