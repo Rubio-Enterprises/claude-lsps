@@ -1,5 +1,5 @@
-# .yamllint — Config Stub (config_model: native, ADR-0033).
-# Extends the shared yamllint floor in the Shared Config Checkout. yamllint
+# .yamllint — Config Stub (ADR-0033).
+# Extends the shared yamllint floor in the Shared Config Directory. yamllint
 # reads `extends` and `ignore-from-file` paths from the directory it runs in,
 # so run it from the repository root; a missing file is a hard error.
 #
