@@ -1,9 +1,9 @@
-# Config Stub for the Shared Config Checkout (ADR-0033). Repository-owned.
+# Config Stub for the Shared Config Directory (ADR-0033). Repository-owned.
 # Source: Rubio-Enterprises/standards, template/lefthook.yml.jinja
 # Repo-specific changes go in lefthook-local.yml.
 # lefthook.yml — Config Stub for the shared hook registry (ADR-0033).
 #
-# The hooks live once in the Shared Config Checkout (`.standards-config/`,
+# The hooks live once in the Shared Config Directory (`.standards-config/`,
 # declared in .mise.toml) and are read through Lefthook's native `extends`.
 # Lefthook silently skips a missing `extends` file, so `standards-ready` fails
 # the commit instead; commit-msg repeats it so an empty pre-commit cannot skip
@@ -25,15 +25,23 @@ pre-commit:
   # event only through `commands`.
   commands:
     standards-ready:
-      # Folded: the same one-line command, within the 120-column yamllint floor.
       run: >-
-        test -f .standards-config/config/lefthook/base.yml || { echo "shared config missing:
-        run mise bootstrap --only repos,tools" >&2; exit 1; }
+        for parent in
+        .standards-config/config/lefthook/base.yml
+        .standards-config/config/lefthook/biome.yml
+        .standards-config/config/lefthook/biome-native.yml
+        .standards-config/config/lefthook/ts.yml
+        ; do test -f "$parent" || { echo "shared config missing or incomplete: $parent;
+        run mise bootstrap --only repos,tools" >&2; exit 1; }; done
 
 commit-msg:
   commands:
     standards-ready:
-      # Folded: the same one-line command, within the 120-column yamllint floor.
       run: >-
-        test -f .standards-config/config/lefthook/base.yml || { echo "shared config missing:
-        run mise bootstrap --only repos,tools" >&2; exit 1; }
+        for parent in
+        .standards-config/config/lefthook/base.yml
+        .standards-config/config/lefthook/biome.yml
+        .standards-config/config/lefthook/biome-native.yml
+        .standards-config/config/lefthook/ts.yml
+        ; do test -f "$parent" || { echo "shared config missing or incomplete: $parent;
+        run mise bootstrap --only repos,tools" >&2; exit 1; }; done

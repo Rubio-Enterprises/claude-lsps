@@ -137,7 +137,7 @@ case "${1:-}" in
 esac
 standards_restore_pin "$repo_root" || exit 1
 if [ "${STANDARDS_PIN+x}" = x ]; then
-  mise -C "$repo_root" bootstrap repos status --missing || exit 1
+  standards_require_ready "$repo_root" "$STANDARDS_PIN" || exit 1
 fi
 
 # --- Smoke mode (CI parity check; CLOUD_SETUP_SMOKE) -------------------------

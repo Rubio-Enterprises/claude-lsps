@@ -37,6 +37,30 @@ standards_verify_checkout() {
   fi
 }
 
+standards_require_ready() {
+  local root pin="$2" mise_bin="${3:-mise}" status
+  root="$(cd -- "$1" && pwd -P)" || return 1
+  standards_verify_checkout "$root" "$pin" || return 1
+  command -v jq >/dev/null 2>&1 || {
+    standards_pin_error 'jq is required to validate the effective standards declaration'
+    return 1
+  }
+  if ! status="$(STANDARDS_PIN="$pin" "$mise_bin" -C "$root" bootstrap repos status --missing --json 2>&1)"; then
+    standards_pin_error 'mise repo status failed; check the standards declaration and checkout'
+    return 1
+  fi
+  # Treat skipped-declaration warnings as invalid JSON, not a valid fallback
+  if ! jq -e --arg pin "$pin" --arg path "$root/.standards-config" '
+    .repos | any(.path_raw == ".standards-config" and .path == $path and
+      .url == "https://github.com/Rubio-Enterprises/standards.git" and
+      .ref == $pin and .current_sha == $pin and .state == "current")
+  ' <<<"$status" >/dev/null 2>&1; then
+    standards_pin_error 'mise must declare .standards-config at the independent STANDARDS_PIN with no depth'
+    return 1
+  fi
+  "$mise_bin" -C "$root" tasks --json >/dev/null || return 1
+}
+
 standards_restore_pin() {
   local root="$1" record expected
   record="$(standards_pin_record "$root")" || return 1
@@ -81,7 +105,7 @@ standards_reader_git() {
 
 standards_provision_pin() (
   set -euo pipefail
-  local root="$1" url='https://github.com/Rubio-Enterprises/standards.git' pin record scratch
+  local root="$1" mode="${2:-}" url='https://github.com/Rubio-Enterprises/standards.git' pin record scratch
   if [ "${STANDARDS_PIN+x}" = x ]; then
     standards_pin_valid "$STANDARDS_PIN"
   fi
@@ -132,7 +156,9 @@ standards_provision_pin() (
   mv "$scratch/.standards-config" "$root/.standards-config"
   installed=true
   STANDARDS_PIN="$pin" "$mise_bin" trust "$root/.mise.toml"
-  STANDARDS_PIN="$pin" "$mise_bin" -C "$root" bootstrap repos status --missing
+  if [ "$mode" != --bootstrap-repository ]; then
+    standards_require_ready "$root" "$pin" "$mise_bin"
+  fi
   record="$(standards_pin_record "$root")"
   umask 077
   mkdir -p "$(dirname "$record")"

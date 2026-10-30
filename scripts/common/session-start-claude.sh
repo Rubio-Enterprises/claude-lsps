@@ -110,14 +110,14 @@ if ! command -v mise >/dev/null 2>&1; then
   exit 0
 fi
 if [ "${STANDARDS_PIN+x}" = x ]; then
-  mise -C "$repo_root" bootstrap repos status --missing
+  standards_require_ready "$repo_root" "$STANDARDS_PIN"
 fi
 
 # (7) Idempotent toolchain check: install only when something is missing. A warm
 # environment costs well under a second.
 # `mise ls --missing` exits 0 even for missing pins, so check its output
 # ADR-0033: `mise bootstrap --only repos,tools` provisions
-# the Shared Config Checkout as well as the toolchain. A plain `mise install`
+# the Shared Config Directory as well as the toolchain. A plain `mise install`
 # would leave the hooks and Config Stubs without their shared files.
 if [ ! -f "$repo_root/.standards-config/config/lefthook/base.yml" ] ||
   ! missing_tools="$(mise -C "$repo_root" ls --missing --no-header 2>/dev/null)" ||

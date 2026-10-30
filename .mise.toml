@@ -2,7 +2,7 @@
 # Source: Rubio-Enterprises/standards, template/.mise.toml.jinja
 # Shared pins and tasks come from the gitignored full-history .standards-config/.
 # Trusted provisioners supply STANDARDS_PIN before setup; native laptops follow main.
-# Missing fragments use a local no-op so entering a cold checkout never fetches.
+# Only a fully absent checkout uses a local no-op; partial parents fail locally.
 #
 # First on a native laptop: mise bootstrap --only repos,tools --yes
 # Provisioned environments validate the pin and run repos status before setup.
@@ -10,8 +10,9 @@
 # shared tasks; namespaced tasks join the shared composites.
 min_version = "2026.10.19"
 include = [
-  "{% if (config_root ~ '/.standards-config/config/mise/base.toml') is file %}.standards-config/config/mise/base.toml{% else %}.config/mise-bootstrap.toml{% endif %}",
-  "{% if (config_root ~ '/.standards-config/config/mise/codewiki.toml') is file %}.standards-config/config/mise/codewiki.toml{% else %}.config/mise-bootstrap.toml{% endif %}",
+  "{%- if env.STANDARDS_PIN is defined and not env.STANDARDS_PIN is matching(pat='^[0-9a-f]{40}$') -%}    {{ throw(message='standards pin: expected a non-empty 40-character lowercase SHA') }}  {%- endif -%}  {%- if (config_root ~ '/.standards-config') is exists -%}    {%- for path in [      'config/tombi.toml',      'config/lefthook/base.yml',      'config/lefthook/biome.yml',      'config/lefthook/biome-native.yml',      'config/lefthook/ts.yml',      'config/mise/base.toml',      'config/mise/codewiki.toml',      'config/tasks/base.toml',      'config/tasks/typescript.toml',      'config/tasks/codewiki.toml'    ] -%}      {%- if not (config_root ~ '/.standards-config/' ~ path) is file -%}        {{ throw(message='shared config incomplete: missing ' ~ path ~ '; restore the missing parent or move .standards-config aside, then run mise bootstrap --only repos,tools') }}      {%- endif -%}    {%- endfor -%}  {%- endif -%}.config/mise-bootstrap.toml",
+  "{% if (config_root ~ '/.standards-config') is exists %}.standards-config/config/mise/base.toml{% else %}.config/mise-bootstrap.toml{% endif %}",
+  "{% if (config_root ~ '/.standards-config') is exists %}.standards-config/config/mise/codewiki.toml{% else %}.config/mise-bootstrap.toml{% endif %}",
 ]
 
 [tools]
