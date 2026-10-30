@@ -1,0 +1,53 @@
+{
+    "generation_info": {
+        "timestamp": "2026-10-30T18:45:12.872130+00:00",
+        "main_model": "gpt-6.1-sol(max)",
+        "generator_version": "2.0.0",
+        "repo_path": "/home/runner/_work/_temp/codewiki-workdir/claude-lsps",
+        "commit_id": "f87f6b9bdc2a006aede2b8ed5a617ff3520d0660",
+        "language": null,
+        "layout": "hierarchical"
+    },
+    "statistics": {
+        "total_components": 114,
+        "leaf_nodes": 114,
+        "max_depth": 2
+    },
+    "files_generated": [
+        "overview.md",
+        "module_tree.json",
+        "first_module_tree.json",
+        "engineering_platform_and_validation.md",
+        "engineering_platform_and_validation/continuous_integration.md",
+        "engineering_platform_and_validation/continuous_integration/continuous_integration_cloud_setup_smoke.md",
+        "engineering_platform_and_validation/continuous_integration/continuous_integration_copilot_setup.md",
+        "engineering_platform_and_validation/continuous_integration/continuous_integration_standards_automation.md",
+        "engineering_platform_and_validation/continuous_integration/continuous_integration_test_gate.md",
+        "engineering_platform_and_validation/development_environment_bootstrap.md",
+        "engineering_platform_and_validation/repository_build_and_configuration.md",
+        "engineering_platform_and_validation/repository_build_and_configuration/repository_build_and_configuration_formatting_and_hooks.md",
+        "engineering_platform_and_validation/repository_build_and_configuration/repository_build_and_configuration_shared_policy.md",
+        "engineering_platform_and_validation/repository_build_and_configuration/repository_build_and_configuration_validation_entry_points.md",
+        "language_intelligence_integration.md",
+        "language_intelligence_integration/bash_language_server.md",
+        "language_intelligence_integration/bash_language_server/bash_language_server_document_lifecycle.md",
+        "language_intelligence_integration/bash_language_server/bash_language_server_protocol.md",
+        "language_intelligence_integration/bash_language_server/bash_language_server_setup.md",
+        "language_intelligence_integration/cue_language_server.md",
+        "language_intelligence_integration/cue_language_server/cue_language_server_document_lifecycle.md",
+        "language_intelligence_integration/cue_language_server/cue_language_server_protocol.md",
+        "language_intelligence_integration/cue_language_server/cue_language_server_setup.md",
+        "language_intelligence_integration/pyright_language_server.md",
+        "language_intelligence_integration/pyright_language_server/pyright_language_server_document_lifecycle.md",
+        "language_intelligence_integration/pyright_language_server/pyright_language_server_protocol.md",
+        "language_intelligence_integration/pyright_language_server/pyright_language_server_setup.md",
+        "language_intelligence_integration/regal_language_server.md",
+        "language_intelligence_integration/regal_language_server/regal_language_server_document_lifecycle.md",
+        "language_intelligence_integration/regal_language_server/regal_language_server_protocol.md",
+        "language_intelligence_integration/regal_language_server/regal_language_server_setup.md",
+        "language_intelligence_integration/vtsls_language_server.md",
+        "language_intelligence_integration/vtsls_language_server/vtsls_language_server_document_lifecycle.md",
+        "language_intelligence_integration/vtsls_language_server/vtsls_language_server_protocol.md",
+        "language_intelligence_integration/vtsls_language_server/vtsls_language_server_setup.md"
+    ]
+}

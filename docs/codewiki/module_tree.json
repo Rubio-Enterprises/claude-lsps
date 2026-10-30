@@ -1,0 +1,472 @@
+{
+    "language_intelligence_integration": {
+        "path": "",
+        "components": [
+            "bash-language-server/.lsp.json::.lsp.json",
+            "bash-language-server/hooks/check-bash-language-server.sh::check-bash-language-server.sh",
+            "bash-language-server/lsp-proxy.js::autoAckResult",
+            "bash-language-server/lsp-proxy.js::drainBuffer",
+            "bash-language-server/lsp-proxy.js::drainServerBuffer",
+            "bash-language-server/lsp-proxy.js::findFiles",
+            "bash-language-server/lsp-proxy.js::pollOpenDocs",
+            "bash-language-server/lsp-proxy.js::reconcileClientChange",
+            "bash-language-server/lsp-proxy.js::sameStat",
+            "bash-language-server/lsp-proxy.js::statOf",
+            "bash-language-server/lsp-proxy.js::toPath",
+            "bash-language-server/lsp-proxy.js::trackOpen",
+            "bash-language-server/lsp-proxy.js::warmupServer",
+            "bash-language-server/lsp-proxy.js::writeMessage",
+            "cue-lsp/.lsp.json::.lsp.json",
+            "cue-lsp/hooks/check-cue.sh::check-cue.sh",
+            "cue-lsp/lsp-proxy.js::autoAckResult",
+            "cue-lsp/lsp-proxy.js::drainBuffer",
+            "cue-lsp/lsp-proxy.js::drainServerBuffer",
+            "cue-lsp/lsp-proxy.js::findFiles",
+            "cue-lsp/lsp-proxy.js::pollOpenDocs",
+            "cue-lsp/lsp-proxy.js::reconcileClientChange",
+            "cue-lsp/lsp-proxy.js::sameStat",
+            "cue-lsp/lsp-proxy.js::statOf",
+            "cue-lsp/lsp-proxy.js::toPath",
+            "cue-lsp/lsp-proxy.js::trackOpen",
+            "cue-lsp/lsp-proxy.js::warmupServer",
+            "cue-lsp/lsp-proxy.js::writeMessage",
+            "pyright/.lsp.json::.lsp.json",
+            "pyright/hooks/check-pyright.sh::check-pyright.sh",
+            "pyright/lsp-proxy.js::autoAckResult",
+            "pyright/lsp-proxy.js::drainBuffer",
+            "pyright/lsp-proxy.js::drainServerBuffer",
+            "pyright/lsp-proxy.js::findFiles",
+            "pyright/lsp-proxy.js::pollOpenDocs",
+            "pyright/lsp-proxy.js::reconcileClientChange",
+            "pyright/lsp-proxy.js::sameStat",
+            "pyright/lsp-proxy.js::statOf",
+            "pyright/lsp-proxy.js::toPath",
+            "pyright/lsp-proxy.js::trackOpen",
+            "pyright/lsp-proxy.js::warmupServer",
+            "pyright/lsp-proxy.js::writeMessage",
+            "regal-lsp/.lsp.json::.lsp.json",
+            "regal-lsp/hooks/check-regal.sh::check-regal.sh",
+            "regal-lsp/lsp-proxy.js::autoAckResult",
+            "regal-lsp/lsp-proxy.js::drainBuffer",
+            "regal-lsp/lsp-proxy.js::drainServerBuffer",
+            "regal-lsp/lsp-proxy.js::findFiles",
+            "regal-lsp/lsp-proxy.js::pollOpenDocs",
+            "regal-lsp/lsp-proxy.js::reconcileClientChange",
+            "regal-lsp/lsp-proxy.js::sameStat",
+            "regal-lsp/lsp-proxy.js::statOf",
+            "regal-lsp/lsp-proxy.js::toPath",
+            "regal-lsp/lsp-proxy.js::trackOpen",
+            "regal-lsp/lsp-proxy.js::warmupServer",
+            "regal-lsp/lsp-proxy.js::writeMessage",
+            "vtsls/.lsp.json::.lsp.json",
+            "vtsls/hooks/check-vtsls.sh::check-vtsls.sh",
+            "vtsls/lsp-proxy.js::autoAckResult",
+            "vtsls/lsp-proxy.js::drainBuffer",
+            "vtsls/lsp-proxy.js::drainServerBuffer",
+            "vtsls/lsp-proxy.js::findFiles",
+            "vtsls/lsp-proxy.js::pollOpenDocs",
+            "vtsls/lsp-proxy.js::reconcileClientChange",
+            "vtsls/lsp-proxy.js::sameStat",
+            "vtsls/lsp-proxy.js::statOf",
+            "vtsls/lsp-proxy.js::toPath",
+            "vtsls/lsp-proxy.js::trackOpen",
+            "vtsls/lsp-proxy.js::warmupServer",
+            "vtsls/lsp-proxy.js::writeMessage"
+        ],
+        "children": {
+            "bash_language_server": {
+                "path": "bash-language-server",
+                "components": [
+                    "bash-language-server/.lsp.json::.lsp.json",
+                    "bash-language-server/hooks/check-bash-language-server.sh::check-bash-language-server.sh",
+                    "bash-language-server/lsp-proxy.js::autoAckResult",
+                    "bash-language-server/lsp-proxy.js::drainBuffer",
+                    "bash-language-server/lsp-proxy.js::drainServerBuffer",
+                    "bash-language-server/lsp-proxy.js::findFiles",
+                    "bash-language-server/lsp-proxy.js::pollOpenDocs",
+                    "bash-language-server/lsp-proxy.js::reconcileClientChange",
+                    "bash-language-server/lsp-proxy.js::sameStat",
+                    "bash-language-server/lsp-proxy.js::statOf",
+                    "bash-language-server/lsp-proxy.js::toPath",
+                    "bash-language-server/lsp-proxy.js::trackOpen",
+                    "bash-language-server/lsp-proxy.js::warmupServer",
+                    "bash-language-server/lsp-proxy.js::writeMessage"
+                ],
+                "children": {
+                    "bash_language_server_setup": {
+                        "components": [
+                            "bash-language-server/.lsp.json::.lsp.json",
+                            "bash-language-server/hooks/check-bash-language-server.sh::check-bash-language-server.sh"
+                        ],
+                        "children": {}
+                    },
+                    "bash_language_server_protocol": {
+                        "components": [
+                            "bash-language-server/lsp-proxy.js::writeMessage",
+                            "bash-language-server/lsp-proxy.js::drainBuffer",
+                            "bash-language-server/lsp-proxy.js::drainServerBuffer",
+                            "bash-language-server/lsp-proxy.js::autoAckResult"
+                        ],
+                        "children": {}
+                    },
+                    "bash_language_server_document_lifecycle": {
+                        "components": [
+                            "bash-language-server/lsp-proxy.js::toPath",
+                            "bash-language-server/lsp-proxy.js::statOf",
+                            "bash-language-server/lsp-proxy.js::sameStat",
+                            "bash-language-server/lsp-proxy.js::trackOpen",
+                            "bash-language-server/lsp-proxy.js::reconcileClientChange",
+                            "bash-language-server/lsp-proxy.js::pollOpenDocs",
+                            "bash-language-server/lsp-proxy.js::findFiles",
+                            "bash-language-server/lsp-proxy.js::warmupServer"
+                        ],
+                        "children": {}
+                    }
+                }
+            },
+            "cue_language_server": {
+                "path": "cue-lsp",
+                "components": [
+                    "cue-lsp/.lsp.json::.lsp.json",
+                    "cue-lsp/hooks/check-cue.sh::check-cue.sh",
+                    "cue-lsp/lsp-proxy.js::autoAckResult",
+                    "cue-lsp/lsp-proxy.js::drainBuffer",
+                    "cue-lsp/lsp-proxy.js::drainServerBuffer",
+                    "cue-lsp/lsp-proxy.js::findFiles",
+                    "cue-lsp/lsp-proxy.js::pollOpenDocs",
+                    "cue-lsp/lsp-proxy.js::reconcileClientChange",
+                    "cue-lsp/lsp-proxy.js::sameStat",
+                    "cue-lsp/lsp-proxy.js::statOf",
+                    "cue-lsp/lsp-proxy.js::toPath",
+                    "cue-lsp/lsp-proxy.js::trackOpen",
+                    "cue-lsp/lsp-proxy.js::warmupServer",
+                    "cue-lsp/lsp-proxy.js::writeMessage"
+                ],
+                "children": {
+                    "cue_language_server_setup": {
+                        "components": [
+                            "cue-lsp/.lsp.json::.lsp.json",
+                            "cue-lsp/hooks/check-cue.sh::check-cue.sh"
+                        ],
+                        "children": {}
+                    },
+                    "cue_language_server_protocol": {
+                        "components": [
+                            "cue-lsp/lsp-proxy.js::writeMessage",
+                            "cue-lsp/lsp-proxy.js::drainBuffer",
+                            "cue-lsp/lsp-proxy.js::drainServerBuffer",
+                            "cue-lsp/lsp-proxy.js::autoAckResult"
+                        ],
+                        "children": {}
+                    },
+                    "cue_language_server_document_lifecycle": {
+                        "components": [
+                            "cue-lsp/lsp-proxy.js::toPath",
+                            "cue-lsp/lsp-proxy.js::statOf",
+                            "cue-lsp/lsp-proxy.js::sameStat",
+                            "cue-lsp/lsp-proxy.js::trackOpen",
+                            "cue-lsp/lsp-proxy.js::reconcileClientChange",
+                            "cue-lsp/lsp-proxy.js::pollOpenDocs",
+                            "cue-lsp/lsp-proxy.js::findFiles",
+                            "cue-lsp/lsp-proxy.js::warmupServer"
+                        ],
+                        "children": {}
+                    }
+                }
+            },
+            "pyright_language_server": {
+                "path": "pyright",
+                "components": [
+                    "pyright/.lsp.json::.lsp.json",
+                    "pyright/hooks/check-pyright.sh::check-pyright.sh",
+                    "pyright/lsp-proxy.js::autoAckResult",
+                    "pyright/lsp-proxy.js::drainBuffer",
+                    "pyright/lsp-proxy.js::drainServerBuffer",
+                    "pyright/lsp-proxy.js::findFiles",
+                    "pyright/lsp-proxy.js::pollOpenDocs",
+                    "pyright/lsp-proxy.js::reconcileClientChange",
+                    "pyright/lsp-proxy.js::sameStat",
+                    "pyright/lsp-proxy.js::statOf",
+                    "pyright/lsp-proxy.js::toPath",
+                    "pyright/lsp-proxy.js::trackOpen",
+                    "pyright/lsp-proxy.js::warmupServer",
+                    "pyright/lsp-proxy.js::writeMessage"
+                ],
+                "children": {
+                    "pyright_language_server_setup": {
+                        "components": [
+                            "pyright/.lsp.json::.lsp.json",
+                            "pyright/hooks/check-pyright.sh::check-pyright.sh"
+                        ],
+                        "children": {}
+                    },
+                    "pyright_language_server_protocol": {
+                        "components": [
+                            "pyright/lsp-proxy.js::writeMessage",
+                            "pyright/lsp-proxy.js::drainBuffer",
+                            "pyright/lsp-proxy.js::drainServerBuffer",
+                            "pyright/lsp-proxy.js::autoAckResult"
+                        ],
+                        "children": {}
+                    },
+                    "pyright_language_server_document_lifecycle": {
+                        "components": [
+                            "pyright/lsp-proxy.js::toPath",
+                            "pyright/lsp-proxy.js::statOf",
+                            "pyright/lsp-proxy.js::sameStat",
+                            "pyright/lsp-proxy.js::trackOpen",
+                            "pyright/lsp-proxy.js::reconcileClientChange",
+                            "pyright/lsp-proxy.js::pollOpenDocs",
+                            "pyright/lsp-proxy.js::findFiles",
+                            "pyright/lsp-proxy.js::warmupServer"
+                        ],
+                        "children": {}
+                    }
+                }
+            },
+            "regal_language_server": {
+                "path": "regal-lsp",
+                "components": [
+                    "regal-lsp/.lsp.json::.lsp.json",
+                    "regal-lsp/hooks/check-regal.sh::check-regal.sh",
+                    "regal-lsp/lsp-proxy.js::autoAckResult",
+                    "regal-lsp/lsp-proxy.js::drainBuffer",
+                    "regal-lsp/lsp-proxy.js::drainServerBuffer",
+                    "regal-lsp/lsp-proxy.js::findFiles",
+                    "regal-lsp/lsp-proxy.js::pollOpenDocs",
+                    "regal-lsp/lsp-proxy.js::reconcileClientChange",
+                    "regal-lsp/lsp-proxy.js::sameStat",
+                    "regal-lsp/lsp-proxy.js::statOf",
+                    "regal-lsp/lsp-proxy.js::toPath",
+                    "regal-lsp/lsp-proxy.js::trackOpen",
+                    "regal-lsp/lsp-proxy.js::warmupServer",
+                    "regal-lsp/lsp-proxy.js::writeMessage"
+                ],
+                "children": {
+                    "regal_language_server_setup": {
+                        "components": [
+                            "regal-lsp/.lsp.json::.lsp.json",
+                            "regal-lsp/hooks/check-regal.sh::check-regal.sh"
+                        ],
+                        "children": {}
+                    },
+                    "regal_language_server_protocol": {
+                        "components": [
+                            "regal-lsp/lsp-proxy.js::writeMessage",
+                            "regal-lsp/lsp-proxy.js::drainBuffer",
+                            "regal-lsp/lsp-proxy.js::drainServerBuffer",
+                            "regal-lsp/lsp-proxy.js::autoAckResult"
+                        ],
+                        "children": {}
+                    },
+                    "regal_language_server_document_lifecycle": {
+                        "components": [
+                            "regal-lsp/lsp-proxy.js::toPath",
+                            "regal-lsp/lsp-proxy.js::statOf",
+                            "regal-lsp/lsp-proxy.js::sameStat",
+                            "regal-lsp/lsp-proxy.js::trackOpen",
+                            "regal-lsp/lsp-proxy.js::reconcileClientChange",
+                            "regal-lsp/lsp-proxy.js::pollOpenDocs",
+                            "regal-lsp/lsp-proxy.js::findFiles",
+                            "regal-lsp/lsp-proxy.js::warmupServer"
+                        ],
+                        "children": {}
+                    }
+                }
+            },
+            "vtsls_language_server": {
+                "path": "vtsls",
+                "components": [
+                    "vtsls/.lsp.json::.lsp.json",
+                    "vtsls/hooks/check-vtsls.sh::check-vtsls.sh",
+                    "vtsls/lsp-proxy.js::autoAckResult",
+                    "vtsls/lsp-proxy.js::drainBuffer",
+                    "vtsls/lsp-proxy.js::drainServerBuffer",
+                    "vtsls/lsp-proxy.js::findFiles",
+                    "vtsls/lsp-proxy.js::pollOpenDocs",
+                    "vtsls/lsp-proxy.js::reconcileClientChange",
+                    "vtsls/lsp-proxy.js::sameStat",
+                    "vtsls/lsp-proxy.js::statOf",
+                    "vtsls/lsp-proxy.js::toPath",
+                    "vtsls/lsp-proxy.js::trackOpen",
+                    "vtsls/lsp-proxy.js::warmupServer",
+                    "vtsls/lsp-proxy.js::writeMessage"
+                ],
+                "children": {
+                    "vtsls_language_server_setup": {
+                        "components": [
+                            "vtsls/.lsp.json::.lsp.json",
+                            "vtsls/hooks/check-vtsls.sh::check-vtsls.sh"
+                        ],
+                        "children": {}
+                    },
+                    "vtsls_language_server_protocol": {
+                        "components": [
+                            "vtsls/lsp-proxy.js::writeMessage",
+                            "vtsls/lsp-proxy.js::drainBuffer",
+                            "vtsls/lsp-proxy.js::drainServerBuffer",
+                            "vtsls/lsp-proxy.js::autoAckResult"
+                        ],
+                        "children": {}
+                    },
+                    "vtsls_language_server_document_lifecycle": {
+                        "components": [
+                            "vtsls/lsp-proxy.js::toPath",
+                            "vtsls/lsp-proxy.js::statOf",
+                            "vtsls/lsp-proxy.js::sameStat",
+                            "vtsls/lsp-proxy.js::trackOpen",
+                            "vtsls/lsp-proxy.js::reconcileClientChange",
+                            "vtsls/lsp-proxy.js::pollOpenDocs",
+                            "vtsls/lsp-proxy.js::findFiles",
+                            "vtsls/lsp-proxy.js::warmupServer"
+                        ],
+                        "children": {}
+                    }
+                }
+            }
+        }
+    },
+    "engineering_platform_and_validation": {
+        "path": "",
+        "components": [
+            ".copier-answers.yml::.copier-answers.yml",
+            ".editorconfig::.editorconfig",
+            ".gitleaks.toml::.gitleaks.toml",
+            "Makefile::Makefile",
+            "Makefile::test",
+            "lefthook-local.yml::lefthook-local.yml",
+            "lefthook.yml::lefthook.yml",
+            "renovate.json::renovate.json",
+            "treefmt.toml::treefmt.toml",
+            "tsconfig.json::tsconfig.json",
+            ".config/mise-bootstrap.toml::mise-bootstrap.toml",
+            ".mise.local.toml::.mise.local.toml",
+            ".mise.toml::.mise.toml",
+            "scripts/cloud-setup-shim.sh::cloud-setup-shim.sh",
+            "scripts/common/cloud-setup.sh::cloud-setup.sh",
+            "scripts/common/session-start-claude.sh::session-start-claude.sh",
+            "scripts/common/standards-pin.sh::standards-pin.sh",
+            "scripts/devcontainer-apple.sh::devcontainer-apple.sh",
+            "scripts/session-start-claude-shim.sh::session-start-claude-shim.sh",
+            ".github/workflows/cloud-setup-smoke.yml::cloud-setup-smoke",
+            ".github/workflows/cloud-setup-smoke.yml::cloud-setup-smoke.yml",
+            ".github/workflows/copilot-setup-steps.yml::copilot-setup-steps",
+            ".github/workflows/copilot-setup-steps.yml::copilot-setup-steps.yml",
+            ".github/workflows/standards.yml::codewiki-pages",
+            ".github/workflows/standards.yml::standards.yml",
+            ".github/workflows/standards.yml::trufflehog",
+            ".github/workflows/test-gate.yml::aggregate",
+            ".github/workflows/test-gate.yml::test-gate.yml",
+            ".github/workflows/test-gate.yml::tests-macos",
+            ".github/workflows/test-gate.yml::tests-ubuntu"
+        ],
+        "children": {
+            "repository_build_and_configuration": {
+                "path": ".",
+                "components": [
+                    ".copier-answers.yml::.copier-answers.yml",
+                    ".editorconfig::.editorconfig",
+                    ".gitleaks.toml::.gitleaks.toml",
+                    "Makefile::Makefile",
+                    "Makefile::test",
+                    "lefthook-local.yml::lefthook-local.yml",
+                    "lefthook.yml::lefthook.yml",
+                    "renovate.json::renovate.json",
+                    "treefmt.toml::treefmt.toml",
+                    "tsconfig.json::tsconfig.json"
+                ],
+                "children": {
+                    "repository_build_and_configuration_shared_policy": {
+                        "components": [
+                            ".copier-answers.yml::.copier-answers.yml",
+                            ".gitleaks.toml::.gitleaks.toml",
+                            "renovate.json::renovate.json"
+                        ],
+                        "children": {}
+                    },
+                    "repository_build_and_configuration_formatting_and_hooks": {
+                        "components": [
+                            ".editorconfig::.editorconfig",
+                            "lefthook.yml::lefthook.yml",
+                            "lefthook-local.yml::lefthook-local.yml",
+                            "treefmt.toml::treefmt.toml"
+                        ],
+                        "children": {}
+                    },
+                    "repository_build_and_configuration_validation_entry_points": {
+                        "components": [
+                            "Makefile::Makefile",
+                            "Makefile::test",
+                            "tsconfig.json::tsconfig.json"
+                        ],
+                        "children": {}
+                    }
+                }
+            },
+            "development_environment_bootstrap": {
+                "path": ".",
+                "components": [
+                    ".config/mise-bootstrap.toml::mise-bootstrap.toml",
+                    ".mise.local.toml::.mise.local.toml",
+                    ".mise.toml::.mise.toml",
+                    "scripts/cloud-setup-shim.sh::cloud-setup-shim.sh",
+                    "scripts/common/cloud-setup.sh::cloud-setup.sh",
+                    "scripts/common/session-start-claude.sh::session-start-claude.sh",
+                    "scripts/common/standards-pin.sh::standards-pin.sh",
+                    "scripts/devcontainer-apple.sh::devcontainer-apple.sh",
+                    "scripts/session-start-claude-shim.sh::session-start-claude-shim.sh"
+                ],
+                "children": {}
+            },
+            "continuous_integration": {
+                "path": ".github/workflows",
+                "components": [
+                    ".github/workflows/cloud-setup-smoke.yml::cloud-setup-smoke",
+                    ".github/workflows/cloud-setup-smoke.yml::cloud-setup-smoke.yml",
+                    ".github/workflows/copilot-setup-steps.yml::copilot-setup-steps",
+                    ".github/workflows/copilot-setup-steps.yml::copilot-setup-steps.yml",
+                    ".github/workflows/standards.yml::codewiki-pages",
+                    ".github/workflows/standards.yml::standards.yml",
+                    ".github/workflows/standards.yml::trufflehog",
+                    ".github/workflows/test-gate.yml::aggregate",
+                    ".github/workflows/test-gate.yml::test-gate.yml",
+                    ".github/workflows/test-gate.yml::tests-macos",
+                    ".github/workflows/test-gate.yml::tests-ubuntu"
+                ],
+                "children": {
+                    "continuous_integration_test_gate": {
+                        "components": [
+                            ".github/workflows/test-gate.yml::test-gate.yml",
+                            ".github/workflows/test-gate.yml::tests-ubuntu",
+                            ".github/workflows/test-gate.yml::tests-macos",
+                            ".github/workflows/test-gate.yml::aggregate"
+                        ],
+                        "children": {}
+                    },
+                    "continuous_integration_cloud_setup_smoke": {
+                        "components": [
+                            ".github/workflows/cloud-setup-smoke.yml::cloud-setup-smoke.yml",
+                            ".github/workflows/cloud-setup-smoke.yml::cloud-setup-smoke"
+                        ],
+                        "children": {}
+                    },
+                    "continuous_integration_standards_automation": {
+                        "components": [
+                            ".github/workflows/standards.yml::standards.yml",
+                            ".github/workflows/standards.yml::trufflehog",
+                            ".github/workflows/standards.yml::codewiki-pages"
+                        ],
+                        "children": {}
+                    },
+                    "continuous_integration_copilot_setup": {
+                        "components": [
+                            ".github/workflows/copilot-setup-steps.yml::copilot-setup-steps.yml",
+                            ".github/workflows/copilot-setup-steps.yml::copilot-setup-steps"
+                        ],
+                        "children": {}
+                    }
+                }
+            }
+        }
+    }
+}
