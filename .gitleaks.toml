@@ -1,5 +1,5 @@
-# .gitleaks.toml — Config Stub (config_model: native, ADR-0033).
-# Extends the shared Gitleaks config in the Shared Config Checkout, which in
+# .gitleaks.toml — Config Stub (ADR-0033).
+# Extends the shared Gitleaks config in the Shared Config Directory, which in
 # turn extends Gitleaks' default rules (two levels, Gitleaks' maximum). Gitleaks
 # resolves `path` from the directory it runs in, so run it from the repository
 # root; a missing file is a fatal load error, never a fallback to defaults.

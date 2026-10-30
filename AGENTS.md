@@ -8,8 +8,8 @@ Repo-specific context (in-progress migrations, gotchas, agent guidance):
 
 A Claude Code plugin **marketplace** that ships five LSP plugins (`bash-language-server`, `cue-lsp`, `pyright`, `regal-lsp`, `vtsls`). There is no application to build — the "product" is the directory tree itself, consumed by Claude Code via `.claude-plugin/marketplace.json`.
 
-The repository uses `config_model: native`: tool configs and hooks inherit from the gitignored
-`.standards-config/` checkout on the stable channel. Repository exceptions live in the Config
+Tool configs and hooks inherit from the gitignored Shared Config Directory at
+`.standards-config/`, following main. Repository exceptions live in the Config
 Stubs and `lefthook-local.yml`; repository tasks live in `.mise.local.toml`. There is no
 `package.json`: the Node proxies have no npm dependencies.
 

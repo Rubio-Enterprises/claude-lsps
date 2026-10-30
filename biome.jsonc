@@ -1,5 +1,5 @@
-// biome.jsonc — Config Stub (config_model: native, ADR-0033).
-// Extends the shared Biome floor in the Shared Config Checkout; a missing
+// biome.jsonc — Config Stub (ADR-0033).
+// Extends the shared Biome floor in the Shared Config Directory; a missing
 // parent is a configuration error, never a fallback to defaults.
 //
 // Repository settings go below in Biome's own syntax. Objects merge and the
