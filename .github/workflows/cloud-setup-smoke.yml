@@ -84,7 +84,7 @@ jobs:
     # yamllint disable-line rule:line-length
     uses: Rubio-Enterprises/.github/.github/workflows/cloud-setup-smoke.yml@main
     # ADR-0033: the read-only standards-reader App clones
-    # the Shared Config Checkout; the reusable fails without it.
+    # the Shared Config Directory; the reusable fails without it.
     secrets:
       STANDARDS_READER_APP_ID: ${{ secrets.STANDARDS_READER_APP_ID }}
       STANDARDS_READER_APP_PRIVATE_KEY: ${{ secrets.STANDARDS_READER_APP_PRIVATE_KEY }}
