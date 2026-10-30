@@ -1,0 +1,281 @@
+{
+    "token_budget": 200000,
+    "tokens_used": 22508,
+    "caps": {
+        "per_file_bytes": 16384,
+        "per_class_files": 40,
+        "per_file_units": 25
+    },
+    "with_prose": false,
+    "classes": {
+        "manifest": {
+            "files": [
+                {
+                    "path": "tsconfig.json",
+                    "bytes": 478,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                }
+            ],
+            "omitted_by_class_cap": [],
+            "not_loaded_budget": []
+        },
+        "build": {
+            "files": [
+                {
+                    "path": "Makefile",
+                    "bytes": 648,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": [
+                        "test"
+                    ]
+                }
+            ],
+            "omitted_by_class_cap": [],
+            "not_loaded_budget": []
+        },
+        "ci": {
+            "files": [
+                {
+                    "path": ".github/workflows/cloud-setup-smoke.yml",
+                    "bytes": 5255,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": [
+                        "cloud-setup-smoke"
+                    ]
+                },
+                {
+                    "path": ".github/workflows/copilot-setup-steps.yml",
+                    "bytes": 1431,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": [
+                        "copilot-setup-steps"
+                    ]
+                },
+                {
+                    "path": ".github/workflows/standards.yml",
+                    "bytes": 3251,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": [
+                        "codewiki-pages",
+                        "trufflehog"
+                    ]
+                },
+                {
+                    "path": ".github/workflows/test-gate.yml",
+                    "bytes": 7133,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": [
+                        "aggregate",
+                        "tests-macos",
+                        "tests-ubuntu"
+                    ]
+                }
+            ],
+            "omitted_by_class_cap": [],
+            "not_loaded_budget": []
+        },
+        "config": {
+            "files": [
+                {
+                    "path": ".copier-answers.yml",
+                    "bytes": 1145,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": ".editorconfig",
+                    "bytes": 210,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": ".gitleaks.toml",
+                    "bytes": 541,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": ".mise.local.toml",
+                    "bytes": 843,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": ".mise.toml",
+                    "bytes": 2298,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "lefthook-local.yml",
+                    "bytes": 674,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "lefthook.yml",
+                    "bytes": 1809,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "renovate.json",
+                    "bytes": 120,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "treefmt.toml",
+                    "bytes": 1004,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": ".config/mise-bootstrap.toml",
+                    "bytes": 217,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "bash-language-server/.lsp.json",
+                    "bytes": 293,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "cue-lsp/.lsp.json",
+                    "bytes": 197,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "pyright/.lsp.json",
+                    "bytes": 226,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "regal-lsp/.lsp.json",
+                    "bytes": 200,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "vtsls/.lsp.json",
+                    "bytes": 415,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                }
+            ],
+            "omitted_by_class_cap": [],
+            "not_loaded_budget": []
+        },
+        "script": {
+            "files": [
+                {
+                    "path": "scripts/cloud-setup-shim.sh",
+                    "bytes": 1497,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "scripts/devcontainer-apple.sh",
+                    "bytes": 1098,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "scripts/session-start-claude-shim.sh",
+                    "bytes": 1734,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "bash-language-server/hooks/check-bash-language-server.sh",
+                    "bytes": 2200,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "cue-lsp/hooks/check-cue.sh",
+                    "bytes": 2811,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "pyright/hooks/check-pyright.sh",
+                    "bytes": 2159,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "regal-lsp/hooks/check-regal.sh",
+                    "bytes": 2934,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "scripts/common/cloud-setup.sh",
+                    "bytes": 44724,
+                    "truncated": true,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "scripts/common/session-start-claude.sh",
+                    "bytes": 17052,
+                    "truncated": true,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "scripts/common/standards-pin.sh",
+                    "bytes": 5536,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                },
+                {
+                    "path": "vtsls/hooks/check-vtsls.sh",
+                    "bytes": 2157,
+                    "truncated": false,
+                    "loaded": true,
+                    "units": []
+                }
+            ],
+            "omitted_by_class_cap": [],
+            "not_loaded_budget": []
+        }
+    },
+    "nodes": 40,
+    "edges": 11
+}
