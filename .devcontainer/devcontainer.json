@@ -1,8 +1,9 @@
 {
   "name": "claude-lsps",
-  "image": "mcr.microsoft.com/devcontainers/base:2.2.1-trixie",
-  "features": {
-    "ghcr.io/rubio-enterprises/devcontainer-features/baseline:3.0.1": {}
+  "image": "ghcr.io/rubio-enterprises/claude-lsps/devcontainer:main",
+  "updateContentCommand": "bash -c 'source scripts/common/standards-pin.sh && standards_devcontainer_setup \"$PWD\" --check-only && exec \"$@\"' standards-lifecycle bash -c 'mise run setup'",
+  "containerEnv": {
+    "STANDARDS_DEVCONTAINER": "1"
   },
-  "updateContentCommand": "mise bootstrap --only repos,tools --yes && mise run setup"
+  "onCreateCommand": "bash -c 'source scripts/common/standards-pin.sh && standards_devcontainer_setup \"$PWD\" --check-only'"
 }

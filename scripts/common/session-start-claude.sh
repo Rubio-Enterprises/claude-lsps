@@ -31,10 +31,8 @@
 #      metadata via api.github.com and 403s on the unauthenticated rate limit).
 #   3. Persist PATH via $CLAUDE_ENV_FILE — the only mechanism that exposes tools
 #      to a session's later Bash calls (in-process exports do not carry).
-#   4. Resolve the repo root from THIS script's location (BASH_SOURCE), NOT from
-#      CLAUDE_PROJECT_DIR, which in multi-repo workspaces may point at a parent
-#      directory. CLAUDE_PROJECT_DIR is used only as a non-authoritative sanity
-#      cross-check (a warning on mismatch).
+#   4. Resolve local roots from BASH_SOURCE. Cloud image startup requires
+#      CLAUDE_PROJECT_DIR to identify the same repository before mounting it.
 #   5. Emit a cloud-setup drift NOTE on stdout when the cloud-setup pair
 #      (scripts/cloud-setup-shim.sh + scripts/common/cloud-setup.sh) and its
 #      snapshot-persisted fingerprint disagree (silent no-op locally), and
@@ -61,6 +59,22 @@ export PATH="${HOME:-/root}/.local/bin:${HOME:-/root}/.local/share/mise/shims:$P
 log() { printf '[session-start] %s\n' "$*" >&2; }
 warn() { printf '[session-start] WARN: %s\n' "$*" >&2; }
 
+_standards_persist_path() {
+  # (3) Persist PATH for the session's later Bash calls. Expose mise's own bin dir
+  # (so `mise run`/`mise exec`, used by lefthook, work) plus the mise shims dir.
+  # Only these dirs are added, so the system language toolchains are never shadowed.
+  if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+    mise_bin="$(command -v mise 2>/dev/null)"
+    if [ -n "$mise_bin" ]; then
+      # Literal $PATH is intentional: it expands when the env file is sourced.
+      # shellcheck disable=SC2016
+      printf 'export PATH="%s:%s:$PATH"\n' \
+        "$(dirname -- "$mise_bin")" \
+        "${HOME:-/root}/.local/share/mise/shims" >>"$CLAUDE_ENV_FILE" || true
+    fi
+  fi
+}
+
 # (4) Resolve the repo root from this script's own location — TWO levels up:
 # this core lives at scripts/common/. This is the proven-safe pattern: it works
 # whether the core is entered via the shim, invoked directly, or run from
@@ -78,88 +92,100 @@ cd "$repo_root" || exit 0
 # shellcheck source=scripts/common/standards-pin.sh disable=SC1091
 source "$repo_root/scripts/common/standards-pin.sh"
 standards_restore_pin "$repo_root"
-
-# Only act inside this repo — a SessionStart hook can fire in unrelated
-# checkouts. The mise manifest is the repo marker.
-[ -f .mise.toml ] || exit 0
-
-# (2) Aqua-backed installs hit api.github.com and 403 on the anonymous rate
-# limit. Reuse GH_TOKEN when GITHUB_TOKEN isn't already set so the cloud env's
-# pre-provisioned token works without extra config. Harmless when neither is set.
-if [ -z "${GITHUB_TOKEN:-}" ] && [ -n "${GH_TOKEN:-}" ]; then
-  export GITHUB_TOKEN="$GH_TOKEN"
+if [ "${STANDARDS_DEVCONTAINER:-}" = 1 ] && [ "${CLAUDE_CODE_REMOTE:-}" != true ]; then
+  standards_devcontainer_setup "$repo_root" --check-only
+  standards_restore_pin "$repo_root"
 fi
 
-# Ensure the mise binary is reachable. Locally we never install onto the
-# developer's machine unprompted; in cloud (CLAUDE_CODE_REMOTE=true) we bootstrap
-# it best-effort. Absent mise, the hook is a clean no-op (e.g. swift/bare repos
-# whose .mise.toml carries only the shared tool floor still benefit, but a
-# missing mise must never fail the session).
-if ! command -v mise >/dev/null 2>&1; then
-  if [ -x "$HOME/.local/bin/mise" ]; then
-    export PATH="$HOME/.local/bin:$PATH"
-  elif [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
-    log "installing mise"
-    (cd / && curl -fsSL https://mise.run | sh >/dev/null 2>&1) || true
-    export PATH="$HOME/.local/bin:$PATH"
+__standards_image_session=false
+__standards_container_note=""
+if [ "${CLAUDE_CODE_REMOTE:-}" = true ] && [ -z "${CLOUD_SETUP_BUILD:-}" ]; then
+  : "${CLAUDE_PROJECT_DIR:?cloud SessionStart requires CLAUDE_PROJECT_DIR}"
+  cloud_root="$(cd -- "$CLAUDE_PROJECT_DIR" && pwd -P)"
+  [ "$cloud_root" = "$(cd -- "$repo_root" && pwd -P)" ] || {
+    warn 'CLAUDE_PROJECT_DIR must name this repository for cloud container startup'
+    exit 1
+  }
+  __standards_container_note="$(standards_cloud_container "$cloud_root")"
+  _standards_persist_path
+  __standards_image_session=true
+fi
+
+if [ "$__standards_image_session" != true ]; then
+  # Only act inside this repo — a SessionStart hook can fire in unrelated
+  # checkouts. The mise manifest is the repo marker.
+  [ -f .mise.toml ] || exit 0
+
+  # (2) Aqua-backed installs hit api.github.com and 403 on the anonymous rate
+  # limit. Reuse GH_TOKEN when GITHUB_TOKEN isn't already set so the cloud env's
+  # pre-provisioned token works without extra config. Harmless when neither is set.
+  if [ -z "${GITHUB_TOKEN:-}" ] && [ -n "${GH_TOKEN:-}" ]; then
+    export GITHUB_TOKEN="$GH_TOKEN"
   fi
-fi
-if ! command -v mise >/dev/null 2>&1; then
-  warn "mise not on PATH; install it (https://mise.jdx.dev) so the pinned toolchain and lefthook git hooks resolve"
-  [ "${STANDARDS_PIN+x}" != x ] || exit 1
-  exit 0
-fi
-if [ "${STANDARDS_PIN+x}" = x ]; then
-  standards_require_ready "$repo_root" "$STANDARDS_PIN"
-fi
 
-# (7) Idempotent toolchain check: install only when something is missing. A warm
-# environment costs well under a second.
-# `mise ls --missing` exits 0 even for missing pins, so check its output
-# ADR-0033: `mise bootstrap --only repos,tools` provisions
-# the Shared Config Directory as well as the toolchain. A plain `mise install`
-# would leave the hooks and Config Stubs without their shared files.
-if [ ! -f "$repo_root/.standards-config/config/lefthook/base.yml" ] ||
-  ! missing_tools="$(mise -C "$repo_root" ls --missing --no-header 2>/dev/null)" ||
-  [ -n "$missing_tools" ] ||
-  ! mise -C "$repo_root" which shellcheck >/dev/null 2>&1; then
+  # Ensure the mise binary is reachable. Locally we never install onto the
+  # developer's machine unprompted; in cloud (CLAUDE_CODE_REMOTE=true) we bootstrap
+  # it best-effort. Absent mise, the hook is a clean no-op (e.g. swift/bare repos
+  # whose .mise.toml carries only the shared tool floor still benefit, but a
+  # missing mise must never fail the session).
+  if ! command -v mise >/dev/null 2>&1; then
+    if [ -x "$HOME/.local/bin/mise" ]; then
+      export PATH="$HOME/.local/bin:$PATH"
+    elif [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
+      log "installing mise"
+      (cd / && curl -fsSL https://mise.run | sh >/dev/null 2>&1) || true
+      export PATH="$HOME/.local/bin:$PATH"
+    fi
+  fi
+  if ! command -v mise >/dev/null 2>&1; then
+    warn "mise not on PATH; install it (https://mise.jdx.dev) so the pinned toolchain and lefthook git hooks resolve"
+    [ "${STANDARDS_PIN+x}" != x ] || exit 1
+    exit 0
+  fi
+  if [ "${STANDARDS_PIN+x}" = x ]; then
+    standards_require_ready "$repo_root" "$STANDARDS_PIN"
+  fi
+
+  # (7) Idempotent toolchain check: install only when something is missing. A warm
+  # environment costs well under a second.
+  # `mise ls --missing` exits 0 even for missing pins, so check its output
+  # Containers must retain the host-prepared Shared Config Directory.
+  if [ ! -f "$repo_root/.standards-config/config/lefthook/base.yml" ] ||
+    ! missing_tools="$(mise -C "$repo_root" ls --missing --no-header 2>/dev/null)" ||
+    [ -n "$missing_tools" ] ||
+    ! mise -C "$repo_root" which shellcheck >/dev/null 2>&1; then
+    mise trust "$repo_root" >/dev/null 2>&1 || true
+    if [ "${STANDARDS_DEVCONTAINER:-}" = 1 ]; then
+      log "installing tools against the host-provisioned Shared Config Directory"
+      mise -C "$repo_root" install || warn "mise install reported errors; re-run 'mise install' before committing"
+    else
+      log "provisioning the Shared Config Checkout and pinned toolchain via mise bootstrap"
+      mise -C "$repo_root" bootstrap --only repos,tools --yes || warn "mise bootstrap reported errors; re-run 'mise bootstrap --only repos,tools --yes' before committing"
+    fi
+  fi
   mise trust "$repo_root" >/dev/null 2>&1 || true
-  log "provisioning the Shared Config Checkout and pinned toolchain via mise bootstrap"
-  mise -C "$repo_root" bootstrap --only repos,tools --yes || warn "mise bootstrap reported errors; re-run 'mise bootstrap --only repos,tools --yes' before committing"
-fi
-mise trust "$repo_root" >/dev/null 2>&1 || true
 
-# (3) Persist PATH for the session's later Bash calls. Expose mise's own bin dir
-# (so `mise run`/`mise exec`, used by lefthook, work) plus the mise shims dir.
-# Only these dirs are added, so the system language toolchains are never shadowed.
-if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-  mise_bin="$(command -v mise 2>/dev/null)"
-  if [ -n "$mise_bin" ]; then
-    # Literal $PATH is intentional: it expands when the env file is sourced.
-    # shellcheck disable=SC2016
-    printf 'export PATH="%s:%s:$PATH"\n' \
-      "$(dirname -- "$mise_bin")" \
-      "${HOME:-/root}/.local/share/mise/shims" >>"$CLAUDE_ENV_FILE" || true
+  _standards_persist_path
+
+  # (8) Optional repo-local startup (scripts/repo-local/session-start-claude.sh).
+  # The template owns the mise warmup + PATH above and the cloud drift NOTE
+  # below; a repo drops in startup this template cannot know about (an extra
+  # language toolchain, a workspace install, a dev daemon, env-var defaults) as
+  # scripts/repo-local/session-start-claude.sh — REPO-OWNED, committed (cloud
+  # only runs committed files), NEVER rendered by the template. It runs HERE —
+  # after the pinned toolchain is installed and reachable (the mise shims dir is
+  # on PATH from the top of this script, so the child inherits the toolchain) and
+  # abort-proof (`|| true`) so a hiccup can never fail the session. Absent the
+  # file this is a zero-cost no-op, so a repo with no bespoke startup renders the
+  # identical core. The child runs with: cwd = repo root; the pinned toolchain on
+  # PATH; $CLAUDE_ENV_FILE available to persist its own env/PATH; $GITHUB_TOKEN
+  # bridged; $CLAUDE_CODE_REMOTE set in cloud. Contract: keep stdout clean (this
+  # hook's stdout is Claude's context — at most one actionable NOTE; chatter to
+  # stderr) and end in `exit 0`.
+  if [ -f "$repo_root/scripts/repo-local/session-start-claude.sh" ]; then
+    bash "$repo_root/scripts/repo-local/session-start-claude.sh" || true
   fi
-fi
 
-# (8) Optional repo-local startup (scripts/repo-local/session-start-claude.sh).
-# The template owns the mise warmup + PATH above and the cloud drift NOTE
-# below; a repo drops in startup this template cannot know about (an extra
-# language toolchain, a workspace install, a dev daemon, env-var defaults) as
-# scripts/repo-local/session-start-claude.sh — REPO-OWNED, committed (cloud
-# only runs committed files), NEVER rendered by the template. It runs HERE —
-# after the pinned toolchain is installed and reachable (the mise shims dir is
-# on PATH from the top of this script, so the child inherits the toolchain) and
-# abort-proof (`|| true`) so a hiccup can never fail the session. Absent the
-# file this is a zero-cost no-op, so a repo with no bespoke startup renders the
-# identical core. The child runs with: cwd = repo root; the pinned toolchain on
-# PATH; $CLAUDE_ENV_FILE available to persist its own env/PATH; $GITHUB_TOKEN
-# bridged; $CLAUDE_CODE_REMOTE set in cloud. Contract: keep stdout clean (this
-# hook's stdout is Claude's context — at most one actionable NOTE; chatter to
-# stderr) and end in `exit 0`.
-if [ -f "$repo_root/scripts/repo-local/session-start-claude.sh" ]; then
-  bash "$repo_root/scripts/repo-local/session-start-claude.sh" || true
 fi
 
 # (5) Cloud env-cache drift check. scripts/common/cloud-setup.sh bakes a
@@ -278,6 +304,10 @@ if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] && [ -z "${CLOUD_SETUP_BUILD:-}" ]; th
   [ -n "$__wf_missing" ] && workflow_note=" NOTE: cloud workflow seeding incomplete — missing from ~/.claude/workflows:${__wf_missing}. Those workflow names will not resolve. The snapshot likely predates the seeding clause in scripts/common/cloud-setup.sh — bump CACHE_EPOCH in the Setup-script wrapper and re-save to rebuild."
 fi
 drift_note="${drift_note}${plugin_note}${workflow_note}"
+if [ "$__standards_image_session" = true ]; then
+  printf '%s%s\n' "$__standards_container_note" "$drift_note"
+  exit 0
+fi
 
 # (6) SessionStart stdout becomes Claude's context — one concise, stack-aware
 # line (first matching stack facet wins; ts-first keeps polyglot repos on the

@@ -91,6 +91,98 @@ standards_restore_pin() {
   fi
 }
 
+standards_devcontainer_setup() {
+  local root="$1" mode="${2:-}" pin derived=false
+  if [ "${STANDARDS_PIN+x}" != x ]; then
+    if [ "${CI:-}" = true ] || [ "${CLAUDE_CODE_REMOTE:-}" = true ]; then
+      standards_pin_error 'CI and cloud containers require an independently supplied STANDARDS_PIN'
+      return 1
+    fi
+    pin="$(git -C "$root/.standards-config" rev-parse HEAD 2>/dev/null)" || {
+      standards_pin_error 'run mise bootstrap --only repos,tools --yes on the laptop HOST before opening the Dev Container'
+      return 1
+    }
+    export STANDARDS_PIN="$pin"
+    derived=true
+  fi
+  standards_verify_checkout "$root" "$STANDARDS_PIN" || return 1
+  if [ "$derived" = true ] && [ "${STANDARDS_DEVCONTAINER:-}" = 1 ] &&
+    ! bash -c 'unset -f standards_devcontainer_setup; source "$1"; declare -F standards_devcontainer_setup >/dev/null' _ \
+      "$root/.standards-config/template/scripts/common/standards-pin.sh" >/dev/null 2>&1; then
+    standards_pin_error 'prepared standards predate container setup; run mise bootstrap --only repos,tools --yes on the laptop HOST'
+    return 1
+  fi
+  mise trust "$root/.mise.toml" >/dev/null || return 1
+  standards_require_ready "$root" "$STANDARDS_PIN" || return 1
+  if [ "$mode" != --check-only ]; then
+    mise -C "$root" run setup
+  fi
+}
+
+standards_cloud_container() (
+  set -euo pipefail
+  local root="$1" auth state image
+  local cli=(devcontainer)
+  [ "${CLAUDE_CODE_REMOTE:-}" = true ] || exit 0
+  standards_restore_pin "$root"
+  standards_pin_valid "${STANDARDS_PIN:-}"
+  standards_require_ready "$root" "$STANDARDS_PIN"
+  if ! command -v devcontainer >/dev/null || [ "$(devcontainer --version)" != 0.89.0 ]; then
+    cli=(mise exec npm:@devcontainers/cli@0.89.0 -- devcontainer)
+  fi
+  [[ "$("${cli[@]}" --version)" = 0.89.0 ]] || {
+    standards_pin_error 'cloud image execution requires Dev Container CLI 0.89.0'
+    exit 1
+  }
+  state="${XDG_STATE_HOME:-$HOME/.local/state}/standards/cloud"
+  mkdir -p "$state"
+  if ! docker info >/dev/null 2>&1; then
+    command -v dockerd >/dev/null || {
+      standards_pin_error 'dockerd is required in the cloud environment'
+      exit 1
+    }
+    dockerd >"$state/dockerd.log" 2>&1 &
+    for ((attempt = 0; attempt < 30; attempt++)); do
+      if docker info >/dev/null 2>&1; then break; fi
+      sleep 1
+    done
+    docker info >/dev/null 2>&1 || {
+      standards_pin_error "dockerd did not become ready; inspect $state/dockerd.log"
+      exit 1
+    }
+  fi
+  image="$(jq -er '.image | strings' "$root/.devcontainer/devcontainer.json")"
+  [[ "$image" =~ ^ghcr\.io/rubio-enterprises/[a-z0-9_.-]+/devcontainer:main$ ]] || {
+    standards_pin_error 'cloud requires the repository image runtime definition'
+    exit 1
+  }
+  : "${GHCR_USERNAME:?cloud requires the existing GHCR_USERNAME}"
+  : "${GHCR_READ_TOKEN:?cloud requires the existing classic read:packages GHCR_READ_TOKEN}"
+  auth="$(mktemp -d)"
+  trap 'rm -rf "$auth"' EXIT
+  chmod 700 "$auth"
+  printf '%s\n' '{"auths":{"ghcr.io":{}}}' >"$auth/config.json"
+  printf '%s' "$GHCR_READ_TOKEN" |
+    docker --config "$auth" login ghcr.io --username "$GHCR_USERNAME" --password-stdin >/dev/null
+  docker --config "$auth" pull "$image" >&2
+  rm -rf "$auth"
+  mkdir "$auth"
+  printf '%s\n' '{"auths":{"ghcr.io":{}}}' >"$auth/config.json"
+  unset GHCR_READ_TOKEN GHCR_USERNAME GH_PAT GH_TOKEN GITHUB_TOKEN
+  export DOCKER_CONFIG="$auth"
+  local args=(--workspace-folder "$root" --remote-env "STANDARDS_PIN=$STANDARDS_PIN"
+    --remote-env CLAUDE_CODE_REMOTE=true)
+  "${cli[@]}" read-configuration --workspace-folder "$root" --include-merged-configuration >/dev/null
+  "${cli[@]}" up "${args[@]}" --skip-post-create --default-user-env-probe none >&2
+  # shellcheck disable=SC2016
+  "${cli[@]}" exec "${args[@]}" bash -c 'source scripts/common/standards-pin.sh && standards_devcontainer_setup "$PWD" --check-only' >&2
+  "${cli[@]}" run-user-commands "${args[@]}" --skip-post-attach --default-user-env-probe none >&2
+  "${cli[@]}" exec "${args[@]}" bash -c 'if [ -f scripts/repo-local/session-start-claude.sh ]; then bash scripts/repo-local/session-start-claude.sh >&2 || true; fi' >&2
+  printf 'Repository Image ready. Edit the shared host checkout; run project commands with: '
+  printf '%q ' "${cli[@]}"
+  printf 'exec --workspace-folder %q --remote-env STANDARDS_PIN=%s --remote-env CLAUDE_CODE_REMOTE=true mise run <task>. Do not fall back to native host project commands.\n' "$root" "$STANDARDS_PIN"
+)
+
 standards_reader_git() {
   # Keep the token in the credential subprocess environment, never Git config
   # shellcheck disable=SC2016
