@@ -1,0 +1,4 @@
+# Ruff settings. The shared floor comes from @rubio-enterprises/standards; add this repository's
+# exceptions below in Ruff's own syntax (lint.extend-select, lint.extend-per-file-ignores,
+# extend-exclude); a scalar such as target-version set here wins.
+extend = ".standards/node_modules/@rubio-enterprises/standards/config/ruff.toml"

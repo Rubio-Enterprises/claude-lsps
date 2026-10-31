@@ -1,176 +1,89 @@
+# Test Gate (from @rubio-enterprises/standards; this repository owns it). The `test-gate` job is a
+# required status check. It runs each Lifecycle Task this repository defines (typecheck, build,
+# test, e2e) and, for test and e2e, requires JUnit reports under reports/test/ (junit.xml, or one
+# per package) with at least one test case and no failures, so a suite that runs nothing cannot
+# pass. Change runs-on, add services or setup steps as the repository needs; keep the job name.
+# An Opt-out (STANDARDS_TEST_GATE = "off" in mise.toml) passes it with a notice.
 name: test-gate
-# Canonical repository-local Test Gate (rubio-standards ADR-0020). Replaces the
-# retired bespoke `test.yml`.
-#
-# The old workflow drove both runners from a `strategy.matrix`; the contract
-# forbids matrices in this file (a matrix leg that never starts is
-# indistinguishable from one that passed), so each runner is now an explicit
-# job carrying the full execution proof, and both are listed in the aggregate's
-# `needs`.
-#
-# `make test` is a thin dispatcher onto `bash tests/run.sh` — see the Makefile
-# for why the harness is not invoked directly here.
 
-on:
+"on":
   pull_request:
   merge_group:
-  push:
-    branches: [main]
-  workflow_dispatch:
 
-# Least-privilege default for the GITHUB_TOKEN: tests don't need write scope.
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
-  tests-ubuntu:
-    name: tests / ubuntu-24.04
-    timeout-minutes: 15
-    # Runner selection uses the org-level RUNNERS map so the fleet can move
-    # between GitHub-hosted and self-hosted pools centrally. The per-key
-    # fallback preserves this job's previous GitHub-hosted label.
-    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').small || fromJSON('["ubuntu-slim"]') }}
-    outputs:
-      tests_ran: ${{ steps.test.outputs.tests_ran }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      # Pin Node to a specific patch so setup-node@v6 can't drift across runs.
-      # Coverage collection uses NODE_V8_COVERAGE which has been stable since
-      # Node 18, but a fixed version keeps the coverage gate deterministic.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
-        with:
-          node-version: "24.22.0"
-
-      # jq is bundled with both runner images at compatible versions. We pin
-      # shellcheck explicitly because new releases periodically add diagnostics
-      # that would otherwise flip the suite from green to red without any code
-      # change. Identical binary on both OSes.
-      - name: install shellcheck (pinned)
-        env:
-          SHELLCHECK_VERSION: v0.10.0
-        run: |
-          set -euo pipefail
-          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
-          tmp=$(mktemp -d)
-          curl -fsSL "$url" | tar -xJ -C "$tmp"
-          mkdir -p "$RUNNER_TEMP/bin"
-          install -m 0755 "$tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" "$RUNNER_TEMP/bin/shellcheck"
-          rm -rf "$tmp"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-
-      - name: Verify baked jq
-        run: jq --version
-
-      - name: print tool versions
-        run: |
-          bash --version | head -1
-          node --version
-          jq --version
-          shellcheck --version | head -2
-
-      - id: test
-        name: run test suite
-        # The harness prints a `PASS: <n> tests, 0 failures` summary line on a
-        # green run; that <n> is the executed-test COUNT the gate asserts is
-        # non-zero. Piping through tee keeps the log on the job output while
-        # `set -o pipefail` still propagates a red suite.
-        env:
-          RUBIO_TEST_GATE_COUNT_OUTPUT: ${{ runner.temp }}/test-gate-count
-        run: |
-          set -euo pipefail
-          rm -f "$RUBIO_TEST_GATE_COUNT_OUTPUT"
-          make test | tee "$RUNNER_TEMP/test-run.log"
-          awk '/^PASS: [0-9]+ tests/{print $2}' "$RUNNER_TEMP/test-run.log" > "$RUBIO_TEST_GATE_COUNT_OUTPUT"
-          test -s "$RUBIO_TEST_GATE_COUNT_OUTPUT"
-          test "$(cat "$RUBIO_TEST_GATE_COUNT_OUTPUT")" -gt 0
-          echo "tests_ran=true" >> "$GITHUB_OUTPUT"
-
+  # Users run the plugins' hooks on macOS (bash 3.2 at /bin/bash), so the suite runs there too.
+  # Not a required check itself: test-gate fails when this job does.
   tests-macos:
     name: tests / macos
-    timeout-minutes: 15
     runs-on: ${{ fromJSON(vars.RUNNERS || '{}').macos || fromJSON('["macos-26"]') }}
-    outputs:
-      tests_ran: ${{ steps.test.outputs.tests_ran }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: "24.22.0"
-
-      # shellcheck's darwin.x86_64 binary runs under Rosetta on arm64 runners;
-      # switch to darwin.aarch64 once published for the version we pin.
-      #
-      # Installed into a runner-writable prefix on $GITHUB_PATH rather than
-      # `sudo mv`-ed into /usr/local/bin: passwordless sudo and a writable
-      # /usr/local/bin are GitHub-hosted-image properties, and the macos route
-      # may point this job at a self-hosted pool where neither holds.
-      - name: install shellcheck (pinned)
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          install: false
+      - run: mise run setup
         env:
-          SHELLCHECK_VERSION: v0.10.0
-        run: |
-          set -euo pipefail
-          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.darwin.x86_64.tar.xz"
-          tmp=$(mktemp -d)
-          curl -fsSL "$url" | tar -xJ -C "$tmp"
-          mkdir -p "$RUNNER_TEMP/bin"
-          mv "$tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" "$RUNNER_TEMP/bin/shellcheck"
-          chmod +x "$RUNNER_TEMP/bin/shellcheck"
-          rm -rf "$tmp"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          NODE_AUTH_TOKEN: ${{ github.token }}
+      - run: mise run test
 
-      # jq ships with the GitHub-hosted macOS image but is not guaranteed on a
-      # self-hosted pool, and `brew` itself may be absent there. Install only
-      # when jq is genuinely missing, and fail with a legible message rather
-      # than a `brew: command not found` if it cannot be provided.
-      - name: install jq
+  test-gate:
+    name: test-gate
+    needs: [tests-macos]
+    if: ${{ !cancelled() }}
+    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').small || fromJSON('["ubuntu-slim"]') }}
+    timeout-minutes: 30
+    steps:
+      - name: Require the macOS run
+        env:
+          MACOS_RESULT: ${{ needs.tests-macos.result }}
         run: |
-          set -euo pipefail
-          if command -v jq >/dev/null 2>&1; then
-            echo "jq already present: $(command -v jq)"
+          test "$MACOS_RESULT" = success || { echo "::error::tests / macos: $MACOS_RESULT"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          install: false
+      - name: Install the standards package, the tools and the dependencies
+        run: mise run setup
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+      - name: Run the Lifecycle Tasks this repository defines
+        run: |
+          if [ "$(mise exec -- printenv STANDARDS_TEST_GATE || true)" = off ]; then
+            echo "::notice::Test Gate Opt-out: STANDARDS_TEST_GATE = off in mise.toml"
             exit 0
           fi
-          if ! command -v brew >/dev/null 2>&1; then
-            echo "jq is missing and Homebrew is unavailable on this runner" >&2
-            exit 1
-          fi
-          brew install jq
-
-      - name: print tool versions
-        run: |
-          bash --version | head -1
-          node --version
-          jq --version
-          shellcheck --version | head -2
-
-      - id: test
-        name: run test suite
-        env:
-          RUBIO_TEST_GATE_COUNT_OUTPUT: ${{ runner.temp }}/test-gate-count
-        run: |
-          set -euo pipefail
-          rm -f "$RUBIO_TEST_GATE_COUNT_OUTPUT"
-          make test | tee "$RUNNER_TEMP/test-run.log"
-          awk '/^PASS: [0-9]+ tests/{print $2}' "$RUNNER_TEMP/test-run.log" > "$RUBIO_TEST_GATE_COUNT_OUTPUT"
-          test -s "$RUBIO_TEST_GATE_COUNT_OUTPUT"
-          test "$(cat "$RUBIO_TEST_GATE_COUNT_OUTPUT")" -gt 0
-          echo "tests_ran=true" >> "$GITHUB_OUTPUT"
-
-  aggregate:
-    name: test-gate
-    if: ${{ always() }}
-    needs: [tests-ubuntu, tests-macos]
-    runs-on: ${{ fromJSON(vars.RUNNERS || '{}').small || fromJSON('["ubuntu-slim"]') }}
-    timeout-minutes: 15
-    env:
-      NEEDS_JSON: ${{ toJSON(needs) }}
-    steps:
-      - name: Require successful non-empty test execution
-        run: >-
-          jq -e 'length > 0 and all(.[]; .result == "success" and
-          .outputs.tests_ran == "true")' <<<"$NEEDS_JSON"
+          for task in typecheck build test e2e; do
+            if ! mise tasks info "$task" >/dev/null 2>&1; then echo "no $task task"; continue; fi
+            rm -rf reports/test
+            echo "::group::mise run $task"
+            mise run "$task"
+            echo "::endgroup::"
+            case $task in test | e2e)
+              # reports/test/junit.xml, or one report per package in a monorepo.
+              if [ -z "$(find reports/test -name '*.xml' 2>/dev/null)" ]; then
+                echo "::error::$task wrote no JUnit report under reports/test/"
+                exit 1
+              fi
+              junit() { find reports/test -name '*.xml' -exec cat {} + | { grep -oE "$1" || true; } | wc -l; }
+              cases=$(junit '<testcase[ >]')
+              failed=$(junit '<(failure|error)[ >/]')
+              echo "$task: $cases test cases, $failed failures or errors"
+              if [ "$cases" -eq 0 ] || [ "$failed" -ne 0 ]; then
+                echo "::error::$task: the JUnit proof needs at least one test case and no failures"
+                exit 1
+              fi
+            esac
+          done

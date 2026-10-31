@@ -2,6 +2,11 @@
 TEST_NAMES=()
 TEST_FNS=()
 
+# Escapes a string for an XML attribute (sed, not ${//}: bash 5.2 expands & in replacements).
+xml_escape() {
+  printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
+}
+
 register_test() {
   TEST_NAMES+=("$1")
   TEST_FNS+=("$2")
@@ -12,6 +17,7 @@ run_all() {
   local passed=0
   local failed=0
   local failed_names=()
+  local cases=""
   local i
   for ((i = 0; i < total; i++)); do
     local name="${TEST_NAMES[$i]}"
@@ -32,13 +38,26 @@ run_all() {
     if ((rc == 0)); then
       passed=$((passed + 1))
       printf '[%d/%d] %s ... PASS\n' "$((i + 1))" "$total" "$name"
+      cases+="  <testcase classname=\"claude-lsps\" name=\"$(xml_escape "$name")\"/>"$'\n'
     else
       failed=$((failed + 1))
       failed_names+=("$name")
       printf '[%d/%d] %s ... FAIL (rc=%d)\n' "$((i + 1))" "$total" "$name" "$rc"
       sed 's/^/    /' "$log" || true
+      cases+="  <testcase classname=\"claude-lsps\" name=\"$(xml_escape "$name")\"><failure message=\"rc=$rc\"/></testcase>"$'\n'
     fi
   done
+
+  # JUnit report for the Test Gate, when JUNIT_REPORT names a file.
+  if [[ -n "${JUNIT_REPORT:-}" ]]; then
+    mkdir -p "$(dirname "$JUNIT_REPORT")"
+    {
+      printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+      printf '<testsuite name="claude-lsps" tests="%d" failures="%d">\n' "$total" "$failed"
+      printf '%s' "$cases"
+      printf '</testsuite>\n'
+    } >"$JUNIT_REPORT"
+  fi
 
   if ((failed == 0)); then
     printf 'PASS: %d tests, 0 failures\n' "$total"
