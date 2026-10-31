@@ -106,7 +106,14 @@ if [ "${CLAUDE_CODE_REMOTE:-}" = true ] && [ -z "${CLOUD_SETUP_BUILD:-}" ]; then
     warn 'CLAUDE_PROJECT_DIR must name this repository for cloud container startup'
     exit 1
   }
-  __standards_container_note="$(standards_cloud_container "$cloud_root")"
+  standards_require_cloud_ready "$cloud_root"
+  # A separate Bash keeps the helper fail-fast under this guarded assignment
+  if ! __standards_container_note="$(bash -euo pipefail -c \
+    'source "$1"; standards_cloud_container "$2"' _ "$script_dir/standards-pin.sh" "$cloud_root")"; then
+    standards_require_cloud_ready "$cloud_root"
+    warn 'Repository Image startup failed; retry SessionStart after resolving the container or registry error'
+    __standards_container_note='Repository Image unavailable. Retry SessionStart after resolving the container or registry error. Do not fall back to native host project commands.'
+  fi
   _standards_persist_path
   __standards_image_session=true
 fi
