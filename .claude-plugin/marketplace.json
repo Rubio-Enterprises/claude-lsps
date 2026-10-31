@@ -3,10 +3,7 @@
   "name": "claude-lsps",
   "metadata": {
     "description": "LSP plugins for Claude Code",
-    "version": "1.0.0",
-    "license": "MIT",
-    "repository": "https://github.com/Rubio-Enterprises/claude-lsps",
-    "homepage": "https://github.com/Rubio-Enterprises/claude-lsps"
+    "version": "1.0.0"
   },
   "owner": {
     "name": "strubio-ray"

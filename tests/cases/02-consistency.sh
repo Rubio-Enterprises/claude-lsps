@@ -140,7 +140,7 @@ tc_proxy_copies_identical() {
   return $rc
 }
 
-# Every hooks.json command must end in `bash ${CLAUDE_PLUGIN_ROOT}/hooks/<file>`
+# Every hooks.json command must end in `bash "${CLAUDE_PLUGIN_ROOT}/hooks/<file>"`
 # and that <file> must exist and be readable. Without this, a rename of
 # check-*.sh on disk would break production silently — there's no other test
 # that ties the hook entry back to the file.
@@ -156,9 +156,10 @@ tc_hooks_commands_point_to_existing_scripts() {
     local cmd
     while IFS= read -r cmd; do
       [[ -z "$cmd" ]] && continue
-      # Accept either "bash ${CLAUDE_PLUGIN_ROOT}/hooks/<file>" or just the path.
+      # Accept `bash "${CLAUDE_PLUGIN_ROOT}/hooks/<file>"` or just the path, quoted (a plugin root
+      # with spaces) or not.
       local rel
-      rel=$(printf '%s' "$cmd" | sed -E 's|^bash[[:space:]]+\$\{CLAUDE_PLUGIN_ROOT\}/||; s|^\$\{CLAUDE_PLUGIN_ROOT\}/||')
+      rel=$(printf '%s' "$cmd" | sed -E 's|^bash[[:space:]]+"?\$\{CLAUDE_PLUGIN_ROOT\}/||; s|^"?\$\{CLAUDE_PLUGIN_ROOT\}/||; s|^(hooks/[^"]*)"|\1|')
       if [[ "$rel" == "$cmd" || "$rel" != hooks/* ]]; then
         echo "$p hooks.json: command does not reference \${CLAUDE_PLUGIN_ROOT}/hooks/...: $cmd"
         rc=1
