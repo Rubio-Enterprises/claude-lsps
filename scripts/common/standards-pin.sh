@@ -119,14 +119,23 @@ standards_devcontainer_setup() {
   fi
 }
 
+standards_require_cloud_ready() {
+  local root="$1"
+  standards_restore_pin "$root" || return 1
+  if [ "${STANDARDS_PIN+x}" != x ]; then
+    standards_pin_error 'cloud SessionStart has no provisioned pin; re-paste the current web Setup wrapper, bump CACHE_EPOCH and rebuild the environment cache before retrying'
+    return 1
+  fi
+  standards_pin_valid "$STANDARDS_PIN" || return 1
+  standards_require_ready "$root" "$STANDARDS_PIN"
+}
+
 standards_cloud_container() (
   set -euo pipefail
   local root="$1" auth state image
   local cli=(devcontainer)
   [ "${CLAUDE_CODE_REMOTE:-}" = true ] || exit 0
-  standards_restore_pin "$root"
-  standards_pin_valid "${STANDARDS_PIN:-}"
-  standards_require_ready "$root" "$STANDARDS_PIN"
+  standards_require_cloud_ready "$root"
   if ! command -v devcontainer >/dev/null || [ "$(devcontainer --version)" != 0.89.0 ]; then
     cli=(mise exec npm:@devcontainers/cli@0.89.0 -- devcontainer)
   fi
@@ -170,7 +179,7 @@ standards_cloud_container() (
   printf '%s\n' '{"auths":{"ghcr.io":{}}}' >"$auth/config.json"
   unset GHCR_READ_TOKEN GHCR_USERNAME GH_PAT GH_TOKEN GITHUB_TOKEN
   export DOCKER_CONFIG="$auth"
-  local args=(--workspace-folder "$root" --remote-env "STANDARDS_PIN=$STANDARDS_PIN"
+  local args=(--workspace-folder "$root" --mount-git-worktree-common-dir --remote-env "STANDARDS_PIN=$STANDARDS_PIN"
     --remote-env CLAUDE_CODE_REMOTE=true)
   "${cli[@]}" read-configuration --workspace-folder "$root" --include-merged-configuration >/dev/null
   "${cli[@]}" up "${args[@]}" --skip-post-create --default-user-env-probe none >&2
@@ -180,7 +189,7 @@ standards_cloud_container() (
   "${cli[@]}" exec "${args[@]}" bash -c 'if [ -f scripts/repo-local/session-start-claude.sh ]; then bash scripts/repo-local/session-start-claude.sh >&2 || true; fi' >&2
   printf 'Repository Image ready. Edit the shared host checkout; run project commands with: '
   printf '%q ' "${cli[@]}"
-  printf 'exec --workspace-folder %q --remote-env STANDARDS_PIN=%s --remote-env CLAUDE_CODE_REMOTE=true mise run <task>. Do not fall back to native host project commands.\n' "$root" "$STANDARDS_PIN"
+  printf 'exec --workspace-folder %q --mount-git-worktree-common-dir --remote-env STANDARDS_PIN=%s --remote-env CLAUDE_CODE_REMOTE=true mise run <task>. Do not fall back to native host project commands.\n' "$root" "$STANDARDS_PIN"
 )
 
 standards_reader_git() {

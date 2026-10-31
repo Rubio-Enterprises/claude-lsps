@@ -32,6 +32,7 @@
 # Bump CACHE_EPOCH (e.g. 1 -> 2) and re-save this field to force an env-cache rebuild.
 CACHE_EPOCH=1
 export CACHE_EPOCH
+export CLOUD_SETUP_BUILD=1
 # PRIVATE GitHub dependencies: export the org's shared read-only fine-grained
 # PAT here (one org-wide token — the block is identical across consumers). The
 # "Environment variables" field reaches SESSIONS only, never this setup run
@@ -115,15 +116,30 @@ unset CDPATH
 repo_root="$(cd -- "$(dirname -- "$src")/../.." 2>/dev/null && pwd)"
 if [ -z "$repo_root" ] || ! cd -- "$repo_root"; then
   echo "cloud-setup: cannot resolve repo root from $src" >&2
-  [ "${1:-}" != --provision-standards ] && [ "${STANDARDS_PIN+x}" != x ] && exit 0
+  [ "${1:-}" != --provision-standards ] && [ "${STANDARDS_PIN+x}" != x ] &&
+    [ "${CLOUD_SETUP_BUILD:-}" != 1 ] && exit 0
   exit 1
 fi
+
+__ensure_jq() (
+  if command -v jq >/dev/null 2>&1; then exit 0; fi
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update && apt-get install -y --no-install-recommends jq
+)
 
 # Pin verification is mandatory; only dependency/cache warming below is best-effort.
 # shellcheck source=scripts/common/standards-pin.sh disable=SC1091
 source "$repo_root/scripts/common/standards-pin.sh" || exit 1
+# Frozen shims do not forward arguments from the web Setup wrapper
+if [ -z "${1:-}" ] && [ "${CLOUD_SETUP_BUILD:-}" = 1 ] && [ -z "${CLOUD_SETUP_SMOKE:-}" ]; then
+  set -- --provision-standards
+fi
 case "${1:-}" in
 --provision-standards)
+  if ! __ensure_jq; then
+    echo "cloud-setup: jq is required before trusted standards provisioning" >&2
+    exit 1
+  fi
   # A conditional call would disable errexit inside the provisioner subshell
   standards_provision_pin "$repo_root"
   provision_status=$?
@@ -224,29 +240,9 @@ if [ -z "$__smoke" ]; then
   esac
 fi
 
-# apt (root-only — cannot live in the portable hook), GUARDED: jq is the only
-# apt dependency — it parses the committed .claude/settings.json so the
-# credential helper and the marketplace pre-seed can be scoped per-repo — and
-# the cloud base image has shipped it for a while now (snapshot logs showed
-# the old "gh/jq install failed" line followed by a successfully SCOPED
-# helper, which requires jq). So apt here is a fallback for a base-image
-# regression, not a routine step: most rebuilds skip the slowest, flakiest
-# network dependency entirely. gh is dropped — it never installed
-# successfully in the cloud image, nothing in this setup uses it, and cloud
-# sessions use the built-in GitHub tools. Install jq before credentials and
-# bootstrap. Failure is non-fatal (a non-zero Setup script blocks the session):
-# credential registration and pre-seeding are skipped without widening auth.
-apt_pid=""
-if [ -z "$__smoke" ] && ! command -v jq >/dev/null 2>&1; then
-  (
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get update && apt-get install -y --no-install-recommends jq
-  ) &
-  apt_pid=$!
-fi
-
-if [ -n "$apt_pid" ]; then
-  wait "$apt_pid" || echo "cloud-setup: jq install failed (non-fatal; scoped credential helper and marketplace pre-seed skipped)" >&2
+# apt fallback remains best-effort for unmarked warming
+if [ -z "$__smoke" ]; then
+  __ensure_jq || echo "cloud-setup: jq install failed (non-fatal; scoped credential helper and marketplace pre-seed skipped)" >&2
 fi
 
 # --- Private-marketplace git credential helper (RUNTIME, repo-scoped) --------
