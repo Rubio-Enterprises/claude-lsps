@@ -1,0 +1,49 @@
+# This repository's tools and tasks. The Checks, their tool pins and the Conformance Tasks (check,
+# check:pr, fmt) come from @rubio-enterprises/standards, which `mise run setup` installs into
+# .standards/ and mise loads through .config/mise/conf.d/standards.toml.
+min_version = "2026.10.19"
+
+[env]
+# STANDARDS_VERSION = "1.4.2"  # Release Pin: hold this release while the latest breaks the repository; <issue link>
+# STANDARDS_TEST_GATE = "off"  # Opt-out of the Test Gate; <reason>
+
+[tools]
+node = "24.21.0"
+
+# The plugins' Node proxies have no npm dependencies; the Bash harness needs node, jq and
+# shellcheck, which mise provides.
+[tasks.test]
+description = "Run the test harness, with the JUnit report the Test Gate checks"
+run = "JUNIT_REPORT=reports/test/junit.xml bash tests/run.sh"
+
+[tasks.live-setup]
+description = "Install the LSP servers the live cases drive (they skip without them)"
+# The cue and regal installers fall back to ~/.local/bin and then check PATH.
+run = '''
+set -e
+export PATH="$HOME/.local/bin:$PATH"
+bash pyright/hooks/check-pyright.sh
+bash bash-language-server/hooks/check-bash-language-server.sh
+bash vtsls/hooks/check-vtsls.sh
+bash cue-lsp/hooks/check-cue.sh
+bash regal-lsp/hooks/check-regal.sh
+'''
+
+[tasks.setup]
+description = "Install the standards package, its tools and the git hooks, then every setup:* task"
+depends = ["standards:install"]
+# `mise install` only when something is missing: on a machine with many tracked configs a no-op
+# install still rebuilds every shim.
+run = ['test -z "$(mise ls --missing)" || mise install', "mise exec -- lefthook install"]
+# This repository's own setup steps (dependencies the Checks or Lifecycle Tasks need) are setup:*
+# tasks; none is fine.
+depends_post = [{ task = "setup:*", optional = true }]
+
+[tasks."standards:install"]
+description = "Install the latest Standards Release (or the STANDARDS_VERSION Release Pin) into .standards/"
+run = '''npm install --prefix .standards --no-save --prefer-online --fetch-retries=0 --no-audit --no-fund --ignore-scripts --loglevel=error "--@rubio-enterprises:registry=${STANDARDS_REGISTRY:-https://npm.pkg.github.com}" '--//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' "@rubio-enterprises/standards@${STANDARDS_VERSION:-latest}"'''
+
+# Lifecycle Tasks (test, typecheck, build, e2e) are this repository's own. `test` and `e2e` write
+# reports/test/junit.xml; the Test Gate runs each one that exists.
+[hooks]
+enter = "test -f .standards/node_modules/@rubio-enterprises/standards/mise/standards.toml || echo 'standards: not installed; run mise run setup' >&2"

@@ -126,22 +126,20 @@ Repository changes go through pull requests with a Conventional Commits title an
 Feedback, and known dependencies (screenshots when relevant). Use repository issues for questions
 and bug reports.
 
-On a fresh clone or worktree, provision the shared configuration first (mise 2026.10.19 or later):
+On a fresh clone or worktree, run setup first (mise 2026.10.19 or later):
 
 ```bash
-mise trust && mise bootstrap --only repos,tools --yes
-mise run setup
-mise run lint
+mise trust && mise run setup   # standards package, pinned tools, git hooks
+mise run check
 mise run test
 ```
 
-The native Config Stubs and hooks inherit from the gitignored `.standards-config/` checkout on the
-stable channel. The test gate runs the same harness through `make test`; both run
-`bash tests/run.sh`. The Dev Container runs bootstrap and setup on create. The harness requires
-Node.js, Bash, jq, and ShellCheck; live-server cases skip when their binaries are absent, and
-`mise run live-setup` installs them with each plugin's installer. The shared `mise run build` and
-`mise run typecheck` tasks delegate to npm, but this marketplace has no `package.json`. Commit
-hooks also format and check staged Markdown.
+`mise run setup` installs `@rubio-enterprises/standards` from GitHub Packages into the gitignored
+`.standards/` (export `NODE_AUTH_TOKEN`, for example `"$(gh auth token)"`, first). `mise run test`
+runs `bash tests/run.sh` and writes the JUnit report the Test Gate checks (Linux and macOS);
+`make test` runs the same harness. The harness requires Node.js, Bash, jq, and ShellCheck, which
+mise provides; live-server cases skip when their binaries are absent, and `mise run live-setup`
+installs them with each plugin's installer. Commit hooks also format and check staged Markdown.
 
 ## License
 

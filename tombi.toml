@@ -1,1 +1,4 @@
-.standards-config/config/tombi.toml
+# Tombi settings (from @rubio-enterprises/standards; Tombi cannot extend a shared file).
+# No schema-driven key/array sorting or network-dependent formatting.
+[schema]
+enabled = false

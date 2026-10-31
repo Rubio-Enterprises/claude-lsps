@@ -1,12 +1,5 @@
-# Canonical treefmt bridge for the native config model (ADR-0033). Copied
-# verbatim into each repository root; repositories never edit it.
-#
-# treefmt is not a Fixer registry: Lefthook's `fixers` job is. This file only
-# lets coding agents (pi-autoformat's treefmt dispatcher) and `treefmt <paths>`
-# format exactly as the pre-commit hook does. treefmt resolves the tree root
-# and hands root-relative paths to Lefthook, whose exclusions are anchored
-# there. Without the shared hook files Lefthook would find no Fixers and pass,
-# so the bridge fails first.
+# treefmt bridge (from @rubio-enterprises/standards): lets coding agents and `treefmt <paths>`
+# format exactly as the pre-commit Fixers do, by handing the paths to Lefthook.
 tree-root-file = "treefmt.toml"
 on-unmatched = "debug"
 
@@ -15,8 +8,8 @@ command = "sh"
 options = [
   "-c",
   '''
-test -f .standards-config/config/lefthook/base.yml || { echo "treefmt: shared config missing: run mise bootstrap --only repos,tools" >&2; exit 1; }
-printf '%s\0' "$@" | mise exec -- lefthook run pre-commit --job fixers --no-stage-fixed --no-fail-on-changes --no-auto-install --files-from-stdin
+test -f .standards/node_modules/@rubio-enterprises/standards/lefthook/standards.yml || { echo "treefmt: @rubio-enterprises/standards is not installed: run mise run setup" >&2; exit 1; }
+printf '%s\0' "$@" | mise exec -- lefthook run pre-commit --tag fixer --no-stage-fixed --no-fail-on-changes --no-auto-install --files-from-stdin
 ''',
   "--",
 ]

@@ -1,9 +1,8 @@
 {
   "name": "claude-lsps",
   "image": "ghcr.io/rubio-enterprises/claude-lsps/devcontainer:main",
-  "updateContentCommand": "bash -c 'source scripts/common/standards-pin.sh && standards_devcontainer_setup \"$PWD\" --check-only && exec \"$@\"' standards-lifecycle bash -c 'mise run setup'",
-  "containerEnv": {
-    "STANDARDS_DEVCONTAINER": "1"
-  },
-  "onCreateCommand": "bash -c 'source scripts/common/standards-pin.sh && standards_devcontainer_setup \"$PWD\" --check-only'"
+  "onCreateCommand": "mise run setup",
+  "remoteEnv": {
+    "NODE_AUTH_TOKEN": "${localEnv:NODE_AUTH_TOKEN}"
+  }
 }

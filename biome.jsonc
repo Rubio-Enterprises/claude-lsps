@@ -1,17 +1,7 @@
-// biome.jsonc — Config Stub (ADR-0033).
-// Extends the shared Biome floor in the Shared Config Directory; a missing
-// parent is a configuration error, never a fallback to defaults.
-//
-// Repository settings go below in Biome's own syntax. Objects merge and the
-// later value wins; `files.includes` and `overrides` add to the shared lists,
-// but a rule-option array (for example `noConsole.options.allow`) replaces
-// the shared one, so restate the shared entries you keep.
+// Biome settings. The shared ones come from @rubio-enterprises/standards; add this repository's
+// own below. A key set here wins over the shared one.
 {
-  "extends": [
-    "./.standards-config/config/biome.jsonc",
-    "./.standards-config/config/biome-native.jsonc",
-    "./.standards-config/config/biome-codewiki.jsonc"
-  ],
+  "extends": ["./.standards/node_modules/@rubio-enterprises/standards/config/biome.jsonc"],
   "linter": {
     "rules": {
       "complexity": {

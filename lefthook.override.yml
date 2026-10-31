@@ -1,0 +1,21 @@
+# Patches to the @rubio-enterprises/standards Checks, loaded after the shared file so its fields win
+# (an Exclusion). Name a shared job and set only the fields to change; a list you set replaces the
+# shared list; a `run` you set wins over the shared command in every later release. Fixers are
+# patched inside the `fixers` group. Globs use doublestar (`**/` = zero or more directories).
+# For example:
+#
+#   pre-commit:
+#     exclude_tags: [rubocop]   # the upstream Ruby scripts are not ours; <issue link>
+#     jobs:
+#       - name: fixers
+#         group:
+#           jobs:
+#             - name: biome
+#               glob: "**/*.{json,jsonc}"   # this repository formats JS/TS with its own tools
+#
+# No Check validates this file: confirm a patch with `lefthook dump`.
+
+pre-commit:
+  # The deliberately malformed LSP fixtures are test data, not shell, YAML or JSON source.
+  exclude:
+    - "tests/fixtures/**"

@@ -1,6 +1,6 @@
 # Agent context
 
-This repo follows Rubio-Enterprises standards. Run `/audit-standards` from a Claude Code session to check conformance, or `/onboard-repo` for greenfield setup.
+This repo follows the Rubio-Enterprises standards from `@rubio-enterprises/standards`: run `mise run setup` once per clone, `mise run check` before committing (`mise run fmt` applies the Fixers), and `mise run test` for the tests.
 
 Repo-specific context (in-progress migrations, gotchas, agent guidance):
 
@@ -8,26 +8,24 @@ Repo-specific context (in-progress migrations, gotchas, agent guidance):
 
 A Claude Code plugin **marketplace** that ships five LSP plugins (`bash-language-server`, `cue-lsp`, `pyright`, `regal-lsp`, `vtsls`). There is no application to build — the "product" is the directory tree itself, consumed by Claude Code via `.claude-plugin/marketplace.json`.
 
-Tool configs and hooks inherit from the gitignored Shared Config Directory at
-`.standards-config/`, following main. Repository exceptions live in the Config
-Stubs and `lefthook-local.yml`; repository tasks live in `.mise.local.toml`. There is no
-`package.json`: the Node proxies have no npm dependencies.
+Tool configs and hooks come from `@rubio-enterprises/standards`, installed into the gitignored
+`.standards/`. Repository exceptions live in `lefthook.override.yml`; repository tasks live in
+`mise.toml`. There is no `package.json`: the Node proxies have no npm dependencies.
 
 ## Test commands
 
-The whole suite is a single bash entry point (`mise run test` and the test gate's `make test` both
-run it):
+The whole suite is a single bash entry point (`mise run test`, which adds the JUnit report, and
+`make test` both run it):
 
 ```bash
 bash tests/run.sh
 ```
 
-On a fresh clone or worktree, run `mise trust && mise bootstrap --only repos,tools --yes` before
-`mise run setup`; the shared tasks and hooks fail without `.standards-config/`. The Dev Container
-runs bootstrap and setup on create. The live cases in `08-live.sh` skip without their LSP servers;
+On a fresh clone or worktree, run `mise trust && mise run setup` first. The Dev Container runs
+setup on create. The live cases in `08-live.sh` skip without their LSP servers;
 `mise run live-setup` installs them.
 
-Required tools (the runner aborts if any are missing): `node`, `bash`, `jq`, `shellcheck`. CI pins `shellcheck v0.10.0` and Node `22.11.0` — match these locally if you hit a green-locally / red-in-CI mismatch.
+Required tools (the runner aborts if any are missing): `node`, `bash`, `jq`, `shellcheck`. mise pins Node and ShellCheck (`mise.toml` and the standards package) for local runs and CI alike.
 
 Running a **single test** is not first-class. Two reliable options:
 
@@ -52,7 +50,7 @@ Every plugin directory follows the same shape:
   proxy.json                   # per-plugin proxy config (server cmd, blocked, warmup, sync)
 ```
 
-`.lsp.json` paths to in-repo files MUST use `${CLAUDE_PLUGIN_ROOT}/...` — `tests/cases/02-consistency.sh::tc_lsp_paths_are_safe` rejects absolute paths and any other variable. Same constraint applies to `hooks/hooks.json` command strings.
+`.lsp.json` paths to in-repo files MUST use `${CLAUDE_PLUGIN_ROOT}/...` — `tests/cases/02-consistency.sh::tc_lsp_paths_are_safe` rejects absolute paths and any other variable. Same constraint applies to each plugin's `<plugin>/hooks/hooks.json` command strings.
 
 ### The unified proxy (standard wrapper)
 
@@ -129,7 +127,7 @@ The harness **sources** case files into `run.sh` (doesn't exec them), so a synta
 
 ## Adding a new plugin
 
-1. Create `<plugin>/.claude-plugin/plugin.json`, `.lsp.json`, `hooks/hooks.json`, `hooks/check-<binary>.sh` matching the patterns above.
+1. Create `<plugin>/.claude-plugin/plugin.json`, `<plugin>/.lsp.json`, `<plugin>/hooks/hooks.json`, `<plugin>/hooks/check-<binary>.sh` matching the patterns above.
 2. Copy the unified proxy from any existing plugin (`cp pyright/lsp-proxy.js <plugin>/lsp-proxy.js` — the identity test rejects anything else) and write a `proxy.json`: `server` = the real server command, `blocked` = methods the server `-32601`s (empty array if none), plus `warmup` if the server defers indexing until first-open. `.lsp.json` invokes `node ${CLAUDE_PLUGIN_ROOT}/lsp-proxy.js --config ${CLAUDE_PLUGIN_ROOT}/proxy.json`.
 3. Add an entry to `.claude-plugin/marketplace.json` (`source: "./<plugin>"`, `name`, `version`, `description`, `category`, `tags`, `author.name`).
 4. Run `bash tests/run.sh` — every cross-file invariant test self-extends to the new plugin, but per-plugin behavior tests in `04-installer-behavior.sh` and `05-installer-concurrency.sh` are explicitly registered. Add new `tc_install_*` cases there matching the install strategy (brew / npm / binary).
