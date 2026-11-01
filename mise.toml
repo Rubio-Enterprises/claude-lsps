@@ -8,7 +8,7 @@ min_version = "2026.10.19"
 # STANDARDS_TEST_GATE = "off"  # Opt-out of the Test Gate; <reason>
 
 [tools]
-node = "24.21.0"
+node = "24.22.1"
 
 # The plugins' Node proxies have no npm dependencies; the Bash harness needs node, jq and
 # shellcheck, which mise provides.
