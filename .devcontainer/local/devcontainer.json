@@ -1,0 +1,13 @@
+{
+  "name": "claude-lsps",
+  "onCreateCommand": "mise run setup",
+  "remoteEnv": {
+    "NODE_AUTH_TOKEN": "${localEnv:NODE_AUTH_TOKEN}"
+  },
+  "build": {
+    "dockerfile": "../../.standards/node_modules/@rubio-enterprises/standards/image/Dockerfile",
+    "context": "../..",
+    "target": "local"
+  },
+  "features": {}
+}
